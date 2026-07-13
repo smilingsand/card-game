@@ -1,0 +1,51 @@
+# Dependencies and package-manager caches
+**/node_modules/
+.pnpm-store/
+.npm/
+.yarn/
+
+# Generated application artifacts
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+backend/dist/
+backend/coverage/
+**/*.tsbuildinfo
+
+# Test and diagnostic output
+coverage/
+test-results/
+playwright-report/
+blob-report/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local configuration and secrets (commit examples only)
+.env
+.env.*
+!.env.example
+!.env.*.example
+**/.vercel/
+
+# Local runtime data and disposable work
+temp/
+*.bak
+*.sqlite
+*.sqlite-*
+*.db
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
+
+# Local Codex state; project documentation in proj-info/ is intentionally tracked
+.codex/
+task_plan.md
+findings.md
+progress.md
