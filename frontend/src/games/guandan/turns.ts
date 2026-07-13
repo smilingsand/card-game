@@ -1,7 +1,8 @@
 import { canFollow } from "./comparison";
 import type { PatternInterpretation } from "./patterns";
 import type { Seat } from "../../platform/types";
-const ORDER: readonly Seat[] = ["east", "south", "west", "north"];
+/** 冻结规则：东家起，按逆时针东→北→西→南响应。 */
+const ORDER: readonly Seat[] = ["east", "north", "west", "south"];
 export interface TurnState {
   readonly hands: Readonly<Record<Seat, readonly string[]>>;
   readonly current: Seat;

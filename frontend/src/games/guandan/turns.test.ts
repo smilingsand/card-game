@@ -25,17 +25,36 @@ test("典型出牌、跟牌和全过清轮", () => {
   if (!r.ok) return;
   s = r.state;
   expect(s.finished).toEqual(["east"]);
-  r = applyAction(s, { type: "play", actor: "south", cardIds: ["s"], interpretation: p(4, "s") });
+  r = applyAction(s, { type: "play", actor: "north", cardIds: ["n"], interpretation: p(4, "n") });
   if (!r.ok) return;
   s = r.state;
   r = applyAction(s, { type: "pass", actor: "west" });
   if (!r.ok) return;
   s = r.state;
-  r = applyAction(s, { type: "pass", actor: "north" });
+  r = applyAction(s, { type: "pass", actor: "south" });
   expect(r).toMatchObject({
     ok: true,
-    state: { leader: "north", current: "north", highest: undefined }
+    state: { leader: "south", current: "south", highest: undefined }
   });
+});
+
+test("座位按逆时针东到北到西到南轮转", () => {
+  let s = state({ east: ["e"], south: ["s"], west: ["w"], north: ["n"] });
+  let r = applyAction(s, {
+    type: "play",
+    actor: "east",
+    cardIds: ["e"],
+    interpretation: p(3, "e")
+  });
+  expect(r).toMatchObject({ ok: true, state: { current: "north" } });
+  if (!r.ok) return;
+  s = r.state;
+  r = applyAction(s, { type: "pass", actor: "north" });
+  expect(r).toMatchObject({ ok: true, state: { current: "west" } });
+  if (!r.ok) return;
+  s = r.state;
+  r = applyAction(s, { type: "pass", actor: "west" });
+  expect(r).toMatchObject({ ok: true, state: { current: "south" } });
 });
 test("末手出完且其余可行动者全过时对家接风，完成者不能行动", () => {
   let s = state({ east: ["e"], south: ["s"], west: ["w"], north: ["n"] });
@@ -87,6 +106,6 @@ test("已出完领出者及其对家均不可接风时，清轮跳过完成座�
 
   expect(applyAction(s, { type: "pass", actor: "north" })).toMatchObject({
     ok: true,
-    state: { leader: "north", current: "north", highest: undefined }
+    state: { leader: "south", current: "south", highest: undefined }
   });
 });

@@ -48,7 +48,7 @@ export function settleSingleTribute(
 ) {
   if (!canReturnTribute(returned.rank, level)) throw new Error("invalid return tribute");
   return {
-    nextLeader: { east: "south", south: "west", west: "north", north: "east" }[loser] as Seat,
+    nextLeader: { east: "north", north: "west", west: "south", south: "east" }[loser] as Seat,
     events: [
       {
         sequence: 0,
@@ -72,7 +72,7 @@ export function settleDoubleTribute(
   const high = tributes[0].value >= tributes[1].value ? 0 : 1;
   return {
     nextLeader: tie
-      ? ({ east: "south", south: "west", west: "north", north: "east" }[head] as Seat)
+      ? ({ east: "north", north: "west", west: "south", south: "east" }[head] as Seat)
       : losers[high],
     events: [
       {
@@ -96,7 +96,7 @@ export function settleRound(input: SettlementInput): Settlement {
   const delta = double ? 3 : partner(input.finish[0]) === input.finish[2] ? 2 : 1;
   const index = Math.min(levels.indexOf(input.level) + delta, levels.length - 1);
   const next = input.doubleTributeTie
-    ? ({ east: "south", south: "west", west: "north", north: "east" }[input.finish[0]] as Seat)
+    ? ({ east: "north", north: "west", west: "south", south: "east" }[input.finish[0]] as Seat)
     : input.finish[0];
   return {
     rulesVersion: "guandan-v1",

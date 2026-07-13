@@ -19,10 +19,15 @@ import {
   type TableSave,
   type TableSession
 } from "./games/guandan/table-session";
-import { moveHumanDisplayCard, reconcileHumanDisplayOrder } from "./games/guandan/display-order";
+import {
+  moveHumanDisplayCard,
+  reconcileHumanDisplayOrder,
+  sortHumanDisplayCards
+} from "./games/guandan/display-order";
 import type { TurnAction } from "./games/guandan/turns";
 
 const HUMAN_SEAT: Seat = "south";
+type BotSeat = "east" | "north" | "west";
 const seatName: Record<Seat, string> = {
   east: "东家（机器人）",
   south: "你（南家）",
@@ -55,6 +60,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   const [storageReady, setStorageReady] = useState(false);
   const [saveBlocked, setSaveBlocked] = useState(false);
   const [draggingCardId, setDraggingCardId] = useState<string>();
+  const [showAllHands, setShowAllHands] = useState(false);
   const game: TableGame = session.game;
 
   useEffect(() => {
@@ -120,6 +126,9 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
             action?.type === "play" && action.actor === game.state.highestSeat
         )
     : undefined;
+  const revealedHand = (seat: BotSeat) =>
+    sortHumanDisplayCards(game.state.hands[seat], game.cardsById, "2");
+  const publicPlay = (seat: Seat) => (highestPlay?.actor === seat ? highestPlay : undefined);
 
   const submit = (action: ReturnType<typeof getLegalSingleActions>[number]) => {
     const result = applyTableSessionAction(session, action);
@@ -204,6 +213,13 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         <button type="button" onClick={clearSave}>
           清除存档
         </button>
+        <button
+          type="button"
+          aria-pressed={showAllHands}
+          onClick={() => setShowAllHands((shown) => !shown)}
+        >
+          明牌
+        </button>
       </header>
       {game.state.completed ? (
         <section aria-label="对局结算">
@@ -221,10 +237,48 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         <section className="seat north" aria-label="北家座位">
           <strong>{seatName.north}</strong>
           <span>剩余 {game.state.hands.north.length} 张</span>
+          {showAllHands ? (
+            <span className="revealed-hand" aria-label="北家明牌">
+              {revealedHand("north")
+                .map((cardId) => game.cardsById.get(cardId))
+                .filter((card) => card !== undefined)
+                .map((card) => formatCard(card))
+                .join("、")}
+            </span>
+          ) : null}
+          {publicPlay("north") ? (
+            <span className="public-play" aria-label="北家当前出牌">
+              当前出牌：
+              {publicPlay("north")!
+                .cardIds.map((cardId) => game.cardsById.get(cardId))
+                .filter((card) => card !== undefined)
+                .map((card) => formatCard(card))
+                .join("、")}
+            </span>
+          ) : null}
         </section>
         <section className="seat east" aria-label="东家座位">
           <strong>{seatName.east}</strong>
           <span>剩余 {game.state.hands.east.length} 张</span>
+          {showAllHands ? (
+            <span className="revealed-hand" aria-label="东家明牌">
+              {revealedHand("east")
+                .map((cardId) => game.cardsById.get(cardId))
+                .filter((card) => card !== undefined)
+                .map((card) => formatCard(card))
+                .join("、")}
+            </span>
+          ) : null}
+          {publicPlay("east") ? (
+            <span className="public-play" aria-label="东家当前出牌">
+              当前出牌：
+              {publicPlay("east")!
+                .cardIds.map((cardId) => game.cardsById.get(cardId))
+                .filter((card) => card !== undefined)
+                .map((card) => formatCard(card))
+                .join("、")}
+            </span>
+          ) : null}
         </section>
         <section className="table-info" aria-label="桌面信息">
           <p>轮到：{seatName[game.state.current]}</p>
@@ -233,26 +287,45 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
               ? `当前牌由${seatName[game.state.highestSeat]}压住。`
               : "当前为领出。"}
           </p>
-          {highestPlay?.type === "play" ? (
-            <p aria-label="当前最高出牌">
-              当前最高出牌：
-              {highestPlay.cardIds
-                .map((cardId) => game.cardsById.get(cardId))
-                .filter((card) => card !== undefined)
-                .map((card) => formatCard(card))
-                .join("、")}
-            </p>
-          ) : null}
         </section>
         <section className="seat west" aria-label="西家座位">
           <strong>{seatName.west}</strong>
           <span>剩余 {game.state.hands.west.length} 张</span>
+          {showAllHands ? (
+            <span className="revealed-hand" aria-label="西家明牌">
+              {revealedHand("west")
+                .map((cardId) => game.cardsById.get(cardId))
+                .filter((card) => card !== undefined)
+                .map((card) => formatCard(card))
+                .join("、")}
+            </span>
+          ) : null}
+          {publicPlay("west") ? (
+            <span className="public-play" aria-label="西家当前出牌">
+              当前出牌：
+              {publicPlay("west")!
+                .cardIds.map((cardId) => game.cardsById.get(cardId))
+                .filter((card) => card !== undefined)
+                .map((card) => formatCard(card))
+                .join("、")}
+            </span>
+          ) : null}
         </section>
       </section>
       <p role="status">{message}</p>
       {game.state.completed ? null : (
         <section className="human-seat" aria-label="你的手牌">
           <h2>你的手牌（{hand.length}）</h2>
+          {publicPlay(HUMAN_SEAT) ? (
+            <p className="public-play" aria-label="南家当前出牌">
+              当前出牌：
+              {publicPlay(HUMAN_SEAT)!
+                .cardIds.map((cardId) => game.cardsById.get(cardId))
+                .filter((card) => card !== undefined)
+                .map((card) => formatCard(card))
+                .join("、")}
+            </p>
+          ) : null}
           <p id="hand-arrangement-help">
             已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
           </p>

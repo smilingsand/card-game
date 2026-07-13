@@ -40,7 +40,7 @@ test("抗贡输出可重放事件和下一局首出", () => {
 test("双下同点由头游下家先出，抗贡必须给出两张大王证明", () => {
   expect(
     settleRound({ level: "2", finish: ["east", "west", "south", "north"], doubleTributeTie: true })
-  ).toMatchObject({ nextLeader: "south" });
+  ).toMatchObject({ nextLeader: "north" });
   expect(() =>
     settleRound({
       level: "2",
@@ -59,7 +59,7 @@ test("单下进贡和还贡产生可重放事件并由末游下家首出", () =>
   expect(
     settleSingleTribute("2", "east", "north", { id: "t", rank: "A" }, { id: "r", rank: "10" })
   ).toMatchObject({
-    nextLeader: "east",
+    nextLeader: "west",
     events: [
       {
         sequence: 0,
@@ -105,7 +105,7 @@ test("双下较大贡牌者先出，同点由头游下家先出", () => {
         { id: "r2", rank: "9" }
       ]
     )
-  ).toMatchObject({ nextLeader: "south" });
+  ).toMatchObject({ nextLeader: "north" });
 });
 test("下一局初始化保留规则版本、等级、首出和重放事件", () => {
   expect(initializeNextRound("J", "south")).toMatchObject({

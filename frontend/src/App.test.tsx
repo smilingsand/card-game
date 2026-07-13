@@ -66,7 +66,55 @@ describe("App", () => {
     expect(screen.getByLabelText("你的手牌")).toHaveTextContent("你的手牌（27）");
     await waitFor(() => expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument());
     expect(screen.getByLabelText("东家座位")).toHaveTextContent("剩余 26 张");
-    expect(screen.getByLabelText("当前最高出牌")).toHaveTextContent(/^当前最高出牌：/);
+    expect(screen.getByLabelText(/当前出牌$/)).toHaveTextContent("当前出牌：");
+  });
+
+  it("将本轮当前最高公开出牌贴近对应座位，并在清轮后移除", async () => {
+    const initial = createTableSession(73);
+    const opening = getLegalSingleActions(initial.game).find((action) => action.type === "play");
+    if (!opening || opening.type !== "play") throw new Error("expected opening play");
+    const afterOpening = applyTableSessionAction(initial, opening);
+    if (!afterOpening.ok) throw new Error("expected opening play to apply");
+    render(<App storage={memoryStorage(serializeTableSession(afterOpening.session))} />);
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("已继续上次未完成的对局。")
+    );
+    expect(screen.getByLabelText("东家座位")).toHaveTextContent("当前出牌：");
+    expect(screen.queryByLabelText("北家当前出牌")).not.toBeInTheDocument();
+
+    const afterNorth = applyTableSessionAction(afterOpening.session, {
+      type: "pass",
+      actor: "north"
+    });
+    if (!afterNorth.ok) throw new Error("expected north pass");
+    const afterWest = applyTableSessionAction(afterNorth.session, { type: "pass", actor: "west" });
+    if (!afterWest.ok) throw new Error("expected west pass");
+    const cleared = applyTableSessionAction(afterWest.session, { type: "pass", actor: "south" });
+    if (!cleared.ok) throw new Error("expected south pass");
+    expect(cleared.state.highestSeat).toBeUndefined();
+  });
+
+  it("默认隐藏其他三家手牌，明牌开关仅在组件内显示整理后的完整手牌", async () => {
+    const initial = createTableSession(73);
+    const opening = getLegalSingleActions(initial.game).find((action) => action.type === "play");
+    if (!opening || opening.type !== "play") throw new Error("expected opening play");
+    const result = applyTableSessionAction(initial, opening);
+    if (!result.ok) throw new Error("expected opening play to apply");
+    const session = result.session;
+    const storage = memoryStorage(serializeTableSession(session));
+    render(<App storage={storage} />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("已继续上次未完成的对局。")
+    );
+    expect(screen.getByRole("button", { name: "明牌" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByLabelText("东家明牌")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "明牌" }));
+    expect(screen.getByRole("button", { name: "明牌" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByLabelText("东家明牌").textContent?.split("、")).toHaveLength(26);
+
+    fireEvent.click(screen.getByRole("button", { name: "明牌" }));
+    expect(screen.queryByLabelText("东家明牌")).not.toBeInTheDocument();
   });
 
   it("人类可仅用提示、出牌和过牌完成一局", async () => {
@@ -168,6 +216,7 @@ describe("App", () => {
       expect(within(hand).getAllByRole("button", { name: /^选择/ })[0]).toBe(last)
     );
 
+    await waitFor(() => expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument());
     fireEvent.click(last);
     expect(last).toHaveAttribute("aria-pressed", "true");
     firstRender.unmount();

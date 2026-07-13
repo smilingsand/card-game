@@ -23,6 +23,15 @@
   text-align: center;
 }
 
+.public-play {
+  font-weight: 700;
+}
+
+.revealed-hand {
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+
 .north {
   grid-area: north;
 }

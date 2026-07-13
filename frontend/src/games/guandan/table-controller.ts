@@ -44,28 +44,53 @@ export function createTableGame(seed = 0): TableGame {
   };
 }
 
-function singleCardCandidates(game: TableGame): readonly TurnAction[] {
-  return game.state.hands[game.state.current].flatMap((cardId) => {
-    const card = game.cardsById.get(cardId);
-    if (!card) return [];
-    const recognition = recognizePatterns([card], LEVEL_RANK);
+function combinations<T>(items: readonly T[], size: number): readonly (readonly T[])[] {
+  const result: T[][] = [];
+  const visit = (start: number, selected: T[]): void => {
+    if (selected.length === size) {
+      result.push(selected);
+      return;
+    }
+    for (let index = start; index <= items.length - (size - selected.length); index += 1)
+      visit(index + 1, [...selected, items[index]]);
+  };
+  visit(0, []);
+  return result;
+}
+
+function botCardCandidates(game: TableGame): readonly (readonly Card[])[] {
+  const hand = game.state.hands[game.state.current]
+    .map((cardId) => game.cardsById.get(cardId))
+    .filter((card): card is Card => card !== undefined);
+  const size = game.state.highest?.cardIds.length ?? 1;
+  return size === 1 ? hand.map((card) => [card]) : combinations(hand, size);
+}
+
+/**
+ * 机器人候选只来源于自己的手牌，并先通过规则引擎筛选。
+ * 领出时保留基础策略的单张；跟牌时枚举与当前牌张数相同的组合，
+ * 因而能覆盖对子、三张、三带二等非单张同牌型压制。
+ */
+export function getLegalBotActions(game: TableGame): readonly TurnAction[] {
+  const plays = botCardCandidates(game).flatMap((cards) => {
+    const recognition = recognizePatterns(cards, LEVEL_RANK);
     if (!recognition.ok) return [];
     return recognition.interpretations.map((interpretation) => ({
       type: "play" as const,
       actor: game.state.current,
-      cardIds: [cardId],
+      cardIds: cards.map((card) => card.id),
       interpretation
     }));
   });
-}
-
-export function getLegalSingleActions(game: TableGame): readonly TurnAction[] {
   const candidates: TurnAction[] = [
-    ...singleCardCandidates(game),
+    ...plays,
     ...(game.state.highest ? [{ type: "pass" as const, actor: game.state.current }] : [])
   ];
   return getLegalActions(game.state, candidates);
 }
+
+/** @deprecated P1-15E 起机器人会枚举可跟的非单张牌型；保留旧导出供调用方平滑迁移。 */
+export const getLegalSingleActions = getLegalBotActions;
 
 /** 牌型识别和跟牌合法性均委托规则引擎；UI 仅传递所选实体牌 ID。 */
 export function getSelectedPlayActions(
@@ -96,7 +121,7 @@ export function submitTableAction(game: TableGame, action: TurnAction): TurnResu
 }
 
 export function chooseTableBotAction(game: TableGame): TurnAction | undefined {
-  const legalActions = getLegalSingleActions(game);
+  const legalActions = getLegalBotActions(game);
   return chooseBasicBotAction(
     createBotView({
       selfSeat: game.state.current,

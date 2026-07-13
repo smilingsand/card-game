@@ -82,17 +82,17 @@ describe("牌桌事件存档", () => {
     if (!opening) throw new Error("expected opening play");
     const afterOpening = applyTableSessionAction(initial, opening);
     if (!afterOpening.ok) throw new Error("expected legal opening play");
-    const afterSouth = applyTableSessionAction(afterOpening.session, {
+    const afterNorth = applyTableSessionAction(afterOpening.session, {
       type: "pass",
-      actor: "south"
+      actor: "north"
     });
-    if (!afterSouth.ok) throw new Error("expected south pass");
-    const afterWest = applyTableSessionAction(afterSouth.session, {
+    if (!afterNorth.ok) throw new Error("expected north pass");
+    const afterWest = applyTableSessionAction(afterNorth.session, {
       type: "pass",
       actor: "west"
     });
     if (!afterWest.ok) throw new Error("expected west pass");
-    const cleared = applyTableSessionAction(afterWest.session, { type: "pass", actor: "north" });
+    const cleared = applyTableSessionAction(afterWest.session, { type: "pass", actor: "south" });
 
     expect(cleared).toMatchObject({ ok: true, state: { current: "east", highest: undefined } });
   });
