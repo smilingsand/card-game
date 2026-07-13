@@ -4,6 +4,7 @@
 | --- | --- | --- |
 | P1-01 | accepted | 前端工程与质量门禁已初始化并完成本地验收。 |
 | P1-02 | accepted | 公共平台类型已完成并通过主验收。 |
+| P1-03 | accepted | 确定性洗牌、四人发牌与牌组守恒校验已完成并通过主验收。 |
 
 ## P1-01 执行记录
 
@@ -18,3 +19,9 @@
 - 2026-07-13：新增零 import 的 `src/platform/types.ts`，提供 Card、Suit、Rank、Seat、Team、Player、Action 与 Event 公共类型。
 - 2026-07-13：Seat 使用 `east | south | west | north`，可直接表达已冻结的“东家首出”规则；Card 使用必填的物理唯一 ID。
 - 2026-07-13：主验收通过 `npm.cmd run format:check --prefix frontend`、`npm.cmd run typecheck --prefix frontend`、`npm.cmd run lint --prefix frontend`、`npm.cmd run test:run --prefix frontend`（2 个测试文件、3 个测试）。
+
+## P1-03 执行记录
+
+- 2026-07-13：ADR-0002 固化无符号 32 位 seed、Mulberry32、Fisher-Yates、`east → south → west → north` 轮发顺序与实体牌 ID 格式。
+- 2026-07-13：主验收通过 `npm.cmd run format:check --prefix frontend`、`npm.cmd run typecheck --prefix frontend`、`npm.cmd run lint --prefix frontend`、`npm.cmd run test:run --prefix frontend`（3 个测试文件、7 个测试）。
+- 2026-07-13：固定 seed 可重放；10,000 个伪随机 seed 的双副牌发牌均验证为 108 张唯一实体牌且每家 27 张。
