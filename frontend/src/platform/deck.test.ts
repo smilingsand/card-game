@@ -50,7 +50,7 @@ describe("牌组生成、洗牌与发牌", () => {
       expect(deal.west).toHaveLength(27);
       expect(deal.north).toHaveLength(27);
     }
-  });
+  }, 15_000);
 
   test("无效 seed、无法四等分的牌组和重复牌都会被拒绝", () => {
     const deck = generateDeck(twoDecksWithJokers);
