@@ -24,7 +24,7 @@
 | P1-11 | P1-10                                           | 初级机器人启发式：最小代价压制、少拆组合、不随意压队友、尾盘拦截。                            | 固定策略局面。                            | 选择动作均合法、确定、在规定思考时限内。                                            | accepted    |
 | P1-12 | P1-09, P1-11                                    | 自动对局模拟器、异常不变量与 seed 失败复现。                                                  | 1,000 局；记录首个失败 seed。             | 0 非法动作、死循环、重复牌、负牌数或无法结算。                                      | accepted |
 | P1-13 | P1-08                                           | 桌面牌桌、选牌、排序、出牌/过牌/提示、错误提示和规则入口。                                    | 浏览器组件/E2E 冒烟。                     | 人类可完成一局；UI 不含规则判断副本。                                               | accepted |
-| P1-14 | P1-04, P1-13                                    | IndexedDB 自动保存、继续/新局/清除和版本检查。                                                | 刷新、中断恢复、旧版本拒绝/迁移测试。     | 恢复后状态、事件与机器人公开记忆一致。                                              | not_started |
+| P1-14 | P1-04, P1-13                                    | IndexedDB 自动保存、继续/新局/清除和版本检查。                                                | 刷新、中断恢复、旧版本拒绝/迁移测试。     | 恢复后状态、事件与机器人公开记忆一致。                                              | accepted |
 | P1-15 | P1-12, P1-14                                    | PR Preview、生产部署、回滚演练与发布记录。                                                    | CI 全量 + Preview 人工冒烟。              | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
 
 ### P1-12 自测记录（2026-07-13）
@@ -40,6 +40,13 @@
 - 组件回归：`src/App.test.tsx` 覆盖规则入口、27 张唯一实体牌的选择、提示后出牌及机器人轮转，以及人类仅用提示、出牌、过牌完成一局。整局流程在全量并行测试下约 5 秒，显式测试预算为 15 秒。
 - 真实浏览器冒烟：使用临时 `npx --package @playwright/cli` 访问本机 Vite 页面，确认规则入口、提示、出牌；出牌后东家从 27 张变为 26 张并经机器人回合回到东家。未向项目添加 Playwright 依赖，生成的 `.playwright-cli/` 临时快照已删除。
 - UI 边界：`table-controller.ts` 仅用 `recognizePatterns` 生成候选动作，再经 `getLegalActions`、`validateAction` 和 `applyAction`；组件不复制牌型、跟牌或回合裁决逻辑。
+
+### P1-14 自测记录（2026-07-13）
+
+- 存档格式：`saveSchemaVersion=1`、P1-04 `schemaVersion=1`、`rulesVersion=guandan-v1`，并保存 seed、append-only `action.applied` 事件流与覆盖完整事件流的快照。恢复时从 seed 完整重放，逐项比对快照状态和公开事件；任一 schema/rules 版本不匹配、快照锚点不完整或事件非法均显式拒绝，P1 不提供迁移。
+- 命令：在 `frontend/` 执行 `npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run`、`npm.cmd run build`。结果：全部通过；Vitest 为 14 files / 51 tests passed，生产构建成功。
+- 回归：`table-session.test.ts` 覆盖中断后完整重放、快照/事件/机器人公开记忆一致及旧 rulesVersion 拒绝；`App.test.tsx` 用可注入内存存储覆盖继续中断对局、新局和清除入口，以及不兼容存档提示后不自动覆盖、仅在用户明确选择新局后才写入；`storage.test.ts` 覆盖无 IndexedDB 时延迟失败，确保存储边界 SSR-safe。未增加测试依赖。
+- 浏览器：主验收以临时 Playwright CLI 在本机 Vite Preview 完成“提示→出牌→刷新”：刷新后页面显示“已继续上次未完成的对局”，东家手牌保持 26 张。未向项目添加 Playwright 依赖，生成的 `.playwright-cli/` 临时快照已删除。
 
 ## P2：移动/PWA 与策略机器人
 

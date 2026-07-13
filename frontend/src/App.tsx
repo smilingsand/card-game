@@ -1,15 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Seat } from "./platform/types";
+import { createIndexedDbStorage, type StorageBoundary } from "./platform/storage";
 import {
   chooseTableBotAction,
-  createTableGame,
   formatCard,
   formatInterpretation,
   getLegalSingleActions,
   getSelectedPlayActions,
-  submitTableAction,
   type TableGame
 } from "./games/guandan/table-controller";
+import {
+  applyTableSessionAction,
+  createTableSession,
+  restoreTableSession,
+  serializeTableSession,
+  type TableSave,
+  type TableSession
+} from "./games/guandan/table-session";
 
 const HUMAN_SEAT: Seat = "east";
 const seatName: Record<Seat, string> = {
@@ -23,12 +30,55 @@ function cardSort(left: string, right: string): number {
   return left.localeCompare(right);
 }
 
-export function App() {
-  const initialGame = useMemo(() => createTableGame(), []);
-  const [game, setGame] = useState<TableGame>(initialGame);
+function newSeed(): number {
+  return Math.floor(Math.random() * 2 ** 31);
+}
+
+function defaultStorage(): StorageBoundary<TableSave> {
+  return createIndexedDbStorage<TableSave>({
+    databaseName: "card-game",
+    storeName: "saves",
+    key: "guandan-current"
+  });
+}
+
+export function App({ storage }: { readonly storage?: StorageBoundary<TableSave> }) {
+  const saveStorage = useMemo(() => storage ?? defaultStorage(), [storage]);
+  const [session, setSession] = useState<TableSession>(() => createTableSession(newSeed()));
   const [selectedCardIds, setSelectedCardIds] = useState<readonly string[]>([]);
   const [message, setMessage] = useState("请选择手牌后出牌。");
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [storageReady, setStorageReady] = useState(false);
+  const [saveBlocked, setSaveBlocked] = useState(false);
+  const game: TableGame = session.game;
+
+  useEffect(() => {
+    let active = true;
+    void saveStorage
+      .load()
+      .then((save) => {
+        if (!active || !save) return;
+        setSession(restoreTableSession(save));
+        setSelectedCardIds([]);
+        setMessage("已继续上次未完成的对局。");
+      })
+      .catch(() => {
+        if (!active) return;
+        setSaveBlocked(true);
+        setMessage("存档不兼容或恢复失败；请新局或清除存档。");
+      })
+      .finally(() => {
+        if (active) setStorageReady(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [saveStorage]);
+
+  useEffect(() => {
+    if (!storageReady || saveBlocked) return;
+    void saveStorage.save(serializeTableSession(session)).catch(() => undefined);
+  }, [saveBlocked, saveStorage, session, storageReady]);
 
   useEffect(() => {
     if (game.state.completed || game.state.current === HUMAN_SEAT) return;
@@ -38,27 +88,27 @@ export function App() {
         setMessage(`${seatName[game.state.current]}没有可执行的合法动作。`);
         return;
       }
-      const result = submitTableAction(game, action);
+      const result = applyTableSessionAction(session, action);
       if (!result.ok) {
         setMessage(`机器人动作被规则引擎拒绝：${result.code}`);
         return;
       }
-      setGame({ ...game, state: result.state });
+      setSession(result.session);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [game]);
+  }, [game, session]);
 
   const hand = [...game.state.hands[HUMAN_SEAT]].sort(cardSort);
   const selectedActions = getSelectedPlayActions(game, selectedCardIds);
   const canPass = getLegalSingleActions(game).some((action) => action.type === "pass");
 
   const submit = (action: ReturnType<typeof getLegalSingleActions>[number]) => {
-    const result = submitTableAction(game, action);
+    const result = applyTableSessionAction(session, action);
     if (!result.ok) {
       setMessage(`规则引擎拒绝此动作：${result.code}`);
       return;
     }
-    setGame({ ...game, state: result.state });
+    setSession(result.session);
     setSelectedCardIds([]);
     setMessage(
       action.type === "pass"
@@ -74,17 +124,17 @@ export function App() {
     );
   };
 
-  if (game.state.completed) {
-    return (
-      <main aria-label="掼蛋牌桌">
-        <h1>本局结束</h1>
-        <p>完成顺序：{game.state.finished.map((seat) => seatName[seat]).join("、")}</p>
-        <button type="button" onClick={() => window.location.reload()}>
-          新开一局
-        </button>
-      </main>
-    );
-  }
+  const startNewGame = () => {
+    setSaveBlocked(false);
+    setSession(createTableSession(newSeed()));
+    setSelectedCardIds([]);
+    setMessage("已开始新局。");
+  };
+
+  const clearSave = () => {
+    void saveStorage.clear().catch(() => undefined);
+    startNewGame();
+  };
 
   return (
     <main aria-label="掼蛋牌桌">
@@ -97,7 +147,19 @@ export function App() {
         >
           规则
         </button>
+        <button type="button" onClick={startNewGame}>
+          新局
+        </button>
+        <button type="button" onClick={clearSave}>
+          清除存档
+        </button>
       </header>
+      {game.state.completed ? (
+        <section aria-label="对局结算">
+          <h2>本局结束</h2>
+          <p>完成顺序：{game.state.finished.map((seat) => seatName[seat]).join("、")}</p>
+        </section>
+      ) : null}
       {rulesOpen ? (
         <aside aria-label="规则入口">
           本局规则以项目的 <code>docs/resolved-rules.md</code>{" "}
@@ -117,61 +179,65 @@ export function App() {
         </p>
       </section>
       <p role="status">{message}</p>
-      <section aria-label="你的手牌">
-        <h2>你的手牌（{hand.length}）</h2>
-        <div>
-          {hand.map((cardId) => {
-            const card = game.cardsById.get(cardId);
-            if (!card) return null;
-            const selected = selectedCardIds.includes(cardId);
-            return (
-              <button
-                key={cardId}
-                type="button"
-                aria-pressed={selected}
-                aria-label={`选择${formatCard(card)}`}
-                onClick={() => toggleCard(cardId)}
-              >
-                {formatCard(card)}
-              </button>
-            );
-          })}
-        </div>
-      </section>
-      <section aria-label="操作">
-        <button
-          type="button"
-          onClick={() => {
-            const hint = getLegalSingleActions(game).find((action) => action.type === "play");
-            if (!hint || hint.type !== "play") {
-              setMessage("规则引擎没有提供可提示的出牌。");
-              return;
-            }
-            setSelectedCardIds(hint.cardIds);
-            setMessage(`提示：可出${formatInterpretation(hint.interpretation)}。`);
-          }}
-          disabled={game.state.current !== HUMAN_SEAT}
-        >
-          提示
-        </button>
-        <button
-          type="button"
-          onClick={() => submit(selectedActions[0])}
-          disabled={game.state.current !== HUMAN_SEAT || selectedActions.length === 0}
-        >
-          出牌
-          {selectedActions[0]?.type === "play"
-            ? `（${formatInterpretation(selectedActions[0].interpretation)}）`
-            : ""}
-        </button>
-        <button
-          type="button"
-          onClick={() => submit({ type: "pass", actor: HUMAN_SEAT })}
-          disabled={game.state.current !== HUMAN_SEAT || !canPass}
-        >
-          过牌
-        </button>
-      </section>
+      {game.state.completed ? null : (
+        <section aria-label="你的手牌">
+          <h2>你的手牌（{hand.length}）</h2>
+          <div>
+            {hand.map((cardId) => {
+              const card = game.cardsById.get(cardId);
+              if (!card) return null;
+              const selected = selectedCardIds.includes(cardId);
+              return (
+                <button
+                  key={cardId}
+                  type="button"
+                  aria-pressed={selected}
+                  aria-label={`选择${formatCard(card)}`}
+                  onClick={() => toggleCard(cardId)}
+                >
+                  {formatCard(card)}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      {game.state.completed ? null : (
+        <section aria-label="操作">
+          <button
+            type="button"
+            onClick={() => {
+              const hint = getLegalSingleActions(game).find((action) => action.type === "play");
+              if (!hint || hint.type !== "play") {
+                setMessage("规则引擎没有提供可提示的出牌。");
+                return;
+              }
+              setSelectedCardIds(hint.cardIds);
+              setMessage(`提示：可出${formatInterpretation(hint.interpretation)}。`);
+            }}
+            disabled={game.state.current !== HUMAN_SEAT}
+          >
+            提示
+          </button>
+          <button
+            type="button"
+            onClick={() => submit(selectedActions[0])}
+            disabled={game.state.current !== HUMAN_SEAT || selectedActions.length === 0}
+          >
+            出牌
+            {selectedActions[0]?.type === "play"
+              ? `（${formatInterpretation(selectedActions[0].interpretation)}）`
+              : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => submit({ type: "pass", actor: HUMAN_SEAT })}
+            disabled={game.state.current !== HUMAN_SEAT || !canPass}
+          >
+            过牌
+          </button>
+        </section>
+      )}
     </main>
   );
 }

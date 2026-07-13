@@ -1,5 +1,5 @@
 import { dealFourPlayers, generateDeck, shuffleDeck } from "../../platform/deck";
-import type { Card, Seat } from "../../platform/types";
+import type { Card, Event, Seat } from "../../platform/types";
 import { chooseBasicBotAction } from "./basic-bot";
 import { createBotView } from "./bot-view";
 import { getLegalActions } from "./legal-actions";
@@ -18,6 +18,8 @@ const LEVEL_RANK = "2" as const;
 export interface TableGame {
   readonly cardsById: ReadonlyMap<string, Card>;
   readonly state: TurnState;
+  /** 所有已提交动作的公开事实；机器人只能从这里记牌。 */
+  readonly publicEvents: readonly Event[];
 }
 
 export function createTableGame(seed = 0): TableGame {
@@ -37,7 +39,8 @@ export function createTableGame(seed = 0): TableGame {
       leader: "east",
       passes: 0,
       finished: []
-    }
+    },
+    publicEvents: []
   };
 }
 
@@ -103,7 +106,7 @@ export function chooseTableBotAction(game: TableGame): TurnAction | undefined {
       hand: game.state.hands[game.state.current]
         .map((cardId) => game.cardsById.get(cardId))
         .filter((card): card is Card => card !== undefined),
-      publicEvents: [],
+      publicEvents: game.publicEvents,
       remainingCardCounts: Object.fromEntries(
         SEATS.map((seat) => [seat, game.state.hands[seat].length])
       ) as Record<Seat, number>,
