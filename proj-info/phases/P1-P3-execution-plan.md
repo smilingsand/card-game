@@ -23,7 +23,7 @@
 | P1-10 | P1-08                                           | 定义 `BotView`、公开记牌和合法动作生成器。                                                    | 类型边界与信息泄露测试。                  | Bot API 无对手手牌/洗牌 seed 字段；所有合法动作都经规则引擎验证。                   | accepted    |
 | P1-11 | P1-10                                           | 初级机器人启发式：最小代价压制、少拆组合、不随意压队友、尾盘拦截。                            | 固定策略局面。                            | 选择动作均合法、确定、在规定思考时限内。                                            | accepted    |
 | P1-12 | P1-09, P1-11                                    | 自动对局模拟器、异常不变量与 seed 失败复现。                                                  | 1,000 局；记录首个失败 seed。             | 0 非法动作、死循环、重复牌、负牌数或无法结算。                                      | accepted |
-| P1-13 | P1-08                                           | 桌面牌桌、选牌、排序、出牌/过牌/提示、错误提示和规则入口。                                    | 浏览器组件/E2E 冒烟。                     | 人类可完成一局；UI 不含规则判断副本。                                               | not_started |
+| P1-13 | P1-08                                           | 桌面牌桌、选牌、排序、出牌/过牌/提示、错误提示和规则入口。                                    | 浏览器组件/E2E 冒烟。                     | 人类可完成一局；UI 不含规则判断副本。                                               | accepted |
 | P1-14 | P1-04, P1-13                                    | IndexedDB 自动保存、继续/新局/清除和版本检查。                                                | 刷新、中断恢复、旧版本拒绝/迁移测试。     | 恢复后状态、事件与机器人公开记忆一致。                                              | not_started |
 | P1-15 | P1-12, P1-14                                    | PR Preview、生产部署、回滚演练与发布记录。                                                    | CI 全量 + Preview 人工冒烟。              | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
 
@@ -33,6 +33,13 @@
 - 命令：`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run`。结果：均通过；全量 Vitest 为 12 files / 44 tests passed。
 - 模拟器对每次动作经 `validateAction` 后再 `applyAction`，并在每个动作前后检查实体牌守恒与唯一性、非负手牌、1,000 动作上限和可结算性。批量运行按递增 seed 执行；若失败，返回的 `firstFailureSeed` 可直接传入 `runSimulation(seed)` 重放。
 - 自测曾在 seed `2` 的第 `251` 个动作复现“已完成对家接风”的状态机缺陷；已增加 `turns.test.ts` 回归牌例并修复为跳过已完成座位。修复后 seed 0–999 无失败。
+
+### P1-13 自测记录（2026-07-13）
+
+- 命令：在 `frontend/` 执行 `npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run`、`npm.cmd run build`。结果：全部通过；全量 Vitest 为 12 files / 46 tests passed，生产构建成功。
+- 组件回归：`src/App.test.tsx` 覆盖规则入口、27 张唯一实体牌的选择、提示后出牌及机器人轮转，以及人类仅用提示、出牌、过牌完成一局。整局流程在全量并行测试下约 5 秒，显式测试预算为 15 秒。
+- 真实浏览器冒烟：使用临时 `npx --package @playwright/cli` 访问本机 Vite 页面，确认规则入口、提示、出牌；出牌后东家从 27 张变为 26 张并经机器人回合回到东家。未向项目添加 Playwright 依赖，生成的 `.playwright-cli/` 临时快照已删除。
+- UI 边界：`table-controller.ts` 仅用 `recognizePatterns` 生成候选动作，再经 `getLegalActions`、`validateAction` 和 `applyAction`；组件不复制牌型、跟牌或回合裁决逻辑。
 
 ## P2：移动/PWA 与策略机器人
 
