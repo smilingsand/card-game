@@ -206,6 +206,6 @@ export function restoreTableSession(save: RestorableTableSave): TableSession {
     game: replayed,
     stream: save.stream,
     snapshot: save.snapshot,
-    humanDisplayOrder: restoredDisplayOrder(save, replayed.state.hands.east)
+    humanDisplayOrder: restoredDisplayOrder(save, replayed.state.hands.south)
   };
 }

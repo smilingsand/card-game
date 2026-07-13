@@ -27,7 +27,7 @@
 | P1-14 | P1-04, P1-13                                    | IndexedDB 自动保存、继续/新局/清除和版本检查。                                                | 刷新、中断恢复、旧版本拒绝/迁移测试。     | 恢复后状态、事件与机器人公开记忆一致。                                              | accepted |
 | P1-15A | P1-11 | 修复初级机器人对非队友领出牌的压制选择；补固定牌例与浏览器轮转回归。 | 机器人可压制/不可压制/对家领出三类牌例。 | 对手领出且存在合法压制时，机器人不会无条件过牌；所有动作仍由规则引擎验证。 | accepted |
 | P1-15B | P1-13, P1-14 | 手牌首次自动整理和手动理牌：按确定性牌面分组/排序展示，支持拖拽移动，保存仅限自己的显示顺序。 | 排序、拖拽、刷新恢复和不改变出牌实体 ID 的组件/浏览器测试。 | 首次打开即易读；手动位置可恢复；理牌不改变规则状态、事件流或机器人视图。 | accepted |
-| P1-15C | P1-13, P1-15A | 标准桌面方位：北上、南下、东左、西右；真人固定为南座，首局仍由东座领出。 | 四座布局/真人南座/东座机器人首出/轮转组件与浏览器测试。 | 真人位于下方；东座、南座、西座、北座与规则座位一致；首局领出规则不变。 | not_started |
+| P1-15C | P1-13, P1-15A | 标准桌面方位：北上、南下、西左、东右；真人固定为南座，首局仍由东座领出；中央展示当前轮最高公开出牌。 | 四座布局/真人南座/东座机器人首出/最高出牌与清轮组件和浏览器测试。 | 真人位于下方；左西右东与规则座位一致；首局领出规则不变；最高公开出牌在清轮后消失。 | accepted |
 | P1-16 | P1-12, P1-14, P1-15A, P1-15B, P1-15C | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
 
 ### P1-12 自测记录（2026-07-13）
@@ -59,6 +59,7 @@
 - P1-15B 的显示顺序不属于规则状态。由于它会进入版本化本地存档，先写 ADR 确定 UI 偏好数据与规则事件流的隔离，再实现。
 - P1-15B 自测（2026-07-13）：ADR-0010 定义 `humanDisplayOrder` 为仅真人 UI 偏好；存档升至 `saveSchemaVersion=2`，恢复仍接受 P1-14 的 v1 存档并回退默认排序。`display-order.test.ts` 覆盖按点数/级牌/大小王的确定性布局、出牌 ID 移除和仅重排实体 ID；`table-session.test.ts` 覆盖偏好与事件/快照隔离、v1 兼容和出牌后的恢复；`App.test.tsx` 覆盖拖拽、刷新恢复、实体牌选择和 Alt 加方向键回退。`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run`（16 files / 61 tests）和 `npm.cmd run build` 均通过。真实 Playwright 冒烟：将大王拖到第一张前，状态提示“已调整手牌显示顺序。”；刷新后显示“已继续上次未完成的对局。”且大王仍是第一张（27 张），未产生规则动作。临时 Playwright/Vite 产物已清理。
 - P1-15C 将人类控制权从东座移至南座，但首局仍由东座领出；东座机器人必须通过同一动作路径完成首出。
+- P1-15C 自测（2026-07-13）：`App.tsx` 固定真人为南座；视觉网格将北座置顶、西座置左、东座置右，真人手牌与操作区处于牌桌下方。四座均显示名称和剩余手牌数，桌面中央显示当前行动与上手信息，并仅从公开 `action.applied` 事件中反向提取当前 `highestSeat` 的出牌实体 ID 后显示牌面；不读取其他玩家手牌。`highestSeat` 在三名下家过牌清轮后清空，最高出牌区域随之隐藏。东座首轮由既有 `chooseTableBotAction`（仅接收 `BotView`）选择动作，再经 `applyTableSessionAction` 统一规则边界提交；规则座位轮次仍为 east → south → west → north。`table-controller.test.ts` 覆盖东座机器人首出并进入南座；`App.test.tsx` 覆盖四座布局、东座从 27 张变为 26 张后轮到南座真人以及最高公开出牌显示；`table-session.test.ts` 覆盖南座显示顺序在恢复后保持、清轮状态及最高出牌清空。`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint` 均通过，定向 `npm.cmd run test:run -- --configLoader runner App.test.tsx table-session.test.ts` 为 2 files / 13 tests passed，全量 `npm.cmd run test:run -- --configLoader runner` 为 16 files / 63 tests passed。普通 Vitest 配置加载及 `vite build` 清理共享输出目录时遭 Windows EPERM 文件锁；使用 `--configLoader runner` 已完成配置加载与测试。独立 Vite 开发服务在 `127.0.0.1:5175` 返回 HTTP 200；Playwright CLI 临时运行环境无输出而停止，待主验收在无共享进程锁时补真实浏览器冒烟。
 
 ## P2：移动/PWA 与策略机器人
 

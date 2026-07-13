@@ -7,7 +7,7 @@ import {
   serializeTableSession,
   type TableSave
 } from "./games/guandan/table-session";
-import { chooseTableBotAction, getLegalSingleActions } from "./games/guandan/table-controller";
+import { getLegalSingleActions } from "./games/guandan/table-controller";
 
 function memoryStorage(
   initial?: TableSave
@@ -30,23 +30,6 @@ function memoryStorage(
   };
 }
 
-function saveAfterEastOpensWithSouthResponse(): TableSave {
-  for (let seed = 0; seed < 100; seed += 1) {
-    const session = createTableSession(seed);
-    const opening = getLegalSingleActions(session.game).find(
-      (candidate) => candidate.type === "play"
-    );
-    if (!opening) continue;
-    const result = applyTableSessionAction(session, opening);
-    if (!result.ok || result.session.game.state.current !== "south") continue;
-
-    const response = chooseTableBotAction(result.session.game);
-    if (response?.type === "play" && response.actor === "south")
-      return serializeTableSession(result.session);
-  }
-  throw new Error("expected a deterministic south response after east opens");
-}
-
 describe("App", () => {
   it("提供规则入口与可选择的实体手牌", async () => {
     const storage = memoryStorage();
@@ -65,21 +48,25 @@ describe("App", () => {
   it("提示与出牌经规则边界提交，并在机器人回合后回到人类", async () => {
     render(<App storage={memoryStorage()} />);
 
+    await waitFor(() => expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "提示" }));
     expect(screen.getByRole("status")).toHaveTextContent("提示：可出单张。");
     fireEvent.click(screen.getByRole("button", { name: /^出牌/ }));
 
-    await waitFor(() => expect(screen.getByText("轮到：你（东家）")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument());
     expect(screen.getByRole("status")).toHaveTextContent("已出单张。");
   });
 
-  it("东家领出后，南家可压制时组件会执行机器人轮转", async () => {
-    render(<App storage={memoryStorage(saveAfterEastOpensWithSouthResponse())} />);
+  it("按北上南下西左东右展示座位，东座机器人首出后轮到南座真人", async () => {
+    render(<App storage={memoryStorage()} />);
 
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("已继续上次未完成的对局。")
-    );
-    await waitFor(() => expect(screen.getByText("轮到：你（东家）")).toBeInTheDocument());
+    expect(screen.getByLabelText("北家座位")).toHaveTextContent("剩余 27 张");
+    expect(screen.getByLabelText("东家座位")).toHaveTextContent("东家（机器人）");
+    expect(screen.getByLabelText("西家座位")).toHaveTextContent("剩余 27 张");
+    expect(screen.getByLabelText("你的手牌")).toHaveTextContent("你的手牌（27）");
+    await waitFor(() => expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument());
+    expect(screen.getByLabelText("东家座位")).toHaveTextContent("剩余 26 张");
+    expect(screen.getByLabelText("当前最高出牌")).toHaveTextContent(/^当前最高出牌：/);
   });
 
   it("人类可仅用提示、出牌和过牌完成一局", async () => {
@@ -93,7 +80,7 @@ describe("App", () => {
       if (screen.queryByRole("heading", { name: /你的手牌（0）/ })) break;
       await waitFor(() =>
         expect(
-          screen.queryByText("轮到：你（东家）") ??
+          screen.queryByText("轮到：你（南家）") ??
             screen.queryByRole("heading", { name: "本局结束" })
         ).toBeInTheDocument()
       );
@@ -129,7 +116,8 @@ describe("App", () => {
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent("已继续上次未完成的对局。")
     );
-    expect(screen.getByRole("heading", { name: /你的手牌（26）/ })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: /你的手牌（27）/ })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "新局" }));
     expect(screen.getByRole("status")).toHaveTextContent("已开始新局。");

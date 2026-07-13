@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import type { Card } from "../../platform/types";
 import {
   chooseTableBotAction,
+  createTableGame,
   getSelectedPlayActions,
   submitTableAction,
   type TableGame
@@ -12,6 +13,16 @@ const card = (id: string, rank: Card["rank"]): Card => ({
   deckIndex: 0,
   suit: "spades",
   rank
+});
+
+test("首局东座机器人通过 BotView 和统一规则入口领出", () => {
+  const game = createTableGame(73);
+
+  const opening = chooseTableBotAction(game);
+  expect(opening).toMatchObject({ type: "play", actor: "east" });
+  if (!opening) return;
+
+  expect(submitTableAction(game, opening)).toMatchObject({ ok: true, state: { current: "south" } });
 });
 
 test("东家领出后，南家有可压制单张时会接牌", () => {

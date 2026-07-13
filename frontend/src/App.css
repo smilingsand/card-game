@@ -1,0 +1,45 @@
+.table {
+  display: grid;
+  grid-template-areas:
+    ". north ."
+    "west info east";
+  grid-template-columns: minmax(8rem, 1fr) minmax(14rem, 2fr) minmax(8rem, 1fr);
+  gap: 1rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+
+.seat,
+.table-info,
+.human-seat {
+  border: 1px solid #888;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+
+.seat {
+  display: grid;
+  gap: 0.25rem;
+  text-align: center;
+}
+
+.north {
+  grid-area: north;
+}
+
+.west {
+  grid-area: west;
+}
+
+.east {
+  grid-area: east;
+}
+
+.table-info {
+  grid-area: info;
+  text-align: center;
+}
+
+.human-seat {
+  margin-top: 1rem;
+}

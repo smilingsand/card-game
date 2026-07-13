@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type DragEvent, type KeyboardEvent } from "react";
+import "./App.css";
 import type { Seat } from "./platform/types";
 import { createIndexedDbStorage, type StorageBoundary } from "./platform/storage";
 import {
@@ -19,11 +20,12 @@ import {
   type TableSession
 } from "./games/guandan/table-session";
 import { moveHumanDisplayCard, reconcileHumanDisplayOrder } from "./games/guandan/display-order";
+import type { TurnAction } from "./games/guandan/turns";
 
-const HUMAN_SEAT: Seat = "east";
+const HUMAN_SEAT: Seat = "south";
 const seatName: Record<Seat, string> = {
-  east: "你（东家）",
-  south: "南家",
+  east: "东家（机器人）",
+  south: "你（南家）",
   west: "西家",
   north: "北家"
 };
@@ -38,6 +40,10 @@ function defaultStorage(): StorageBoundary<TableSave> {
     storeName: "saves",
     key: "guandan-current"
   });
+}
+
+function actionFromPublicEvent(event: TableGame["publicEvents"][number]): TurnAction | undefined {
+  return (event.payload as { readonly action?: TurnAction }).action;
 }
 
 export function App({ storage }: { readonly storage?: StorageBoundary<TableSave> }) {
@@ -105,6 +111,15 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   );
   const selectedActions = getSelectedPlayActions(game, selectedCardIds);
   const canPass = getLegalSingleActions(game).some((action) => action.type === "pass");
+  const highestPlay = game.state.highestSeat
+    ? [...game.publicEvents]
+        .reverse()
+        .map(actionFromPublicEvent)
+        .find(
+          (action): action is Extract<TurnAction, { readonly type: "play" }> =>
+            action?.type === "play" && action.actor === game.state.highestSeat
+        )
+    : undefined;
 
   const submit = (action: ReturnType<typeof getLegalSingleActions>[number]) => {
     const result = applyTableSessionAction(session, action);
@@ -202,21 +217,41 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
           为唯一口径；牌型与跟牌均由规则引擎判定。
         </aside>
       ) : null}
-      <section aria-label="桌面信息">
-        <p>轮到：{seatName[game.state.current]}</p>
-        <p>
-          各家剩余：东 {game.state.hands.east.length}、南 {game.state.hands.south.length}、西{" "}
-          {game.state.hands.west.length}、北 {game.state.hands.north.length}
-        </p>
-        <p>
-          {game.state.highestSeat
-            ? `当前牌由${seatName[game.state.highestSeat]}压住。`
-            : "当前为领出。"}
-        </p>
+      <section className="table" aria-label="牌桌">
+        <section className="seat north" aria-label="北家座位">
+          <strong>{seatName.north}</strong>
+          <span>剩余 {game.state.hands.north.length} 张</span>
+        </section>
+        <section className="seat east" aria-label="东家座位">
+          <strong>{seatName.east}</strong>
+          <span>剩余 {game.state.hands.east.length} 张</span>
+        </section>
+        <section className="table-info" aria-label="桌面信息">
+          <p>轮到：{seatName[game.state.current]}</p>
+          <p>
+            {game.state.highestSeat
+              ? `当前牌由${seatName[game.state.highestSeat]}压住。`
+              : "当前为领出。"}
+          </p>
+          {highestPlay?.type === "play" ? (
+            <p aria-label="当前最高出牌">
+              当前最高出牌：
+              {highestPlay.cardIds
+                .map((cardId) => game.cardsById.get(cardId))
+                .filter((card) => card !== undefined)
+                .map((card) => formatCard(card))
+                .join("、")}
+            </p>
+          ) : null}
+        </section>
+        <section className="seat west" aria-label="西家座位">
+          <strong>{seatName.west}</strong>
+          <span>剩余 {game.state.hands.west.length} 张</span>
+        </section>
       </section>
       <p role="status">{message}</p>
       {game.state.completed ? null : (
-        <section aria-label="你的手牌">
+        <section className="human-seat" aria-label="你的手牌">
           <h2>你的手牌（{hand.length}）</h2>
           <p id="hand-arrangement-help">
             已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
