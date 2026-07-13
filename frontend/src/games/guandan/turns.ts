@@ -86,8 +86,11 @@ export function applyAction(state: TurnState, action: TurnAction): TurnResult {
   const active = 4 - state.finished.length - (state.finished.includes(state.highestSeat!) ? 0 : 1);
   if (passes >= active) {
     const winner = state.highestSeat!;
+    const teammate = ORDER[(ORDER.indexOf(winner) + 2) % 4];
     const leader = state.finished.includes(winner)
-      ? ORDER[(ORDER.indexOf(winner) + 2) % 4]
+      ? state.finished.includes(teammate)
+        ? next(teammate, state.finished)
+        : teammate
       : winner;
     return {
       ok: true,

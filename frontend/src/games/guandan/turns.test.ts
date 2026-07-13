@@ -72,3 +72,21 @@ test("最后一名出完进入受控终局而不轮转", () => {
     state: { completed: true, finished: ["south", "west", "north", "east"] }
   });
 });
+test("已出完领出者及其对家均不可接风时，清轮跳过完成座位", () => {
+  let s: TurnState = {
+    ...state({ east: [], south: ["s"], west: [], north: ["n"] }),
+    current: "south",
+    leader: "east",
+    highest: p(3, "e"),
+    highestSeat: "east",
+    finished: ["east", "west"]
+  };
+  const firstPass = applyAction(s, { type: "pass", actor: "south" });
+  if (!firstPass.ok) return;
+  s = firstPass.state;
+
+  expect(applyAction(s, { type: "pass", actor: "north" })).toMatchObject({
+    ok: true,
+    state: { leader: "north", current: "north", highest: undefined }
+  });
+});
