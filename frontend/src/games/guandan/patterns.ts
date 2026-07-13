@@ -16,6 +16,7 @@ export interface PatternInterpretation {
   readonly type: PatternType;
   readonly cardIds: readonly string[];
   readonly wildcardAs: Readonly<Record<string, { readonly rank: Rank; readonly suit: Suit }>>;
+  readonly comparisonKey: readonly number[];
 }
 export type PatternRecognition =
   | { readonly ok: true; readonly interpretations: readonly PatternInterpretation[] }
@@ -54,6 +55,24 @@ function classify(cards: readonly { rank: Rank; suit: Suit }[]): PatternType | u
   if (cards.length >= 4 && cards.length <= 10 && counts.length === 1) return "normal-bomb";
   return undefined;
 }
+function comparisonKey(
+  type: PatternType,
+  cards: readonly { rank: Rank }[],
+  level: Rank
+): readonly number[] {
+  const value = (rank: Rank) =>
+    rank === "big-joker"
+      ? 17
+      : rank === "small-joker"
+        ? 16
+        : rank === level
+          ? 15
+          : RANKS.indexOf(rank) + 2;
+  const values = cards.map((card) => value(card.rank));
+  if (type === "four-jokers") return [4];
+  if (type === "normal-bomb") return [cards.length, values[0]];
+  return [Math.max(...values)];
+}
 /** 返回全部逢人配投影；输入 Card 永不被修改。 */
 export function recognizePatterns(
   cards: readonly Card[],
@@ -77,7 +96,12 @@ export function recognizePatterns(
     const wildcardAs = Object.fromEntries(wildcards.map((card, i) => [card.id, assigned[i]]));
     const key = `${type}:${JSON.stringify(wildcardAs)}`;
     if (!results.some((item) => `${item.type}:${JSON.stringify(item.wildcardAs)}` === key))
-      results.push({ type, cardIds: cards.map((card) => card.id), wildcardAs });
+      results.push({
+        type,
+        cardIds: cards.map((card) => card.id),
+        wildcardAs,
+        comparisonKey: comparisonKey(type, projected, levelRank)
+      });
   };
   visit(0, []);
   return results.length
