@@ -12,7 +12,7 @@
 | ID | 依赖 | 开发内容 | 测试条件 | 验收标准 | 当前状态 |
 | --- | --- | --- | --- | --- | --- |
 | P1-01 | P0 规则冻结（本次仅工程初始化，获用户明确授权） | 初始化 `frontend/`、严格 TS、Vitest、格式化、lint、基础 CI；配置 Vercel Root Directory 预案。 | 空项目构建、typecheck、lint、单测各一次。 | 本地与 CI 全绿；无产物写入根目录。 | accepted |
-| P1-02 | P1-01 | 实现 Card、Suit、Rank、Seat、Team、Player、Action、Event 等公共类型。 | 类型级测试和编译。 | 平台层不导入游戏专属类型；每张牌可由唯一 ID 标识。 | not_started |
+| P1-02 | P1-01 | 实现 Card、Suit、Rank、Seat、Team、Player、Action、Event 等公共类型。 | 类型级测试和编译。 | 平台层不导入游戏专属类型；每张牌可由唯一 ID 标识。 | accepted |
 | P1-03 | P1-02 | 多副牌生成、带 seed 洗牌、四人发牌和牌组守恒校验。 | 固定 seed + 随机 10,000 次发牌。 | 108 张无重复/丢失；每家 27 张；同 seed 可重放。 | not_started |
 | P1-04 | P1-02 | 事件词表、append-only 事件流、快照和纯 reducer 基础。 | 重放测试、非法动作不变性测试。 | `seed + events` 可重建状态；失败动作不污染状态。 | not_started |
 | P1-05 | P1-02 | 将 `resolved-rules` 每条实现规则转为固定牌例和测试矩阵。 | 逐条执行牌例。 | 无缺失规则条目；每个牌例包含输入、预期和来源。 | not_started |
