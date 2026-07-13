@@ -5,12 +5,20 @@ import type { Card } from "../../platform/types";
 const card: Card = { id: "e", deckIndex: 0, suit: "spades", rank: "2" };
 test("BotView仅投影自身手牌和公开信息", () => {
   const view = createBotView({
+    selfSeat: "east",
+    leader: "south",
+    highestSeat: "west",
+    levelRank: "7",
     hand: [card],
     publicEvents: [],
     remainingCardCounts: { east: 1, south: 1, west: 1, north: 1 },
     legalActions: []
   });
   expect(view).toEqual({
+    selfSeat: "east",
+    leader: "south",
+    highestSeat: "west",
+    levelRank: "7",
     selfHand: [card],
     publicEvents: [],
     remainingCardCounts: { east: 1, south: 1, west: 1, north: 1 },
@@ -48,6 +56,9 @@ test("规则边界过滤非法候选后才交给BotView", () => {
   expect(legal).toHaveLength(1);
   expect(
     createBotView({
+      selfSeat: "east",
+      leader: "east",
+      levelRank: "2",
       hand: [card],
       publicEvents: [],
       remainingCardCounts: { east: 1, south: 0, west: 0, north: 0 },

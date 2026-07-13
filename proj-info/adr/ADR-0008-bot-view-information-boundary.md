@@ -5,7 +5,7 @@
 
 ## 决策
 
-BotView 只含机器人自身手牌、公开事件、各座剩余牌数和经规则引擎验证的合法动作。类型与运行时投影均不得暴露对手手牌、洗牌 seed 或隐藏评估。机器人只能从 `legalActions` 选择动作，提交后仍通过统一 validate/apply 路径。
+BotView 只含机器人自身手牌、公开事件、各座剩余牌数、selfSeat、当前 leader/最高出牌座位、当前 levelRank 和经规则引擎验证的合法动作。类型与运行时投影均不得暴露对手手牌、洗牌 seed 或隐藏评估。机器人只能从 `legalActions` 选择动作，提交后仍通过统一 validate/apply 路径。
 
 ## 后果
 
