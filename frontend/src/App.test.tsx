@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App } from "./App";
 import type { StorageBoundary } from "./platform/storage";
 import {
@@ -151,5 +151,58 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "新局" }));
     await waitFor(() => expect(storage.saveCalls).toBeGreaterThan(0));
+  });
+
+  it("可拖拽理牌并在重新加载后恢复显示顺序，且不改变实体牌选择", async () => {
+    const storage = memoryStorage();
+    const firstRender = render(<App storage={storage} />);
+    await waitFor(() => expect(storage.saveCalls).toBeGreaterThan(0));
+
+    const hand = screen.getByLabelText("你的手牌");
+    const cards = within(hand).getAllByRole("button", { name: /^选择/ });
+    const first = cards[0];
+    const last = cards.at(-1);
+    if (!last) throw new Error("expected cards");
+    const transfer = {
+      value: "",
+      setData(_: string, value: string) {
+        this.value = value;
+      },
+      getData() {
+        return this.value;
+      },
+      effectAllowed: ""
+    };
+
+    fireEvent.dragStart(last, { dataTransfer: transfer });
+    fireEvent.drop(first, { dataTransfer: transfer });
+    await waitFor(() =>
+      expect(within(hand).getAllByRole("button", { name: /^选择/ })[0]).toBe(last)
+    );
+
+    fireEvent.click(last);
+    expect(last).toHaveAttribute("aria-pressed", "true");
+    firstRender.unmount();
+    render(<App storage={storage} />);
+    await waitFor(() =>
+      expect(
+        within(screen.getByLabelText("你的手牌")).getAllByRole("button", { name: /^选择/ })[0]
+      ).toHaveTextContent(last.textContent ?? "")
+    );
+  });
+
+  it("提供 Alt 加方向键的理牌回退操作", async () => {
+    render(<App storage={memoryStorage()} />);
+    const hand = screen.getByLabelText("你的手牌");
+    const before = within(hand).getAllByRole("button", { name: /^选择/ });
+    const first = before[0];
+    const second = before[1];
+
+    fireEvent.keyDown(first, { altKey: true, key: "ArrowRight" });
+
+    await waitFor(() =>
+      expect(within(hand).getAllByRole("button", { name: /^选择/ })[0]).toBe(second)
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("已调整手牌显示顺序。");
   });
 });

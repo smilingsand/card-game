@@ -12,7 +12,8 @@ import { createTableGame, submitTableAction, type TableGame } from "./table-cont
 import type { TurnAction, TurnResult, TurnState } from "./turns";
 
 export const TABLE_RULES_VERSION = "guandan-v1";
-export const TABLE_SAVE_SCHEMA_VERSION = 1;
+export const TABLE_SAVE_SCHEMA_VERSION = 2;
+export const LEGACY_TABLE_SAVE_SCHEMA_VERSION = 1;
 
 type TableActionEvent = Event<{ readonly action: TurnAction }>;
 
@@ -26,6 +27,8 @@ export interface TableSession {
   readonly game: TableGame;
   readonly stream: EventStream<TableActionEvent>;
   readonly snapshot: Snapshot<TableSnapshotState>;
+  /** 仅真人 UI 偏好，刻意不写入游戏状态、事件或快照。 */
+  readonly humanDisplayOrder?: readonly string[];
 }
 
 export interface TableSave {
@@ -33,7 +36,17 @@ export interface TableSave {
   readonly seed: number;
   readonly stream: EventStream<TableActionEvent>;
   readonly snapshot: Snapshot<TableSnapshotState>;
+  readonly humanDisplayOrder?: readonly string[];
 }
+
+export interface LegacyTableSave {
+  readonly saveSchemaVersion: typeof LEGACY_TABLE_SAVE_SCHEMA_VERSION;
+  readonly seed: number;
+  readonly stream: EventStream<TableActionEvent>;
+  readonly snapshot: Snapshot<TableSnapshotState>;
+}
+
+export type RestorableTableSave = TableSave | LegacyTableSave;
 
 export class TableSaveError extends Error {
   constructor(message: string) {
@@ -62,9 +75,12 @@ function applyEvent(game: TableGame, event: TableActionEvent): TableGame {
   return { ...game, state: result.state, publicEvents: [...game.publicEvents, event] };
 }
 
-function assertCompatible(save: TableSave): void {
-  if (save.saveSchemaVersion !== TABLE_SAVE_SCHEMA_VERSION) {
-    throw new TableSaveError(`unsupported save schema: ${String(save.saveSchemaVersion)}`);
+function assertCompatible(save: RestorableTableSave): void {
+  if (
+    save.saveSchemaVersion !== TABLE_SAVE_SCHEMA_VERSION &&
+    save.saveSchemaVersion !== LEGACY_TABLE_SAVE_SCHEMA_VERSION
+  ) {
+    throw new TableSaveError("unsupported save schema");
   }
   if (!Number.isInteger(save.seed)) throw new TableSaveError("save seed must be an integer");
   if (
@@ -87,9 +103,16 @@ function assertCompatible(save: TableSave): void {
 function createSessionFromGame(
   seed: number,
   game: TableGame,
-  stream: EventStream<TableActionEvent>
+  stream: EventStream<TableActionEvent>,
+  humanDisplayOrder?: readonly string[]
 ): TableSession {
-  return { seed, game, stream, snapshot: createSnapshot(stream, snapshotState(game)) };
+  return {
+    seed,
+    game,
+    stream,
+    snapshot: createSnapshot(stream, snapshotState(game)),
+    humanDisplayOrder
+  };
 }
 
 export function createTableSession(seed = 0): TableSession {
@@ -116,8 +139,15 @@ export function applyTableSessionAction(
   return {
     ok: true,
     state: result.state,
-    session: createSessionFromGame(session.seed, game, stream)
+    session: createSessionFromGame(session.seed, game, stream, session.humanDisplayOrder)
   };
+}
+
+export function setHumanDisplayOrder(
+  session: TableSession,
+  humanDisplayOrder: readonly string[]
+): TableSession {
+  return { ...session, humanDisplayOrder: [...humanDisplayOrder] };
 }
 
 export function serializeTableSession(session: TableSession): TableSave {
@@ -125,11 +155,29 @@ export function serializeTableSession(session: TableSession): TableSave {
     saveSchemaVersion: TABLE_SAVE_SCHEMA_VERSION,
     seed: session.seed,
     stream: session.stream,
-    snapshot: session.snapshot
+    snapshot: session.snapshot,
+    humanDisplayOrder: session.humanDisplayOrder
   };
 }
 
-export function restoreTableSession(save: TableSave): TableSession {
+function restoredDisplayOrder(
+  save: RestorableTableSave,
+  hand: readonly string[]
+): readonly string[] | undefined {
+  if (save.saveSchemaVersion !== TABLE_SAVE_SCHEMA_VERSION || !("humanDisplayOrder" in save)) {
+    return undefined;
+  }
+  const value = save.humanDisplayOrder;
+  if (!Array.isArray(value) || !value.every((cardId) => typeof cardId === "string"))
+    return undefined;
+  const handIds = new Set(hand);
+  const normalized = value.filter(
+    (cardId, index) => handIds.has(cardId) && value.indexOf(cardId) === index
+  );
+  return normalized.length === 0 ? undefined : normalized;
+}
+
+export function restoreTableSession(save: RestorableTableSave): TableSession {
   assertCompatible(save);
   const initial = createTableGame(save.seed);
   let replayed: TableGame;
@@ -153,5 +201,11 @@ export function restoreTableSession(save: TableSave): TableSession {
   ) {
     throw new TableSaveError("snapshot does not match replayed event stream");
   }
-  return { seed: save.seed, game: replayed, stream: save.stream, snapshot: save.snapshot };
+  return {
+    seed: save.seed,
+    game: replayed,
+    stream: save.stream,
+    snapshot: save.snapshot,
+    humanDisplayOrder: restoredDisplayOrder(save, replayed.state.hands.east)
+  };
 }

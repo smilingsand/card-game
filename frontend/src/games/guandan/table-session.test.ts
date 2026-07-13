@@ -4,7 +4,8 @@ import {
   applyTableSessionAction,
   createTableSession,
   restoreTableSession,
-  serializeTableSession
+  serializeTableSession,
+  setHumanDisplayOrder
 } from "./table-session";
 
 describe("牌桌事件存档", () => {
@@ -32,5 +33,38 @@ describe("牌桌事件存档", () => {
     Reflect.set(save.stream, "rulesVersion", "guandan-v0");
 
     expect(() => restoreTableSession(save)).toThrow("rules version mismatch");
+  });
+
+  test("显示顺序单独保存，绝不写入规则事件，且 v1 存档回退到自动排序", () => {
+    const initial = createTableSession(73);
+    const preferred = [...initial.game.state.hands.east].reverse();
+    const arranged = setHumanDisplayOrder(initial, preferred);
+    const save = serializeTableSession(arranged);
+
+    expect(save.saveSchemaVersion).toBe(2);
+    expect(save.humanDisplayOrder).toEqual(preferred);
+    expect(save.stream.events).toEqual(initial.stream.events);
+    expect(save.snapshot.state).toEqual(initial.snapshot.state);
+    expect(restoreTableSession(save).humanDisplayOrder).toEqual(preferred);
+
+    const v1Save = structuredClone(save);
+    Reflect.set(v1Save, "saveSchemaVersion", 1);
+    Reflect.deleteProperty(v1Save, "humanDisplayOrder");
+    expect(restoreTableSession(v1Save).humanDisplayOrder).toBeUndefined();
+  });
+
+  test("出牌后恢复的显示顺序会剔除已出实体牌 ID", () => {
+    const initial = createTableSession(73);
+    const arranged = setHumanDisplayOrder(initial, [...initial.game.state.hands.east].reverse());
+    const action = getLegalSingleActions(arranged.game).find(
+      (candidate) => candidate.type === "play"
+    );
+    if (!action) throw new Error("expected an opening play");
+    const advanced = applyTableSessionAction(arranged, action);
+    if (!advanced.ok) throw new Error("expected legal action");
+
+    expect(
+      restoreTableSession(serializeTableSession(advanced.session)).humanDisplayOrder
+    ).not.toContain(action.cardIds[0]);
   });
 });

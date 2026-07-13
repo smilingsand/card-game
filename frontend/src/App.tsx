@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type DragEvent, type KeyboardEvent } from "react";
 import type { Seat } from "./platform/types";
 import { createIndexedDbStorage, type StorageBoundary } from "./platform/storage";
 import {
@@ -14,9 +14,11 @@ import {
   createTableSession,
   restoreTableSession,
   serializeTableSession,
+  setHumanDisplayOrder,
   type TableSave,
   type TableSession
 } from "./games/guandan/table-session";
+import { moveHumanDisplayCard, reconcileHumanDisplayOrder } from "./games/guandan/display-order";
 
 const HUMAN_SEAT: Seat = "east";
 const seatName: Record<Seat, string> = {
@@ -25,10 +27,6 @@ const seatName: Record<Seat, string> = {
   west: "西家",
   north: "北家"
 };
-
-function cardSort(left: string, right: string): number {
-  return left.localeCompare(right);
-}
 
 function newSeed(): number {
   return Math.floor(Math.random() * 2 ** 31);
@@ -50,6 +48,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   const [rulesOpen, setRulesOpen] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
   const [saveBlocked, setSaveBlocked] = useState(false);
+  const [draggingCardId, setDraggingCardId] = useState<string>();
   const game: TableGame = session.game;
 
   useEffect(() => {
@@ -98,7 +97,12 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     return () => window.clearTimeout(timer);
   }, [game, session]);
 
-  const hand = [...game.state.hands[HUMAN_SEAT]].sort(cardSort);
+  const hand = reconcileHumanDisplayOrder(
+    session.humanDisplayOrder,
+    game.state.hands[HUMAN_SEAT],
+    game.cardsById,
+    "2"
+  );
   const selectedActions = getSelectedPlayActions(game, selectedCardIds);
   const canPass = getLegalSingleActions(game).some((action) => action.type === "pass");
 
@@ -122,6 +126,38 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     setSelectedCardIds((current) =>
       current.includes(cardId) ? current.filter((id) => id !== cardId) : [...current, cardId]
     );
+  };
+
+  const moveCard = (movingCardId: string, targetCardId: string) => {
+    const nextOrder = moveHumanDisplayCard(hand, movingCardId, targetCardId);
+    if (nextOrder === hand) return;
+    setSession((current) => setHumanDisplayOrder(current, nextOrder));
+    setMessage("已调整手牌显示顺序。");
+  };
+
+  const dragStart = (event: DragEvent<HTMLButtonElement>, cardId: string) => {
+    event.dataTransfer.setData("text/plain", cardId);
+    event.dataTransfer.effectAllowed = "move";
+    setDraggingCardId(cardId);
+  };
+
+  const dropOnCard = (event: DragEvent<HTMLButtonElement>, targetCardId: string) => {
+    event.preventDefault();
+    const movingCardId = event.dataTransfer.getData("text/plain") || draggingCardId;
+    if (movingCardId) moveCard(movingCardId, targetCardId);
+    setDraggingCardId(undefined);
+  };
+
+  const reorderWithKeyboard = (event: KeyboardEvent<HTMLButtonElement>, cardId: string) => {
+    if (!event.altKey || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+    const index = hand.indexOf(cardId);
+    const targetIndex = event.key === "ArrowLeft" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= hand.length) return;
+    event.preventDefault();
+    const nextOrder = [...hand];
+    [nextOrder[index], nextOrder[targetIndex]] = [nextOrder[targetIndex], nextOrder[index]];
+    setSession((current) => setHumanDisplayOrder(current, nextOrder));
+    setMessage("已调整手牌显示顺序。");
   };
 
   const startNewGame = () => {
@@ -182,6 +218,9 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
       {game.state.completed ? null : (
         <section aria-label="你的手牌">
           <h2>你的手牌（{hand.length}）</h2>
+          <p id="hand-arrangement-help">
+            已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
+          </p>
           <div>
             {hand.map((cardId) => {
               const card = game.cardsById.get(cardId);
@@ -193,7 +232,14 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
                   type="button"
                   aria-pressed={selected}
                   aria-label={`选择${formatCard(card)}`}
+                  aria-describedby="hand-arrangement-help"
+                  draggable={game.state.current === HUMAN_SEAT}
                   onClick={() => toggleCard(cardId)}
+                  onDragStart={(event) => dragStart(event, cardId)}
+                  onDragEnd={() => setDraggingCardId(undefined)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => dropOnCard(event, cardId)}
+                  onKeyDown={(event) => reorderWithKeyboard(event, cardId)}
                 >
                   {formatCard(card)}
                 </button>
