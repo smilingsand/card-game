@@ -7,7 +7,7 @@ import {
   serializeTableSession,
   type TableSave
 } from "./games/guandan/table-session";
-import { getLegalSingleActions } from "./games/guandan/table-controller";
+import { chooseTableBotAction, getLegalSingleActions } from "./games/guandan/table-controller";
 
 function memoryStorage(
   initial?: TableSave
@@ -28,6 +28,23 @@ function memoryStorage(
       this.cleared = true;
     }
   };
+}
+
+function saveAfterEastOpensWithSouthResponse(): TableSave {
+  for (let seed = 0; seed < 100; seed += 1) {
+    const session = createTableSession(seed);
+    const opening = getLegalSingleActions(session.game).find(
+      (candidate) => candidate.type === "play"
+    );
+    if (!opening) continue;
+    const result = applyTableSessionAction(session, opening);
+    if (!result.ok || result.session.game.state.current !== "south") continue;
+
+    const response = chooseTableBotAction(result.session.game);
+    if (response?.type === "play" && response.actor === "south")
+      return serializeTableSession(result.session);
+  }
+  throw new Error("expected a deterministic south response after east opens");
 }
 
 describe("App", () => {
@@ -54,6 +71,15 @@ describe("App", () => {
 
     await waitFor(() => expect(screen.getByText("轮到：你（东家）")).toBeInTheDocument());
     expect(screen.getByRole("status")).toHaveTextContent("已出单张。");
+  });
+
+  it("东家领出后，南家可压制时组件会执行机器人轮转", async () => {
+    render(<App storage={memoryStorage(saveAfterEastOpensWithSouthResponse())} />);
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("已继续上次未完成的对局。")
+    );
+    await waitFor(() => expect(screen.getByText("轮到：你（东家）")).toBeInTheDocument());
   });
 
   it("人类可仅用提示、出牌和过牌完成一局", async () => {

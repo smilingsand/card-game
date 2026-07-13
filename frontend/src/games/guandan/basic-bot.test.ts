@@ -26,11 +26,17 @@ test("选择最小代价的合法压制且确定", () => {
   expect(chooseBasicBotAction(view(actions))).toBe(actions[1]);
   expect(chooseBasicBotAction(view(actions))).toBe(actions[1]);
 });
-test("通常优先过牌，尾盘优先出牌", () => {
+test("对手压住且存在合法压制时必须接牌，尾盘也优先出牌", () => {
   const pass = { type: "pass" as const, actor: "east" as const };
   const action = play("a", 7);
-  expect(chooseBasicBotAction(view([pass, action], 3))).toBe(pass);
+  const opponentLead = { ...view([pass, action], 3), highestSeat: "south" as const };
+  expect(chooseBasicBotAction(opponentLead)).toBe(action);
   expect(chooseBasicBotAction(view([pass, action], 1))).toBe(action);
+});
+test("对手压住但没有合法压制时可以过牌", () => {
+  const pass = { type: "pass" as const, actor: "east" as const };
+  const input = { ...view([pass]), highestSeat: "south" as const };
+  expect(chooseBasicBotAction(input)).toBe(pass);
 });
 test("对家当前领出且过牌合法时不压队友", () => {
   const pass = { type: "pass" as const, actor: "east" as const };

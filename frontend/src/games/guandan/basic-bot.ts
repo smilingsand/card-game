@@ -16,9 +16,16 @@ function splitGroupPenalty(action: TurnAction, hand: BotView["selfHand"]): numbe
   }, 0);
 }
 
-function score(action: TurnAction, view: BotView, protect: boolean, endgame: boolean): number {
+function score(
+  action: TurnAction,
+  view: BotView,
+  protect: boolean,
+  mustContest: boolean,
+  endgame: boolean
+): number {
   const handSize = view.selfHand.length;
   if (action.type === "pass" && protect) return -1_000;
+  if (action.type === "pass" && mustContest) return 1_000_000;
   if (action.type === "pass") return handSize <= 2 || endgame ? 1_000 : 0;
 
   return (
@@ -32,11 +39,13 @@ function score(action: TurnAction, view: BotView, protect: boolean, endgame: boo
 export function chooseBasicBotAction(view: BotView): TurnAction | undefined {
   const teammate = { east: "west", west: "east", south: "north", north: "south" }[view.selfSeat];
   const protect = view.highestSeat === teammate;
+  const mustContest = view.highestSeat !== undefined && !protect;
   const endgame = Object.values(view.remainingCardCounts).some((count) => count <= 1);
 
   return [...view.legalActions].sort(
     (a, b) =>
-      score(a, view, protect, endgame) - score(b, view, protect, endgame) ||
+      score(a, view, protect, mustContest, endgame) -
+        score(b, view, protect, mustContest, endgame) ||
       JSON.stringify(a).localeCompare(JSON.stringify(b))
   )[0];
 }
