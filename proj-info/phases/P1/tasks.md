@@ -5,6 +5,7 @@
 | P1-01 | accepted | 前端工程与质量门禁已初始化并完成本地验收。 |
 | P1-02 | accepted | 公共平台类型已完成并通过主验收。 |
 | P1-03 | accepted | 确定性洗牌、四人发牌与牌组守恒校验已完成并通过主验收。 |
+| P1-04 | accepted | 版本化事件流、快照与纯 reducer 基础已完成并通过主验收。 |
 
 ## P1-01 执行记录
 
@@ -25,3 +26,9 @@
 - 2026-07-13：ADR-0002 固化无符号 32 位 seed、Mulberry32、Fisher-Yates、`east → south → west → north` 轮发顺序与实体牌 ID 格式。
 - 2026-07-13：主验收通过 `npm.cmd run format:check --prefix frontend`、`npm.cmd run typecheck --prefix frontend`、`npm.cmd run lint --prefix frontend`、`npm.cmd run test:run --prefix frontend`（3 个测试文件、7 个测试）。
 - 2026-07-13：固定 seed 可重放；10,000 个伪随机 seed 的双副牌发牌均验证为 108 张唯一实体牌且每家 27 张。
+
+## P1-04 执行记录
+
+- 2026-07-13：ADR-0003 固化版本化连续事件流、快照锚点、纯 reducer 与非法动作不变性契约。
+- 2026-07-13：主验收发现并修复嵌套 payload 可变引用问题；事件与快照均采用结构化复制和深冻结。
+- 2026-07-13：主验收通过格式、类型、lint 与全量 Vitest（4 个测试文件、13 个测试）。
