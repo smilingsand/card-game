@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { App } from "./App";
+import { App, CardFace } from "./App";
 import { latestRecentActionsBySeat } from "./games/guandan/recent-actions";
 import type { StorageBoundary } from "./platform/storage";
 import {
@@ -74,10 +74,13 @@ describe("App", () => {
   it("首局由南家行动，牌桌按四边座位显示并高亮可选牌", async () => {
     render(<App storage={memoryStorage()} />);
 
-    await waitFor(() => expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
     expect(screen.getByLabelText("北家座位")).toHaveTextContent("27");
     expect(screen.getByLabelText("东家座位")).toHaveTextContent("27");
-    expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument();
+    expect(screen.getByLabelText("东家座位")).toHaveTextContent("东家（机器人）");
+    expect(screen.getByLabelText("北家座位")).toHaveTextContent("北家（机器人）");
+    expect(screen.getByLabelText("西家座位")).toHaveTextContent("西家（机器人）");
+    expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument();
     const hand = screen.getByLabelText("你的手牌");
     expect(screen.getByLabelText("牌桌")).toContainElement(hand);
     expect(screen.queryByRole("heading", { name: /你的手牌/ })).not.toBeInTheDocument();
@@ -95,6 +98,23 @@ describe("App", () => {
         .getAllByRole("button")
         .map((button) => button.textContent)
     ).toEqual(["过牌", "提示", "出牌"]);
+  });
+
+  it("动态级牌只在本局级牌上标注级或配，2 不会沿用级牌标记", async () => {
+    const { container } = render(
+      <>
+        <CardFace card={{ id: "two", deckIndex: 1, suit: "clubs", rank: "2" }} levelRank="6" />
+        <CardFace card={{ id: "six", deckIndex: 1, suit: "hearts", rank: "6" }} levelRank="6" />
+      </>
+    );
+    const faces = [...container.querySelectorAll(".card-face")];
+    const twos = faces.filter((face) => face.querySelector(".card-rank")?.textContent === "2");
+    const sixes = faces.filter((face) => face.querySelector(".card-rank")?.textContent === "6");
+
+    expect(twos).not.toHaveLength(0);
+    expect(sixes).not.toHaveLength(0);
+    expect(twos.every((face) => !face.querySelector(".card-badge"))).toBe(true);
+    expect(sixes.some((face) => face.querySelector(".card-badge"))).toBe(true);
   });
 
   it("连续赛局的南家进贡阶段只允许选择贡牌并手动确认", async () => {
@@ -118,6 +138,9 @@ describe("App", () => {
     render(<App storage={memoryStorage(serializeTableSession(awaitingTribute))} />);
 
     await waitFor(() => expect(screen.getByText("请你（南家）上贡")).toBeInTheDocument());
+    expect(screen.getByLabelText("本局结算与下一局提示")).toHaveTextContent(
+      "完成顺序：东家（机器人）、北家（机器人）、西家（机器人）、南家（你）。"
+    );
     expect(screen.getByRole("button", { name: "过牌" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "提示" })).toBeDisabled();
     const hand = screen.getByLabelText("你的手牌");
@@ -172,8 +195,8 @@ describe("App", () => {
       expect(screen.getByRole("status")).toHaveTextContent("已继续上次未完成的对局。")
     );
     expect(screen.getByLabelText("东家（机器人）最近出牌")).toHaveTextContent("不要");
-    expect(screen.getByLabelText("北家最近出牌")).toHaveTextContent("不要");
-    expect(screen.getByLabelText("你（南家）当前出牌").querySelectorAll(".card-face")).toHaveLength(
+    expect(screen.getByLabelText("北家（机器人）最近出牌")).toHaveTextContent("不要");
+    expect(screen.getByLabelText("南家（你）当前出牌").querySelectorAll(".card-face")).toHaveLength(
       1
     );
   });
@@ -200,7 +223,7 @@ describe("App", () => {
 
   it("横排和竖排按钮切换南家及明牌手牌的布局", async () => {
     render(<App storage={memoryStorage()} />);
-    await waitFor(() => expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
     const hand = screen.getByLabelText("你的手牌");
     fireEvent.click(screen.getByRole("button", { name: "明牌" }));
     expect(hand.querySelectorAll(".card-face.compact").length).toBeGreaterThan(0);

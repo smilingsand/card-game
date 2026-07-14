@@ -75,11 +75,12 @@ button:disabled {
 
 .round-announcement {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 1rem;
   margin: 0.5rem 0;
   color: #134860;
   font-weight: 700;
+  text-align: left;
 }
 .match-scoreboard {
   position: absolute;

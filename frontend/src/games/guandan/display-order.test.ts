@@ -34,6 +34,16 @@ describe("human display order", () => {
     ]);
   });
 
+  it("动态级牌为 6 时以 6 为级牌，2 回归为最小普通牌", () => {
+    const byId = cards(
+      { id: "six", deckIndex: 1, suit: "spades", rank: "6" },
+      { id: "ace", deckIndex: 1, suit: "hearts", rank: "A" },
+      { id: "two", deckIndex: 1, suit: "clubs", rank: "2" }
+    );
+
+    expect(sortHumanDisplayCards([...byId.keys()], byId, "6")).toEqual(["six", "ace", "two"]);
+  });
+
   it("方式 A 将炸弹置于最右侧，剩余牌只按点数分组", () => {
     const byId = cards(
       { id: "king", deckIndex: 1, suit: "spades", rank: "K" },

@@ -22,6 +22,8 @@ function rankOrder(rank: Rank, levelRank: Rank): number {
   if (rank === "big-joker") return 17;
   if (rank === "small-joker") return 16;
   if (rank === levelRank) return 15;
+  // 非打 2 局时，2 是最小普通牌，而非原有的次高牌。
+  if (rank === "2" && levelRank !== "2") return 1;
   return normalRanks.indexOf(rank) + 2;
 }
 

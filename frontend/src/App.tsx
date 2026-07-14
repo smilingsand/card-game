@@ -34,15 +34,16 @@ import {
 } from "./games/guandan/display-order";
 import type { TurnAction } from "./games/guandan/turns";
 import { actionFromPublicEvent, latestRecentActionsBySeat } from "./games/guandan/recent-actions";
+import { botThinkDelayMs } from "./games/guandan/bot-timing";
 
 const HUMAN_SEAT: Seat = "south";
 type BotSeat = "east" | "north" | "west";
 type HandLayout = "stacked" | "flat";
 const seatName: Record<Seat, string> = {
   east: "东家（机器人）",
-  south: "你（南家）",
-  west: "西家",
-  north: "北家"
+  south: "南家（你）",
+  west: "西家（机器人）",
+  north: "北家（机器人）"
 };
 const seatShortName: Record<Seat, string> = {
   east: "东家",
@@ -63,7 +64,7 @@ function defaultStorage(): StorageBoundary<TableSave> {
   });
 }
 
-function CardFace({
+export function CardFace({
   card,
   wildcardAs,
   compact = false,
@@ -149,7 +150,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         return;
       }
       setSession(result.session);
-    }, 0);
+    }, botThinkDelayMs(game.publicEvents.length));
     return () => window.clearTimeout(timer);
   }, [game, session]);
 
@@ -377,7 +378,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
       </header>
       {displayedFinish ? (
         <section className="round-announcement" aria-label="本局结算与下一局提示">
-          <span>完成顺序：{displayedFinish.map((seat) => seatName[seat]).join("、")}</span>
+          <span>完成顺序：{displayedFinish.map((seat) => seatName[seat]).join("、")}。</span>
           <strong>{tributeHint}</strong>
         </section>
       ) : null}
