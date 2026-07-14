@@ -38,7 +38,8 @@
 | P1-16F | P1-16E | 明牌布局修正：东/西家公开出牌贴近各自手牌内侧。 | 组件测试、浏览器人工冒烟。 | 明牌时东家出牌在手牌西侧、西家出牌在手牌东侧；关闭明牌恢复默认布局。 | accepted |
 | P1-16G | P1-16F | 明牌可读性修正：非南方明牌的卡面符号缩小并避免纵叠重叠。 | 组件测试、浏览器人工冒烟。 | 东/西/北家明牌的完整牌和露出牌均不发生点数/花色重叠。 | accepted |
 | P1-16H | P1-16G | 输出当前牌型规则、基础机器人领出与跟牌策略说明。 | 文档审阅、链接与仓库状态检查。 | 文档明确区分冻结规则与当前基础策略，并披露策略边界。 | accepted |
-| P1-17 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A, P1-16B, P1-16C, P1-16D, P1-16E, P1-16F, P1-16G, P1-16H | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
+| P1-16I | P1-16H | 基础机器人领出策略修正：同型回收牌门槛、小牌优先和多出牌优先。 | 固定策略牌例、自动对局、浏览器回归。 | 低位短牌无同型回收时让位；有回收时优先走小牌；同等牌点优先多张牌型；顺子无回收门槛。 | accepted |
+| P1-17 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A, P1-16B, P1-16C, P1-16D, P1-16E, P1-16F, P1-16G, P1-16H, P1-16I | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
 
 ### P1-12 自测记录（2026-07-13）
 
@@ -130,6 +131,13 @@
 
 - 新增 `docs/掼蛋规则与基础机器人策略说明.md`：列出全部已实现牌型与比较键，分别说明机器人领出、跟牌、对家保护、残局临界与确定性 tie-break，并明确当前候选枚举和跨张数炸弹的边界。
 - 已人工检查文档链接、Markdown 表格、规则与当前 `patterns.ts`、`comparison.ts`、`basic-bot.ts`、`table-controller.ts` 的一致性；`git diff --check` 通过。
+
+### P1-16I 自测与验收（2026-07-14）
+
+- 领出时保持“不拆组”最高优先级；低位单张/对子/三张/三带二分别仅在余牌拥有对应同型回收牌时保留优先级。回收门槛依次为：单张 `A`/级牌/大小王、对子完整 `K`/`A`/级牌对子、三张完整 `J` 及以上三张、三带二中主组三张为 `J` 及以上的完整三带二；四张及以上炸弹不计为回收牌。顺子与更长牌型不受回收门槛限制。
+- 领出候选新增自然顺子；固定牌例覆盖：低位单张无回收时领出顺子、低位三带二的同型回收、炸弹不作为对子回收，以及牌桌控制器实际枚举顺子。`basic-bot.test.ts` 与 `table-controller.test.ts` 共 17 项通过。
+- `npm.cmd run format`、`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（16 files / 74 tests，包含批量自动对局）及 `npm.cmd run build` 均通过；`git diff --check` 通过。
+- 已尝试本地 Playwright 冒烟，但受当前环境中 `@playwright/cli` 初始化长期无输出所限而中止；本补丁未改 UI，现有 `App.test.tsx` 7 项交互回归已在全量测试中通过。该工具初始化问题不影响构建与策略逻辑验收。
 
 ## P2：移动/PWA 与策略机器人
 

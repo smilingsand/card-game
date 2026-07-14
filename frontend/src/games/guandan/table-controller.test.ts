@@ -153,3 +153,37 @@ test("机器人领出时不把完整三张拆成单张", () => {
     interpretation: { type: "triple" }
   });
 });
+
+test("低位单张没有回收牌时，机器人会枚举并领出自然顺子", () => {
+  const southCards = [
+    card("south-3", "3"),
+    card("south-5", "5"),
+    card("south-6", "6", "hearts"),
+    card("south-7", "7", "diamonds"),
+    card("south-8", "8", "clubs"),
+    card("south-9", "9")
+  ];
+  const game: TableGame = {
+    cardsById: new Map(southCards.map((item) => [item.id, item])),
+    state: {
+      hands: {
+        east: ["east-1", "east-2", "east-3"],
+        south: southCards.map((item) => item.id),
+        west: ["west-1", "west-2", "west-3"],
+        north: ["north-1", "north-2", "north-3"]
+      },
+      current: "south",
+      leader: "south",
+      passes: 0,
+      finished: []
+    },
+    publicEvents: []
+  };
+
+  expect(chooseTableBotAction(game)).toMatchObject({
+    type: "play",
+    actor: "south",
+    cardIds: ["south-5", "south-6", "south-7", "south-8", "south-9"],
+    interpretation: { type: "straight" }
+  });
+});

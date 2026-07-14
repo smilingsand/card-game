@@ -98,6 +98,121 @@ test("级牌单张可压制时保持级牌点数，不低配成较小牌", () =>
 
   expect(chooseBasicBotAction(input)).toBe(naturalLevel);
 });
+test("低位单张没有回收牌时，优先保留它并走无需回收的顺子", () => {
+  const lowSingle = play("low-3", 3);
+  const straight = {
+    type: "play" as const,
+    actor: "east" as const,
+    cardIds: ["s-5", "s-6", "s-7", "s-8", "s-9"],
+    interpretation: {
+      type: "straight" as const,
+      comparisonKey: [9],
+      cardIds: ["s-5", "s-6", "s-7", "s-8", "s-9"],
+      wildcardAs: {}
+    }
+  };
+  const input = {
+    ...view([lowSingle, straight], 6),
+    selfHand: [
+      { id: "low-3", deckIndex: 0, suit: "spades" as const, rank: "3" as const },
+      { id: "s-4", deckIndex: 0, suit: "spades" as const, rank: "4" as const },
+      { id: "s-5", deckIndex: 0, suit: "spades" as const, rank: "5" as const },
+      { id: "s-6", deckIndex: 0, suit: "spades" as const, rank: "6" as const },
+      { id: "s-7", deckIndex: 0, suit: "spades" as const, rank: "7" as const },
+      { id: "s-8", deckIndex: 0, suit: "spades" as const, rank: "8" as const }
+    ]
+  };
+
+  expect(chooseBasicBotAction(input)).toBe(straight);
+});
+test("低位三带二有同型回收牌时，可以优先领出", () => {
+  const threeWithPair = {
+    type: "play" as const,
+    actor: "east" as const,
+    cardIds: ["triple-3a", "triple-3b", "triple-3c", "pair-4a", "pair-4b"],
+    interpretation: {
+      type: "three-with-pair" as const,
+      comparisonKey: [3],
+      cardIds: ["triple-3a", "triple-3b", "triple-3c", "pair-4a", "pair-4b"],
+      wildcardAs: {}
+    }
+  };
+  const straight = {
+    type: "play" as const,
+    actor: "east" as const,
+    cardIds: ["s-5", "s-6", "s-7", "s-8", "s-9"],
+    interpretation: {
+      type: "straight" as const,
+      comparisonKey: [9],
+      cardIds: ["s-5", "s-6", "s-7", "s-8", "s-9"],
+      wildcardAs: {}
+    }
+  };
+  const input = {
+    ...view([threeWithPair, straight], 11),
+    selfHand: [
+      { id: "triple-3a", deckIndex: 0, suit: "spades" as const, rank: "3" as const },
+      { id: "triple-3b", deckIndex: 0, suit: "hearts" as const, rank: "3" as const },
+      { id: "triple-3c", deckIndex: 0, suit: "clubs" as const, rank: "3" as const },
+      { id: "pair-4a", deckIndex: 0, suit: "spades" as const, rank: "4" as const },
+      { id: "pair-4b", deckIndex: 0, suit: "hearts" as const, rank: "4" as const },
+      { id: "s-5", deckIndex: 0, suit: "spades" as const, rank: "5" as const },
+      { id: "s-6", deckIndex: 0, suit: "spades" as const, rank: "6" as const },
+      { id: "s-7", deckIndex: 0, suit: "spades" as const, rank: "7" as const },
+      { id: "s-8", deckIndex: 0, suit: "spades" as const, rank: "8" as const },
+      { id: "s-9", deckIndex: 0, suit: "spades" as const, rank: "9" as const },
+      { id: "triple-ja", deckIndex: 0, suit: "spades" as const, rank: "J" as const },
+      { id: "triple-jb", deckIndex: 0, suit: "hearts" as const, rank: "J" as const },
+      { id: "triple-jc", deckIndex: 0, suit: "clubs" as const, rank: "J" as const },
+      { id: "pair-ka", deckIndex: 0, suit: "spades" as const, rank: "K" as const },
+      { id: "pair-kb", deckIndex: 0, suit: "hearts" as const, rank: "K" as const }
+    ]
+  };
+
+  expect(chooseBasicBotAction(input)).toBe(threeWithPair);
+});
+test("炸弹不作为低位对子回收牌", () => {
+  const lowPair = {
+    type: "play" as const,
+    actor: "east" as const,
+    cardIds: ["pair-3a", "pair-3b"],
+    interpretation: {
+      type: "pair" as const,
+      comparisonKey: [3],
+      cardIds: ["pair-3a", "pair-3b"],
+      wildcardAs: {}
+    }
+  };
+  const straight = {
+    type: "play" as const,
+    actor: "east" as const,
+    cardIds: ["s-4", "s-5", "s-6", "s-7", "s-8"],
+    interpretation: {
+      type: "straight" as const,
+      comparisonKey: [8],
+      cardIds: ["s-4", "s-5", "s-6", "s-7", "s-8"],
+      wildcardAs: {}
+    }
+  };
+  const input = {
+    ...view([lowPair, straight], 11),
+    selfHand: [
+      { id: "pair-3a", deckIndex: 0, suit: "spades" as const, rank: "3" as const },
+      { id: "pair-3b", deckIndex: 0, suit: "hearts" as const, rank: "3" as const },
+      { id: "s-4", deckIndex: 0, suit: "spades" as const, rank: "4" as const },
+      { id: "s-5", deckIndex: 0, suit: "spades" as const, rank: "5" as const },
+      { id: "s-6", deckIndex: 0, suit: "spades" as const, rank: "6" as const },
+      { id: "s-7", deckIndex: 0, suit: "spades" as const, rank: "7" as const },
+      { id: "s-8", deckIndex: 0, suit: "spades" as const, rank: "8" as const },
+      { id: "bomb-ka", deckIndex: 0, suit: "spades" as const, rank: "K" as const },
+      { id: "bomb-kb", deckIndex: 0, suit: "hearts" as const, rank: "K" as const },
+      { id: "bomb-kc", deckIndex: 0, suit: "clubs" as const, rank: "K" as const },
+      { id: "bomb-kd", deckIndex: 0, suit: "diamonds" as const, rank: "K" as const }
+    ]
+  };
+
+  expect(chooseBasicBotAction(input)).toBe(straight);
+});
 test("尾盘公开剩余牌临界时选择拦截动作", () => {
   const pass = { type: "pass" as const, actor: "east" as const };
   const input = {

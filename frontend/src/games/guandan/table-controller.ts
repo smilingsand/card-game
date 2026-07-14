@@ -14,6 +14,22 @@ import {
 
 const SEATS: readonly Seat[] = ["east", "south", "west", "north"];
 const LEVEL_RANK = "2" as const;
+const STRAIGHT_RANKS: readonly Card["rank"][] = [
+  "A",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "J",
+  "Q",
+  "K",
+  "A"
+];
 
 export interface TableGame {
   readonly cardsById: ReadonlyMap<string, Card>;
@@ -73,7 +89,17 @@ function leadingCardCandidates(hand: readonly Card[]): readonly (readonly Card[]
     .flatMap((triple) =>
       groups.filter((group) => group.length === 2).map((pair) => [...triple, ...pair])
     );
-  const candidates = [...hand.map((card) => [card]), ...completeGroups, ...threeWithPairs];
+  const naturalStraights = Array.from({ length: STRAIGHT_RANKS.length - 4 }, (_, start) => {
+    const ranks = STRAIGHT_RANKS.slice(start, start + 5);
+    const cards = ranks.map((rank) => groups.find((group) => group[0]?.rank === rank)?.[0]);
+    return cards.every((card): card is Card => card !== undefined) ? cards : undefined;
+  }).filter((cards): cards is Card[] => cards !== undefined);
+  const candidates = [
+    ...hand.map((card) => [card]),
+    ...completeGroups,
+    ...threeWithPairs,
+    ...naturalStraights
+  ];
   const seen = new Set<string>();
   return candidates.filter((cards) => {
     const key = cards
