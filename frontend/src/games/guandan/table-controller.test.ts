@@ -191,7 +191,7 @@ test("低位单张没有回收牌时，机器人会枚举并领出自然顺子",
   });
 });
 
-test("提示与机器人共用策略，不拆 J 炸弹为单张", () => {
+test("提示与机器人共用策略，首轮有普通牌时不领出炸弹", () => {
   const southCards = [
     card("south-ja", "J", "spades"),
     card("south-jb", "J", "hearts"),
@@ -220,7 +220,98 @@ test("提示与机器人共用策略，不拆 J 炸弹为单张", () => {
   expect(chooseTableHintAction(game)).toMatchObject({
     type: "play",
     actor: "south",
-    cardIds: ["south-ja", "south-jb", "south-jc", "south-jd"],
-    interpretation: { type: "normal-bomb" }
+    cardIds: ["south-a"],
+    interpretation: { type: "single" }
+  });
+});
+
+test("机器人跟炸时使用完整更大炸弹，不拆五张炸为四张", () => {
+  const southCards = [
+    card("south-6a", "6", "spades"),
+    card("south-6b", "6", "hearts"),
+    card("south-6c", "6", "clubs"),
+    card("south-6d", "6", "diamonds")
+  ];
+  const eastCards = [
+    card("east-8a", "8", "spades"),
+    card("east-8b", "8", "hearts"),
+    card("east-8c", "8", "clubs"),
+    card("east-8d", "8", "diamonds"),
+    card("east-8e", "8", "spades")
+  ];
+  const game: TableGame = {
+    cardsById: new Map([...southCards, ...eastCards].map((item) => [item.id, item])),
+    state: {
+      hands: {
+        east: eastCards.map((item) => item.id),
+        south: southCards.map((item) => item.id),
+        west: ["west-other"],
+        north: ["north-other"]
+      },
+      current: "south",
+      leader: "south",
+      passes: 0,
+      finished: []
+    },
+    publicEvents: []
+  };
+  const southBomb = getSelectedPlayActions(
+    game,
+    southCards.map((item) => item.id)
+  )[0];
+  expect(southBomb).toMatchObject({ interpretation: { type: "normal-bomb" } });
+  if (!southBomb) return;
+
+  const played = submitTableAction(game, southBomb);
+  expect(played).toMatchObject({ ok: true, state: { current: "east" } });
+  if (!played.ok) return;
+
+  expect(chooseTableBotAction({ ...game, state: played.state })).toMatchObject({
+    type: "play",
+    actor: "east",
+    cardIds: eastCards.map((item) => item.id),
+    interpretation: { type: "normal-bomb", comparisonKey: [5, 8] }
+  });
+});
+
+test("机器人可以用完整炸弹压制不同牌型", () => {
+  const southCards = [card("south-aa", "A", "spades"), card("south-ab", "A", "hearts")];
+  const eastCards = [
+    card("east-3a", "3", "spades"),
+    card("east-3b", "3", "hearts"),
+    card("east-3c", "3", "clubs"),
+    card("east-3d", "3", "diamonds")
+  ];
+  const game: TableGame = {
+    cardsById: new Map([...southCards, ...eastCards].map((item) => [item.id, item])),
+    state: {
+      hands: {
+        east: eastCards.map((item) => item.id),
+        south: southCards.map((item) => item.id),
+        west: ["west-other"],
+        north: ["north-other"]
+      },
+      current: "south",
+      leader: "south",
+      passes: 0,
+      finished: []
+    },
+    publicEvents: []
+  };
+  const southPair = getSelectedPlayActions(
+    game,
+    southCards.map((item) => item.id)
+  )[0];
+  expect(southPair).toMatchObject({ interpretation: { type: "pair" } });
+  if (!southPair) return;
+
+  const played = submitTableAction(game, southPair);
+  if (!played.ok) return;
+
+  expect(chooseTableBotAction({ ...game, state: played.state })).toMatchObject({
+    type: "play",
+    actor: "east",
+    cardIds: eastCards.map((item) => item.id),
+    interpretation: { type: "normal-bomb", comparisonKey: [4, 3] }
   });
 });

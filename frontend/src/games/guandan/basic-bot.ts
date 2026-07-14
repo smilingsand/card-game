@@ -1,6 +1,20 @@
 import type { BotView } from "./bot-view";
 import type { TurnAction } from "./turns";
 
+const BOMB_TYPES = new Set(["normal-bomb", "straight-flush", "four-jokers"]);
+
+function isBomb(action: TurnAction): boolean {
+  return action.type === "play" && BOMB_TYPES.has(action.interpretation.type);
+}
+
+function hasNonBombCards(hand: BotView["selfHand"]): boolean {
+  return hand.some(
+    (card) =>
+      card.suit === "joker" ||
+      hand.filter((item) => item.rank === card.rank && item.suit !== "joker").length < 4
+  );
+}
+
 function splitGroupPenalty(action: TurnAction, hand: BotView["selfHand"]): number {
   if (action.type !== "play") return 0;
 
@@ -129,8 +143,17 @@ export function chooseBasicBotAction(view: BotView): TurnAction | undefined {
   const mustContest = view.highestSeat !== undefined && !protect;
   const endgame = Object.values(view.remainingCardCounts).some((count) => count <= 1);
   const leading = view.highestSeat === undefined;
+  const legalActions = leading
+    ? view.legalActions.filter(
+        (action) =>
+          action.type !== "play" ||
+          !isBomb(action) ||
+          action.cardIds.length === view.selfHand.length ||
+          !hasNonBombCards(view.selfHand)
+      )
+    : view.legalActions;
 
-  return [...view.legalActions].sort(
+  return [...legalActions].sort(
     (a, b) =>
       score(a, view, protect, mustContest, endgame, leading) -
         score(b, view, protect, mustContest, endgame, leading) ||

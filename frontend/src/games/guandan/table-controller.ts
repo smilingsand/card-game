@@ -120,12 +120,40 @@ function leadingCardCandidates(hand: readonly Card[]): readonly (readonly Card[]
   });
 }
 
+function completeNaturalBombCandidates(hand: readonly Card[]): readonly (readonly Card[])[] {
+  return [
+    ...hand
+      .reduce((byRank, card) => {
+        if (card.suit !== "joker") byRank.set(card.rank, [...(byRank.get(card.rank) ?? []), card]);
+        return byRank;
+      }, new Map<Card["rank"], Card[]>())
+      .values()
+  ].filter((group) => group.length >= 4);
+}
+
+function uniqueCandidates(candidates: readonly (readonly Card[])[]): readonly (readonly Card[])[] {
+  const seen = new Set<string>();
+  return candidates.filter((cards) => {
+    const key = cards
+      .map((card) => card.id)
+      .sort()
+      .join(",");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function botCardCandidates(game: TableGame): readonly (readonly Card[])[] {
   const hand = game.state.hands[game.state.current]
     .map((cardId) => game.cardsById.get(cardId))
     .filter((card): card is Card => card !== undefined);
   if (!game.state.highest) return leadingCardCandidates(hand);
-  return combinations(hand, game.state.highest.cardIds.length);
+  return uniqueCandidates([
+    ...combinations(hand, game.state.highest.cardIds.length),
+    // 炸弹可压制任意非炸弹，也会按张数比较；跟炸时必须枚举完整炸弹，不能只取相同张数的子集。
+    ...completeNaturalBombCandidates(hand)
+  ]);
 }
 
 /**
