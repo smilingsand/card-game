@@ -1,54 +1,309 @@
-.table {
-  display: grid;
-  grid-template-areas:
-    ". north ."
-    "west info east";
-  grid-template-columns: minmax(8rem, 1fr) minmax(14rem, 2fr) minmax(8rem, 1fr);
-  gap: 1rem;
+:root {
+  color: #10263b;
+  background: #d9f3f7;
+  font-family: "Microsoft YaHei", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+header {
+  display: flex;
   align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+header h1 {
+  margin: 0 auto 0 0;
+}
+button {
+  font: inherit;
+}
+
+header button,
+section[aria-label="操作"] button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  color: #fff;
+  background: #1b5778;
+  box-shadow: inset 0 -3px rgba(0, 0, 0, 0.25);
+}
+
+section[aria-label="操作"] {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin: 0.75rem 0;
+}
+section[aria-label="操作"] button:nth-child(1) {
+  order: 2;
+  background: #2868dd;
+}
+section[aria-label="操作"] button:nth-child(2) {
+  order: 3;
+  background: #365e54;
+  box-shadow: inset 0 -3px #e1bd47;
+}
+section[aria-label="操作"] button:nth-child(3) {
+  order: 1;
+  background: #435c4e;
+}
+button:disabled {
+  opacity: 0.45;
+}
+
+.table {
+  position: relative;
+  min-height: 610px;
   margin: 1rem 0;
+  border: 18px solid #77bfd5;
+  border-radius: 2.25rem;
+  background: radial-gradient(ellipse at center, #82d4e6 0%, #54b8d4 68%, #2b88ad 100%);
+  box-shadow:
+    inset 0 0 0 5px rgba(255, 255, 255, 0.2),
+    0 8px 22px rgba(14, 72, 93, 0.25);
 }
 
 .seat,
-.table-info,
-.human-seat {
-  border: 1px solid #888;
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-}
-
-.seat {
-  display: grid;
-  gap: 0.25rem;
-  text-align: center;
-}
-
-.public-play {
-  font-weight: 700;
-}
-
-.revealed-hand {
-  overflow-wrap: anywhere;
-  font-size: 0.875rem;
-}
-
-.north {
-  grid-area: north;
-}
-
-.west {
-  grid-area: west;
-}
-
-.east {
-  grid-area: east;
-}
-
 .table-info {
-  grid-area: info;
+  position: absolute;
+  display: grid;
+  gap: 0.35rem;
+  align-items: center;
   text-align: center;
+}
+.north {
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.west {
+  left: 1.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.east {
+  right: 1.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.table-info {
+  left: 50%;
+  top: 50%;
+  width: 16rem;
+  transform: translate(-50%, -50%);
+  color: #134860;
+  text-shadow: 0 1px rgba(255, 255, 255, 0.35);
+}
+.table-info p {
+  margin: 0;
+}
+
+.card-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  padding: 0 0.35rem;
+  border: 3px solid #f7e9b5;
+  border-radius: 50%;
+  color: #fff;
+  background: #d58222;
+  box-shadow: 0 1px 4px #31536a;
+  font-weight: 800;
+}
+.card-count.urgent {
+  background: #c83c37;
+}
+
+.seat-actions {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+  min-height: 2rem;
+}
+.public-action {
+  display: inline-flex;
+  align-items: flex-end;
+  min-height: 3.7rem;
+}
+.pass-word {
+  color: #fff1a9;
+  font-size: 1.8rem;
+  font-weight: 900;
+  text-shadow: 0 2px 2px #7d4c16;
+}
+
+.card-groups {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.22rem;
+}
+.card-stack {
+  display: inline-flex;
+  flex-direction: column-reverse;
+  align-items: stretch;
+}
+.card-stack > * + * {
+  margin-bottom: -2.1rem;
+}
+.card-face {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 3rem;
+  height: 4.15rem;
+  padding: 0.25rem;
+  border: 1px solid #c6d0d4;
+  border-radius: 0.32rem;
+  color: #111;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+  font-weight: 800;
+  line-height: 1;
+}
+.card-face.hearts,
+.card-face.diamonds {
+  color: #c92f35;
+}
+.card-rank {
+  font-size: 1.2rem;
+}
+.card-suit {
+  align-self: flex-end;
+  font-size: 1.35rem;
+}
+.card-badge {
+  position: absolute;
+  right: 0.1rem;
+  top: 0.1rem;
+  display: grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  color: #fff;
+  background: #d83845;
+  font-size: 0.64rem;
+}
+.wildcard-as {
+  position: absolute;
+  right: 0.12rem;
+  bottom: 0.12rem;
+  color: #28735e;
+  font-size: 0.62rem;
+}
+.revealed-hand {
+  max-width: 9rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.08rem;
+}
+
+.north .revealed-hand {
+  max-width: 22rem;
+}
+
+.revealed-hand .card-face {
+  width: 1.45rem;
+  height: 2rem;
+  padding: 0.1rem;
+  border-radius: 0.16rem;
+}
+
+.revealed-hand .card-rank {
+  font-size: 0.65rem;
+}
+.revealed-hand .card-suit {
+  font-size: 0.68rem;
+}
+.revealed-hand .card-badge {
+  width: 0.56rem;
+  height: 0.56rem;
+  font-size: 0.4rem;
+}
+.revealed-hand .card-stack > * + * {
+  margin-bottom: -1rem;
 }
 
 .human-seat {
-  margin-top: 1rem;
+  margin: 0;
+  padding: 0.75rem 0;
+}
+.human-seat h2 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0 0 0.5rem;
+}
+.south-actions {
+  justify-content: center;
+  margin: 0.25rem 0;
+}
+.human-hand {
+  justify-content: center;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  min-height: 8rem;
+}
+.hand-card {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+}
+.hand-card[aria-pressed="true"] .card-face {
+  outline: 3px solid #f2bf2e;
+  outline-offset: 2px;
+  transform: translateY(-0.45rem);
+  box-shadow: 0 0 0 2px #8e5a06;
+}
+.hand-card:focus-visible .card-face {
+  outline: 3px solid #2868dd;
+  outline-offset: 2px;
+}
+#hand-arrangement-help {
+  text-align: center;
+  color: #405b67;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 720px) {
+  main {
+    padding: 0.5rem;
+  }
+  .table {
+    min-height: 500px;
+    border-width: 10px;
+  }
+  .card-face {
+    width: 2.35rem;
+    height: 3.35rem;
+  }
+  .card-stack > * + * {
+    margin-bottom: -1.65rem;
+  }
+  .north {
+    top: 0.5rem;
+  }
+  .west {
+    left: 0.45rem;
+  }
+  .east {
+    right: 0.45rem;
+  }
 }

@@ -35,8 +35,8 @@ export function createTableGame(seed = 0): TableGame {
         west: deal.west.map((card) => card.id),
         north: deal.north.map((card) => card.id)
       },
-      current: "east",
-      leader: "east",
+      current: "south",
+      leader: "south",
       passes: 0,
       finished: []
     },

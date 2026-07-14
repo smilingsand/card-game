@@ -11,7 +11,7 @@ import type { Event } from "../../platform/types";
 import { createTableGame, submitTableAction, type TableGame } from "./table-controller";
 import type { TurnAction, TurnResult, TurnState } from "./turns";
 
-export const TABLE_RULES_VERSION = "guandan-v1";
+export const TABLE_RULES_VERSION = "guandan-v2";
 export const TABLE_SAVE_SCHEMA_VERSION = 2;
 export const LEGACY_TABLE_SAVE_SCHEMA_VERSION = 1;
 

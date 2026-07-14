@@ -30,7 +30,8 @@
 | P1-15C | P1-13, P1-15A | 标准桌面方位：北上、南下、西左、东右；真人固定为南座，首局仍由东座领出；中央展示当前轮最高公开出牌。 | 四座布局/真人南座/东座机器人首出/最高出牌与清轮组件和浏览器测试。 | 真人位于下方；左西右东与规则座位一致；首局领出规则不变；最高公开出牌在清轮后消失。 | accepted |
 | P1-15D | P1-15B, P1-15C | 各座公开出牌贴近对应座位展示；增加本地测试“明牌”开关，按整理顺序显示/隐藏其他三家手牌。 | 四座出牌位置、清轮清除、明牌开关与隐藏恢复组件/浏览器测试。 | 公开牌仅来自已提交动作并随清轮消失；默认不泄露他人手牌，明牌关闭后立即隐藏；开关不进入规则事件或 BotView。 | accepted |
 | P1-15E | P1-15A | 修正规则轮转为逆时针东→北→西→南，并让机器人枚举可压制的非单张牌型。 | 轮转牌例；三带二等跟牌牌例；自动对局与浏览器回归。 | 规则轮转符合冻结口径；存在合法同牌型压制时机器人可接牌，不再只因候选集仅含单张而过牌。 | accepted |
-| P1-16 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
+| P1-16A | P1-15B, P1-15C, P1-15D, P1-15E | 发布前桌面修正：南家首局领出、浅色方桌与四边玩家、方式 A 的手牌整理、牌面/出牌/最近四手展示及操作样式。 | 规则固定牌例、组件测试、全量回归、浏览器人工冒烟。 | 新规则版本不重解释旧存档；首局南家先出；四家与明牌均按可读布局展示；手动理牌和统一规则校验保持有效。 | accepted |
+| P1-17 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
 
 ### P1-12 自测记录（2026-07-13）
 
@@ -64,11 +65,20 @@
 - P1-15C 自测（2026-07-13）：`App.tsx` 固定真人为南座；视觉网格将北座置顶、西座置左、东座置右，真人手牌与操作区处于牌桌下方。四座均显示名称和剩余手牌数，桌面中央显示当前行动与上手信息，并仅从公开 `action.applied` 事件中反向提取当前 `highestSeat` 的出牌实体 ID 后显示牌面；不读取其他玩家手牌。`highestSeat` 在三名下家过牌清轮后清空，最高出牌区域随之隐藏。东座首轮由既有 `chooseTableBotAction`（仅接收 `BotView`）选择动作，再经 `applyTableSessionAction` 统一规则边界提交；规则座位轮次仍为 east → south → west → north。`table-controller.test.ts` 覆盖东座机器人首出并进入南座；`App.test.tsx` 覆盖四座布局、东座从 27 张变为 26 张后轮到南座真人以及最高公开出牌显示；`table-session.test.ts` 覆盖南座显示顺序在恢复后保持、清轮状态及最高出牌清空。`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint` 均通过，定向 `npm.cmd run test:run -- --configLoader runner App.test.tsx table-session.test.ts` 为 2 files / 13 tests passed，全量 `npm.cmd run test:run -- --configLoader runner` 为 16 files / 63 tests passed。普通 Vitest 配置加载及 `vite build` 清理共享输出目录时遭 Windows EPERM 文件锁；使用 `--configLoader runner` 已完成配置加载与测试。独立 Vite 开发服务在 `127.0.0.1:5175` 返回 HTTP 200；Playwright CLI 临时运行环境无输出而停止，待主验收在无共享进程锁时补真实浏览器冒烟。
 - P1-15D 自测（2026-07-13）：`App.tsx` 继续只从公开 `action.applied` 事件反向查找 `highestSeat` 对应的 `play`，并将该牌面放到对应座位（北/东/西，或真人南座手牌区）附近；中央仅保留回合与压住提示。清轮后的 `highestSeat` 为空，因此所有座位的当前出牌同步移除。新增“明牌”按钮，默认 `aria-pressed=false`；状态仅由 `App` 的 `showAllHands` 组件状态保存，开启时使用 `sortHumanDisplayCards` 显示东、北、西三家的完整整理手牌，关闭后立即卸载，刷新默认关闭；未修改 `TableSave`、规则事件、快照、`TurnState`、公共事件或 `BotView`。`App.test.tsx` 覆盖东座公开出牌贴近座位、其它座位不误显示、清轮后 `highestSeat` 清空，以及明牌默认隐藏、开关显示 26 张排序手牌并立即隐藏。`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（16 files / 65 tests）均通过；`vite build --configLoader runner --outDir D:\\MyWorks\\card-game\\temp\\p1-15d-build` 通过并删除临时产物，`git diff --check` 通过。默认 `dist` 目录被 Windows EPERM 文件锁占用，故改用独立临时输出目录完成构建验证；Vite 开发服务以 runner 配置加载后在 `127.0.0.1:5176` 返回 HTTP 200。Playwright CLI 的 npx 临时初始化在本机无输出并超时，未将此记为浏览器冒烟通过，留待主验收补测。
 
+### P1-16A 补丁计划（2026-07-14）
+
+- 先以 ADR 新增 `guandan-v2`：首局由南家领出，行动循环为南→东→北→西；旧 `guandan-v1` 存档明确拒绝恢复，不进行静默迁移。
+- 规则与展示分层：方式 A 仅在 UI 排序层优先辨认普通炸弹，其余牌按点数分组；手动显示顺序仍只保存实体牌 ID，不影响规则、事件或机器人视图。
+- 桌面改为浅色方形牌桌与四边座位；四家显示余牌圆形计数，少于 10 张变红；明牌复用同一整理器。
+- 以 `PatternInterpretation.wildcardAs` 排序公开出牌，并在红桃级牌上显示“配”、普通级牌显示“级”；桌面保留当前轮最近四个公开动作，过牌显示“不要”。
+- 验证顺序：固定牌例/组件测试 → 格式化、类型、lint、全量测试 → 本地浏览器人工冒烟 → 文档验收记录与本地提交。
+- 自测与验收（2026-07-14）：`ADR-0011` 将首局南家领出及 `guandan-v2` 固化，`guandan-v1` 本地存档明确拒绝恢复；回合环仍以等价的环形顺序实现南→东→北→西。`display-order.test.ts` 覆盖方式 A 炸弹优先、点数分组与红桃级配按代表点数归位；`App.test.tsx` 覆盖南家首局、选牌高亮、明牌同布局、最近动作中的“不要”、手动理牌和旧规则存档拒绝。`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（16 files / 65 tests）均通过；临时目录构建通过。真实浏览器在本机 Vite 中验收了浅蓝方桌、四边座位、南家首局、余牌圆标、级/配角标、明牌压缩分组布局和操作区。浏览器唯一控制台错误为开发服务器缺少 `favicon.ico` 的 404，非应用逻辑错误。
+
 ## P2：移动/PWA 与策略机器人
 
 | ID    | 依赖         | 开发内容                                               | 测试条件                         | 验收标准                                            | 当前状态    |
 | ----- | ------------ | ------------------------------------------------------ | -------------------------------- | --------------------------------------------------- | ----------- |
-| P2-01 | P1-16        | 响应式牌桌、横屏优先布局、安全区与触摸选牌。           | Playwright 手机视口 + 真机抽测。 | Android Chrome、iPhone Safari 可完成核心回合。      | not_started |
+| P2-01 | P1-17        | 响应式牌桌、横屏优先布局、安全区与触摸选牌。           | Playwright 手机视口 + 真机抽测。 | Android Chrome、iPhone Safari 可完成核心回合。      | not_started |
 | P2-02 | P2-01        | Manifest、Service Worker、离线壳与版本升级提示。       | 离线/升级/缓存清理测试。         | 安装后可离线启动；不以旧缓存运行新规则版本。        | not_started |
 | P2-03 | P1-12        | 手牌结构、手数、主攻/助攻、公开大牌统计和置信度模型。  | 固定牌力/过牌样例。              | 推断与确定事实分层；不泄露隐藏牌。                  | not_started |
 | P2-04 | P2-03        | 普通难度评分机器人、队友协同、炸弹策略和局面阶段权重。 | 固定策略局 + 固定 seed 对局。    | 机器人选择可解释；不频繁无意义压队友。              | not_started |

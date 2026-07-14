@@ -1,4 +1,5 @@
 import type { Card, CardId, Rank, Suit } from "../../platform/types";
+import type { PatternInterpretation } from "./patterns";
 
 const normalRanks: readonly Rank[] = [
   "3",
@@ -18,10 +19,73 @@ const normalRanks: readonly Rank[] = [
 const suitOrder: readonly Suit[] = ["clubs", "diamonds", "hearts", "spades", "joker"];
 
 function rankOrder(rank: Rank, levelRank: Rank): number {
-  if (rank === "small-joker") return 16;
   if (rank === "big-joker") return 17;
+  if (rank === "small-joker") return 16;
   if (rank === levelRank) return 15;
-  return normalRanks.indexOf(rank);
+  return normalRanks.indexOf(rank) + 2;
+}
+
+export interface DisplayCardGroup {
+  readonly key: string;
+  readonly cardIds: readonly CardId[];
+  readonly isBomb: boolean;
+}
+
+function cardRank(card: Card, interpretation?: PatternInterpretation): Rank {
+  return interpretation?.wildcardAs[card.id]?.rank ?? card.rank;
+}
+
+function groupedByRank(
+  cardIds: readonly CardId[],
+  cardsById: ReadonlyMap<CardId, Card>,
+  interpretation?: PatternInterpretation
+): readonly DisplayCardGroup[] {
+  const groups = new Map<Rank, CardId[]>();
+  for (const cardId of cardIds) {
+    const card = cardsById.get(cardId);
+    if (!card) continue;
+    const rank = cardRank(card, interpretation);
+    groups.set(rank, [...(groups.get(rank) ?? []), cardId]);
+  }
+  return [...groups.entries()].map(([rank, ids]) => ({
+    key: rank,
+    cardIds: ids.sort((leftId, rightId) => {
+      const left = cardsById.get(leftId);
+      const right = cardsById.get(rightId);
+      if (!left || !right) return leftId.localeCompare(rightId);
+      return (
+        suitOrder.indexOf(left.suit) - suitOrder.indexOf(right.suit) ||
+        left.deckIndex - right.deckIndex
+      );
+    }),
+    isBomb: ids.length >= 4
+  }));
+}
+
+function compareRankGroups(
+  levelRank: Rank,
+  left: DisplayCardGroup,
+  right: DisplayCardGroup
+): number {
+  return rankOrder(right.key as Rank, levelRank) - rankOrder(left.key as Rank, levelRank);
+}
+
+export function groupHumanDisplayCards(
+  hand: readonly CardId[],
+  cardsById: ReadonlyMap<CardId, Card>,
+  levelRank: Rank
+): readonly DisplayCardGroup[] {
+  const groups = groupedByRank(hand, cardsById);
+  const normal = groups
+    .filter((group) => !group.isBomb)
+    .sort((left, right) => compareRankGroups(levelRank, left, right));
+  const bombs = groups
+    .filter((group) => group.isBomb)
+    .sort(
+      (left, right) =>
+        right.cardIds.length - left.cardIds.length || compareRankGroups(levelRank, left, right)
+    );
+  return [...normal, ...bombs];
 }
 
 /**
@@ -33,17 +97,21 @@ export function sortHumanDisplayCards(
   cardsById: ReadonlyMap<CardId, Card>,
   levelRank: Rank
 ): readonly CardId[] {
-  return [...hand].sort((leftId, rightId) => {
-    const left = cardsById.get(leftId);
-    const right = cardsById.get(rightId);
-    if (!left || !right) return leftId.localeCompare(rightId);
-    return (
-      rankOrder(left.rank, levelRank) - rankOrder(right.rank, levelRank) ||
-      suitOrder.indexOf(left.suit) - suitOrder.indexOf(right.suit) ||
-      left.deckIndex - right.deckIndex ||
-      left.id.localeCompare(right.id)
-    );
-  });
+  return groupHumanDisplayCards(hand, cardsById, levelRank).flatMap((group) => group.cardIds);
+}
+
+export function sortPlayedCards(
+  cardIds: readonly CardId[],
+  cardsById: ReadonlyMap<CardId, Card>,
+  levelRank: Rank,
+  interpretation: PatternInterpretation
+): readonly CardId[] {
+  return [...groupedByRank(cardIds, cardsById, interpretation)]
+    .sort(
+      (left, right) =>
+        right.cardIds.length - left.cardIds.length || compareRankGroups(levelRank, left, right)
+    )
+    .flatMap((group) => group.cardIds);
 }
 
 /** 保留有效手动顺序，出掉的牌移除，新出现的牌稳定追加。 */

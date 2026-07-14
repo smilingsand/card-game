@@ -15,14 +15,14 @@ const card = (id: string, rank: Card["rank"], suit: Card["suit"] = "spades"): Ca
   rank
 });
 
-test("首局东座机器人通过 BotView 和统一规则入口领出", () => {
+test("首局由南座领出，且后续按逆时针进入东座", () => {
   const game = createTableGame(73);
 
   const opening = chooseTableBotAction(game);
-  expect(opening).toMatchObject({ type: "play", actor: "east" });
+  expect(opening).toMatchObject({ type: "play", actor: "south" });
   if (!opening) return;
 
-  expect(submitTableAction(game, opening)).toMatchObject({ ok: true, state: { current: "north" } });
+  expect(submitTableAction(game, opening)).toMatchObject({ ok: true, state: { current: "east" } });
 });
 
 test("东家领出后，北家有可压制单张时会接牌", () => {

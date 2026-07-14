@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type DragEvent, type KeyboardEvent } from "react";
 import "./App.css";
-import type { Seat } from "./platform/types";
+import type { Card, Seat } from "./platform/types";
 import { createIndexedDbStorage, type StorageBoundary } from "./platform/storage";
 import {
   chooseTableBotAction,
@@ -20,9 +20,10 @@ import {
   type TableSession
 } from "./games/guandan/table-session";
 import {
+  groupHumanDisplayCards,
   moveHumanDisplayCard,
   reconcileHumanDisplayOrder,
-  sortHumanDisplayCards
+  sortPlayedCards
 } from "./games/guandan/display-order";
 import type { TurnAction } from "./games/guandan/turns";
 
@@ -49,6 +50,39 @@ function defaultStorage(): StorageBoundary<TableSave> {
 
 function actionFromPublicEvent(event: TableGame["publicEvents"][number]): TurnAction | undefined {
   return (event.payload as { readonly action?: TurnAction }).action;
+}
+
+function currentTrickActions(events: TableGame["publicEvents"]): readonly TurnAction[] {
+  const actions = events
+    .map(actionFromPublicEvent)
+    .filter((action): action is TurnAction => !!action);
+  let start = 0;
+  for (let index = 0; index <= actions.length - 3; index += 1) {
+    if (actions.slice(index, index + 3).every((action) => action.type === "pass"))
+      start = index + 3;
+  }
+  return actions.slice(start).slice(-4);
+}
+
+function CardFace({
+  card,
+  wildcardAs
+}: {
+  readonly card: Card;
+  readonly wildcardAs?: { readonly rank: Card["rank"] };
+}) {
+  const suit = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣", joker: "" }[card.suit];
+  const rank =
+    card.rank === "small-joker" ? "小王" : card.rank === "big-joker" ? "大王" : card.rank;
+  const badge = card.rank === "2" ? (card.suit === "hearts" ? "配" : "级") : undefined;
+  return (
+    <span className={`card-face ${card.suit}`}>
+      {badge ? <span className="card-badge">{badge}</span> : null}
+      <span className="card-rank">{rank}</span>
+      <span className="card-suit">{suit}</span>
+      {wildcardAs ? <span className="wildcard-as">配{wildcardAs.rank}</span> : null}
+    </span>
+  );
 }
 
 export function App({ storage }: { readonly storage?: StorageBoundary<TableSave> }) {
@@ -115,6 +149,9 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     game.cardsById,
     "2"
   );
+  const handGroups = session.humanDisplayOrder
+    ? hand.map((cardId) => ({ key: cardId, cardIds: [cardId], isBomb: false }))
+    : groupHumanDisplayCards(hand, game.cardsById, "2");
   const selectedActions = getSelectedPlayActions(game, selectedCardIds);
   const canPass = getLegalSingleActions(game).some((action) => action.type === "pass");
   const highestPlay = game.state.highestSeat
@@ -127,8 +164,36 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         )
     : undefined;
   const revealedHand = (seat: BotSeat) =>
-    sortHumanDisplayCards(game.state.hands[seat], game.cardsById, "2");
+    groupHumanDisplayCards(game.state.hands[seat], game.cardsById, "2");
   const publicPlay = (seat: Seat) => (highestPlay?.actor === seat ? highestPlay : undefined);
+  const recentActions = currentTrickActions(game.publicEvents);
+  const recentActionsFor = (seat: Seat) => recentActions.filter((action) => action.actor === seat);
+
+  const renderAction = (action: TurnAction, current: boolean) => (
+    <span
+      key={`${action.actor}-${action.type}-${action.type === "play" ? action.cardIds.join("-") : "pass"}`}
+      className="public-action"
+      aria-label={`${seatName[action.actor]}${current ? "当前出牌" : "最近出牌"}`}
+    >
+      {action.type === "pass" ? (
+        <span className="pass-word">不要</span>
+      ) : (
+        sortPlayedCards(action.cardIds, game.cardsById, "2", action.interpretation).map(
+          (cardId) => {
+            const card = game.cardsById.get(cardId);
+            if (!card) return null;
+            return (
+              <CardFace
+                key={cardId}
+                card={card}
+                wildcardAs={action.interpretation.wildcardAs[cardId]}
+              />
+            );
+          }
+        )
+      )}
+    </span>
+  );
 
   const submit = (action: ReturnType<typeof getLegalSingleActions>[number]) => {
     const result = applyTableSessionAction(session, action);
@@ -236,49 +301,49 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
       <section className="table" aria-label="牌桌">
         <section className="seat north" aria-label="北家座位">
           <strong>{seatName.north}</strong>
-          <span>剩余 {game.state.hands.north.length} 张</span>
+          <span className={game.state.hands.north.length < 10 ? "card-count urgent" : "card-count"}>
+            {game.state.hands.north.length}
+          </span>
           {showAllHands ? (
-            <span className="revealed-hand" aria-label="北家明牌">
-              {revealedHand("north")
-                .map((cardId) => game.cardsById.get(cardId))
-                .filter((card) => card !== undefined)
-                .map((card) => formatCard(card))
-                .join("、")}
+            <span className="revealed-hand card-groups" aria-label="北家明牌">
+              {revealedHand("north").map((group) => (
+                <span className="card-stack" key={group.key}>
+                  {group.cardIds.map((cardId) => {
+                    const card = game.cardsById.get(cardId);
+                    return card ? <CardFace card={card} key={cardId} /> : null;
+                  })}
+                </span>
+              ))}
             </span>
           ) : null}
-          {publicPlay("north") ? (
-            <span className="public-play" aria-label="北家当前出牌">
-              当前出牌：
-              {publicPlay("north")!
-                .cardIds.map((cardId) => game.cardsById.get(cardId))
-                .filter((card) => card !== undefined)
-                .map((card) => formatCard(card))
-                .join("、")}
-            </span>
-          ) : null}
+          <span className="seat-actions">
+            {recentActionsFor("north").map((action) =>
+              renderAction(action, action === publicPlay("north"))
+            )}
+          </span>
         </section>
         <section className="seat east" aria-label="东家座位">
           <strong>{seatName.east}</strong>
-          <span>剩余 {game.state.hands.east.length} 张</span>
+          <span className={game.state.hands.east.length < 10 ? "card-count urgent" : "card-count"}>
+            {game.state.hands.east.length}
+          </span>
           {showAllHands ? (
-            <span className="revealed-hand" aria-label="东家明牌">
-              {revealedHand("east")
-                .map((cardId) => game.cardsById.get(cardId))
-                .filter((card) => card !== undefined)
-                .map((card) => formatCard(card))
-                .join("、")}
+            <span className="revealed-hand card-groups" aria-label="东家明牌">
+              {revealedHand("east").map((group) => (
+                <span className="card-stack" key={group.key}>
+                  {group.cardIds.map((cardId) => {
+                    const card = game.cardsById.get(cardId);
+                    return card ? <CardFace card={card} key={cardId} /> : null;
+                  })}
+                </span>
+              ))}
             </span>
           ) : null}
-          {publicPlay("east") ? (
-            <span className="public-play" aria-label="东家当前出牌">
-              当前出牌：
-              {publicPlay("east")!
-                .cardIds.map((cardId) => game.cardsById.get(cardId))
-                .filter((card) => card !== undefined)
-                .map((card) => formatCard(card))
-                .join("、")}
-            </span>
-          ) : null}
+          <span className="seat-actions">
+            {recentActionsFor("east").map((action) =>
+              renderAction(action, action === publicPlay("east"))
+            )}
+          </span>
         </section>
         <section className="table-info" aria-label="桌面信息">
           <p>轮到：{seatName[game.state.current]}</p>
@@ -290,69 +355,74 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         </section>
         <section className="seat west" aria-label="西家座位">
           <strong>{seatName.west}</strong>
-          <span>剩余 {game.state.hands.west.length} 张</span>
+          <span className={game.state.hands.west.length < 10 ? "card-count urgent" : "card-count"}>
+            {game.state.hands.west.length}
+          </span>
           {showAllHands ? (
-            <span className="revealed-hand" aria-label="西家明牌">
-              {revealedHand("west")
-                .map((cardId) => game.cardsById.get(cardId))
-                .filter((card) => card !== undefined)
-                .map((card) => formatCard(card))
-                .join("、")}
+            <span className="revealed-hand card-groups" aria-label="西家明牌">
+              {revealedHand("west").map((group) => (
+                <span className="card-stack" key={group.key}>
+                  {group.cardIds.map((cardId) => {
+                    const card = game.cardsById.get(cardId);
+                    return card ? <CardFace card={card} key={cardId} /> : null;
+                  })}
+                </span>
+              ))}
             </span>
           ) : null}
-          {publicPlay("west") ? (
-            <span className="public-play" aria-label="西家当前出牌">
-              当前出牌：
-              {publicPlay("west")!
-                .cardIds.map((cardId) => game.cardsById.get(cardId))
-                .filter((card) => card !== undefined)
-                .map((card) => formatCard(card))
-                .join("、")}
-            </span>
-          ) : null}
+          <span className="seat-actions">
+            {recentActionsFor("west").map((action) =>
+              renderAction(action, action === publicPlay("west"))
+            )}
+          </span>
         </section>
       </section>
       <p role="status">{message}</p>
       {game.state.completed ? null : (
         <section className="human-seat" aria-label="你的手牌">
-          <h2>你的手牌（{hand.length}）</h2>
-          {publicPlay(HUMAN_SEAT) ? (
-            <p className="public-play" aria-label="南家当前出牌">
-              当前出牌：
-              {publicPlay(HUMAN_SEAT)!
-                .cardIds.map((cardId) => game.cardsById.get(cardId))
-                .filter((card) => card !== undefined)
-                .map((card) => formatCard(card))
-                .join("、")}
-            </p>
-          ) : null}
+          <h2>
+            你的手牌{" "}
+            <span className={hand.length < 10 ? "card-count urgent" : "card-count"}>
+              {hand.length}
+            </span>
+          </h2>
+          <span className="seat-actions south-actions">
+            {recentActionsFor(HUMAN_SEAT).map((action) =>
+              renderAction(action, action === publicPlay(HUMAN_SEAT))
+            )}
+          </span>
           <p id="hand-arrangement-help">
             已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
           </p>
-          <div>
-            {hand.map((cardId) => {
-              const card = game.cardsById.get(cardId);
-              if (!card) return null;
-              const selected = selectedCardIds.includes(cardId);
-              return (
-                <button
-                  key={cardId}
-                  type="button"
-                  aria-pressed={selected}
-                  aria-label={`选择${formatCard(card)}`}
-                  aria-describedby="hand-arrangement-help"
-                  draggable={game.state.current === HUMAN_SEAT}
-                  onClick={() => toggleCard(cardId)}
-                  onDragStart={(event) => dragStart(event, cardId)}
-                  onDragEnd={() => setDraggingCardId(undefined)}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => dropOnCard(event, cardId)}
-                  onKeyDown={(event) => reorderWithKeyboard(event, cardId)}
-                >
-                  {formatCard(card)}
-                </button>
-              );
-            })}
+          <div className="card-groups human-hand">
+            {handGroups.map((group) => (
+              <span className="card-stack" key={group.key}>
+                {group.cardIds.map((cardId) => {
+                  const card = game.cardsById.get(cardId);
+                  if (!card) return null;
+                  const selected = selectedCardIds.includes(cardId);
+                  return (
+                    <button
+                      key={cardId}
+                      type="button"
+                      className="hand-card"
+                      aria-pressed={selected}
+                      aria-label={`选择${formatCard(card)}`}
+                      aria-describedby="hand-arrangement-help"
+                      draggable={game.state.current === HUMAN_SEAT}
+                      onClick={() => toggleCard(cardId)}
+                      onDragStart={(event) => dragStart(event, cardId)}
+                      onDragEnd={() => setDraggingCardId(undefined)}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => dropOnCard(event, cardId)}
+                      onKeyDown={(event) => reorderWithKeyboard(event, cardId)}
+                    >
+                      <CardFace card={card} />
+                    </button>
+                  );
+                })}
+              </span>
+            ))}
           </div>
         </section>
       )}

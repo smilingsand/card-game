@@ -30,7 +30,7 @@ describe("牌桌事件存档", () => {
 
   test("旧 rulesVersion 被明确拒绝，不能静默按当前规则恢复", () => {
     const save = structuredClone(serializeTableSession(createTableSession(73)));
-    Reflect.set(save.stream, "rulesVersion", "guandan-v0");
+    Reflect.set(save.stream, "rulesVersion", "guandan-v1");
 
     expect(() => restoreTableSession(save)).toThrow("rules version mismatch");
   });
@@ -82,18 +82,18 @@ describe("牌桌事件存档", () => {
     if (!opening) throw new Error("expected opening play");
     const afterOpening = applyTableSessionAction(initial, opening);
     if (!afterOpening.ok) throw new Error("expected legal opening play");
-    const afterNorth = applyTableSessionAction(afterOpening.session, {
+    const afterEast = applyTableSessionAction(afterOpening.session, {
+      type: "pass",
+      actor: "east"
+    });
+    if (!afterEast.ok) throw new Error("expected east pass");
+    const afterNorth = applyTableSessionAction(afterEast.session, {
       type: "pass",
       actor: "north"
     });
     if (!afterNorth.ok) throw new Error("expected north pass");
-    const afterWest = applyTableSessionAction(afterNorth.session, {
-      type: "pass",
-      actor: "west"
-    });
-    if (!afterWest.ok) throw new Error("expected west pass");
-    const cleared = applyTableSessionAction(afterWest.session, { type: "pass", actor: "south" });
+    const cleared = applyTableSessionAction(afterNorth.session, { type: "pass", actor: "west" });
 
-    expect(cleared).toMatchObject({ ok: true, state: { current: "east", highest: undefined } });
+    expect(cleared).toMatchObject({ ok: true, state: { current: "south", highest: undefined } });
   });
 });
