@@ -45,20 +45,17 @@ section[aria-label="操作"] {
   display: flex;
   justify-content: center;
   gap: 1rem;
-  margin: 0.75rem 0;
+  margin: 0;
 }
 section[aria-label="操作"] button:nth-child(1) {
-  order: 2;
-  background: #2868dd;
+  background: #435c4e;
 }
 section[aria-label="操作"] button:nth-child(2) {
-  order: 3;
-  background: #365e54;
-  box-shadow: inset 0 -3px #e1bd47;
+  background: #2868dd;
 }
 section[aria-label="操作"] button:nth-child(3) {
-  order: 1;
-  background: #435c4e;
+  background: #365e54;
+  box-shadow: inset 0 -3px #e1bd47;
 }
 button:disabled {
   opacity: 0.45;
@@ -66,7 +63,7 @@ button:disabled {
 
 .table {
   position: relative;
-  min-height: 610px;
+  min-height: 780px;
   margin: 1rem 0;
   border: 18px solid #77bfd5;
   border-radius: 2.25rem;
@@ -91,17 +88,17 @@ button:disabled {
 }
 .west {
   left: 1.25rem;
-  top: 50%;
+  top: 38%;
   transform: translateY(-50%);
 }
 .east {
   right: 1.25rem;
-  top: 50%;
+  top: 38%;
   transform: translateY(-50%);
 }
 .table-info {
   left: 50%;
-  top: 50%;
+  top: 40%;
   width: 16rem;
   transform: translate(-50%, -50%);
   color: #134860;
@@ -109,6 +106,10 @@ button:disabled {
 }
 .table-info p {
   margin: 0;
+}
+.table-status {
+  margin-top: 0.5rem !important;
+  font-size: 0.85rem;
 }
 
 .card-count {
@@ -157,7 +158,7 @@ button:disabled {
   align-items: stretch;
 }
 .card-stack > * + * {
-  margin-bottom: -2.1rem;
+  margin-bottom: 0;
 }
 .card-face {
   position: relative;
@@ -178,6 +179,25 @@ button:disabled {
 .card-face.hearts,
 .card-face.diamonds {
   color: #c92f35;
+}
+.card-face.compact {
+  flex-direction: row;
+  align-items: center;
+  width: 3rem;
+  height: 1.3rem;
+  padding: 0.08rem 0.25rem;
+  border-bottom-color: #d7e0e4;
+}
+.card-face.compact .card-rank {
+  font-size: 0.95rem;
+}
+.card-face.compact .card-suit {
+  margin-left: auto;
+  font-size: 1rem;
+}
+.card-face.compact .card-badge,
+.card-face.compact .wildcard-as {
+  display: none;
 }
 .card-rank {
   font-size: 1.2rem;
@@ -236,29 +256,41 @@ button:disabled {
   font-size: 0.4rem;
 }
 .revealed-hand .card-stack > * + * {
-  margin-bottom: -1rem;
+  margin-bottom: 0;
 }
 
 .human-seat {
-  margin: 0;
-  padding: 0.75rem 0;
-}
-.human-seat h2 {
-  display: flex;
+  position: absolute;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  left: 1.25rem;
+  display: grid;
+  gap: 0.65rem;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin: 0 0 0.5rem;
+  min-height: 22rem;
+  padding: 0.75rem;
 }
 .south-actions {
-  justify-content: center;
-  margin: 0.25rem 0;
+  position: absolute;
+  bottom: 23rem;
+  left: 50%;
+  transform: translateX(-50%);
 }
 .human-hand {
   justify-content: center;
-  flex-wrap: wrap;
   align-items: flex-end;
-  min-height: 8rem;
+  min-height: 12rem;
+  overflow: auto hidden;
+}
+.card-groups.flat .card-stack {
+  display: contents;
+}
+.human-hand.flat .card-face {
+  width: 2.2rem;
+  height: 3.3rem;
+}
+.human-hand.flat {
+  flex-wrap: nowrap;
 }
 .hand-card {
   padding: 0;
@@ -277,9 +309,15 @@ button:disabled {
   outline-offset: 2px;
 }
 #hand-arrangement-help {
-  text-align: center;
+  margin: 0;
   color: #405b67;
   font-size: 0.9rem;
+}
+.human-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
 }
 
 @media (max-width: 720px) {
@@ -287,7 +325,7 @@ button:disabled {
     padding: 0.5rem;
   }
   .table {
-    min-height: 500px;
+    min-height: 700px;
     border-width: 10px;
   }
   .card-face {
@@ -305,5 +343,14 @@ button:disabled {
   }
   .east {
     right: 0.45rem;
+  }
+  .human-seat {
+    right: 0.5rem;
+    bottom: 0.5rem;
+    left: 0.5rem;
+  }
+  .human-hand.flat .card-face {
+    width: 1.9rem;
+    height: 2.9rem;
   }
 }

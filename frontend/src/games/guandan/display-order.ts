@@ -89,6 +89,29 @@ export function groupHumanDisplayCards(
 }
 
 /**
+ * 人工理牌后的牌序仍以实体 ID 为准；仅将相邻的同点数牌组成一个纵列，
+ * 从而不会因手动移动而退化为纯横排，也不会重新覆盖用户指定的列顺序。
+ */
+export function groupOrderedDisplayCards(
+  order: readonly CardId[],
+  cardsById: ReadonlyMap<CardId, Card>
+): readonly DisplayCardGroup[] {
+  const groups: DisplayCardGroup[] = [];
+  for (const cardId of order) {
+    const card = cardsById.get(cardId);
+    if (!card) continue;
+    const previous = groups.at(-1);
+    const previousCard = previous ? cardsById.get(previous.cardIds.at(-1)!) : undefined;
+    if (previous && previousCard?.rank === card.rank) {
+      groups[groups.length - 1] = { ...previous, cardIds: [...previous.cardIds, cardId] };
+      continue;
+    }
+    groups.push({ key: `${card.rank}-${groups.length}`, cardIds: [cardId], isBomb: false });
+  }
+  return groups;
+}
+
+/**
  * 只为真人阅读生成稳定顺序；不参与牌型、回合或动作判断。
  * 同点数的两副牌按花色、再按牌副序号相邻排列。
  */

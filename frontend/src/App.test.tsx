@@ -39,6 +39,9 @@ describe("App", () => {
     expect(screen.getByLabelText("东家座位")).toHaveTextContent("27");
     expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument();
     const hand = screen.getByLabelText("你的手牌");
+    expect(screen.getByLabelText("牌桌")).toContainElement(hand);
+    expect(screen.queryByRole("heading", { name: /你的手牌/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "横排" })).toHaveAttribute("aria-pressed", "false");
     const cards = within(hand).getAllByRole("button", { name: /^选择/ });
     expect(cards).toHaveLength(27);
     fireEvent.click(cards[0]);
@@ -46,6 +49,12 @@ describe("App", () => {
     fireEvent.click(cards[0]);
     expect(cards[0]).toHaveAttribute("aria-pressed", "false");
     expect(hand.querySelectorAll(".card-face")).toHaveLength(27);
+    expect(hand.querySelectorAll(".card-face.compact").length).toBeGreaterThan(0);
+    expect(
+      within(screen.getByLabelText("操作"))
+        .getAllByRole("button")
+        .map((button) => button.textContent)
+    ).toEqual(["过牌", "提示", "出牌"]);
   });
 
   it("提示和出牌仍通过规则入口提交", async () => {
@@ -105,6 +114,25 @@ describe("App", () => {
     const moved = within(hand).getAllByRole("button", { name: /^选择/ })[0];
     fireEvent.click(moved);
     expect(moved).toHaveAttribute("aria-pressed", "true");
+    expect(hand.querySelectorAll(".card-face.compact").length).toBeGreaterThan(0);
+  });
+
+  it("横排和竖排按钮切换南家及明牌手牌的布局", async () => {
+    render(<App storage={memoryStorage()} />);
+    await waitFor(() => expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument());
+    const hand = screen.getByLabelText("你的手牌");
+    fireEvent.click(screen.getByRole("button", { name: "明牌" }));
+    expect(hand.querySelectorAll(".card-face.compact").length).toBeGreaterThan(0);
+    expect(
+      screen.getByLabelText("东家明牌").querySelectorAll(".card-face.compact").length
+    ).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "横排" }));
+    expect(screen.getByRole("button", { name: "竖排" })).toHaveAttribute("aria-pressed", "true");
+    expect(hand.querySelectorAll(".card-face.compact")).toHaveLength(0);
+    expect(screen.getByLabelText("东家明牌").querySelectorAll(".card-face.compact")).toHaveLength(
+      0
+    );
   });
 
   it("拒绝旧规则版本存档，直到用户明确开始新局才覆盖", async () => {

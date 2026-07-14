@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Card } from "../../platform/types";
 import {
   groupHumanDisplayCards,
+  groupOrderedDisplayCards,
   moveHumanDisplayCard,
   reconcileHumanDisplayOrder,
   sortHumanDisplayCards,
@@ -83,5 +84,19 @@ describe("human display order", () => {
       "one",
       "two"
     ]);
+  });
+
+  it("手动顺序只将相邻同点数牌纵向分组，不会回退到每张牌一列", () => {
+    const byId = cards(
+      { id: "nine-a", deckIndex: 1, suit: "spades", rank: "9" },
+      { id: "nine-b", deckIndex: 1, suit: "hearts", rank: "9" },
+      { id: "eight", deckIndex: 1, suit: "clubs", rank: "8" },
+      { id: "nine-c", deckIndex: 2, suit: "diamonds", rank: "9" }
+    );
+    expect(
+      groupOrderedDisplayCards(["nine-a", "nine-b", "eight", "nine-c"], byId).map(
+        (group) => group.cardIds
+      )
+    ).toEqual([["nine-a", "nine-b"], ["eight"], ["nine-c"]]);
   });
 });

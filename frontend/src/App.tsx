@@ -21,6 +21,7 @@ import {
 } from "./games/guandan/table-session";
 import {
   groupHumanDisplayCards,
+  groupOrderedDisplayCards,
   moveHumanDisplayCard,
   reconcileHumanDisplayOrder,
   sortPlayedCards
@@ -29,6 +30,7 @@ import type { TurnAction } from "./games/guandan/turns";
 
 const HUMAN_SEAT: Seat = "south";
 type BotSeat = "east" | "north" | "west";
+type HandLayout = "stacked" | "flat";
 const seatName: Record<Seat, string> = {
   east: "东家（机器人）",
   south: "你（南家）",
@@ -66,17 +68,19 @@ function currentTrickActions(events: TableGame["publicEvents"]): readonly TurnAc
 
 function CardFace({
   card,
-  wildcardAs
+  wildcardAs,
+  compact = false
 }: {
   readonly card: Card;
   readonly wildcardAs?: { readonly rank: Card["rank"] };
+  readonly compact?: boolean;
 }) {
   const suit = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣", joker: "" }[card.suit];
   const rank =
     card.rank === "small-joker" ? "小王" : card.rank === "big-joker" ? "大王" : card.rank;
   const badge = card.rank === "2" ? (card.suit === "hearts" ? "配" : "级") : undefined;
   return (
-    <span className={`card-face ${card.suit}`}>
+    <span className={`card-face ${card.suit}${compact ? " compact" : ""}`}>
       {badge ? <span className="card-badge">{badge}</span> : null}
       <span className="card-rank">{rank}</span>
       <span className="card-suit">{suit}</span>
@@ -95,6 +99,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   const [saveBlocked, setSaveBlocked] = useState(false);
   const [draggingCardId, setDraggingCardId] = useState<string>();
   const [showAllHands, setShowAllHands] = useState(false);
+  const [handLayout, setHandLayout] = useState<HandLayout>("stacked");
   const game: TableGame = session.game;
 
   useEffect(() => {
@@ -150,7 +155,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     "2"
   );
   const handGroups = session.humanDisplayOrder
-    ? hand.map((cardId) => ({ key: cardId, cardIds: [cardId], isBomb: false }))
+    ? groupOrderedDisplayCards(hand, game.cardsById)
     : groupHumanDisplayCards(hand, game.cardsById, "2");
   const selectedActions = getSelectedPlayActions(game, selectedCardIds);
   const canPass = getLegalSingleActions(game).some((action) => action.type === "pass");
@@ -285,6 +290,13 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         >
           明牌
         </button>
+        <button
+          type="button"
+          aria-pressed={handLayout === "flat"}
+          onClick={() => setHandLayout((layout) => (layout === "stacked" ? "flat" : "stacked"))}
+        >
+          {handLayout === "stacked" ? "横排" : "竖排"}
+        </button>
       </header>
       {game.state.completed ? (
         <section aria-label="对局结算">
@@ -305,12 +317,18 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
             {game.state.hands.north.length}
           </span>
           {showAllHands ? (
-            <span className="revealed-hand card-groups" aria-label="北家明牌">
+            <span className={`revealed-hand card-groups ${handLayout}`} aria-label="北家明牌">
               {revealedHand("north").map((group) => (
                 <span className="card-stack" key={group.key}>
-                  {group.cardIds.map((cardId) => {
+                  {group.cardIds.map((cardId, index) => {
                     const card = game.cardsById.get(cardId);
-                    return card ? <CardFace card={card} key={cardId} /> : null;
+                    return card ? (
+                      <CardFace
+                        card={card}
+                        compact={handLayout === "stacked" && index > 0}
+                        key={cardId}
+                      />
+                    ) : null;
                   })}
                 </span>
               ))}
@@ -328,12 +346,18 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
             {game.state.hands.east.length}
           </span>
           {showAllHands ? (
-            <span className="revealed-hand card-groups" aria-label="东家明牌">
+            <span className={`revealed-hand card-groups ${handLayout}`} aria-label="东家明牌">
               {revealedHand("east").map((group) => (
                 <span className="card-stack" key={group.key}>
-                  {group.cardIds.map((cardId) => {
+                  {group.cardIds.map((cardId, index) => {
                     const card = game.cardsById.get(cardId);
-                    return card ? <CardFace card={card} key={cardId} /> : null;
+                    return card ? (
+                      <CardFace
+                        card={card}
+                        compact={handLayout === "stacked" && index > 0}
+                        key={cardId}
+                      />
+                    ) : null;
                   })}
                 </span>
               ))}
@@ -352,6 +376,9 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
               ? `当前牌由${seatName[game.state.highestSeat]}压住。`
               : "当前为领出。"}
           </p>
+          <p className="table-status" role="status">
+            {message}
+          </p>
         </section>
         <section className="seat west" aria-label="西家座位">
           <strong>{seatName.west}</strong>
@@ -359,12 +386,18 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
             {game.state.hands.west.length}
           </span>
           {showAllHands ? (
-            <span className="revealed-hand card-groups" aria-label="西家明牌">
+            <span className={`revealed-hand card-groups ${handLayout}`} aria-label="西家明牌">
               {revealedHand("west").map((group) => (
                 <span className="card-stack" key={group.key}>
-                  {group.cardIds.map((cardId) => {
+                  {group.cardIds.map((cardId, index) => {
                     const card = game.cardsById.get(cardId);
-                    return card ? <CardFace card={card} key={cardId} /> : null;
+                    return card ? (
+                      <CardFace
+                        card={card}
+                        compact={handLayout === "stacked" && index > 0}
+                        key={cardId}
+                      />
+                    ) : null;
                   })}
                 </span>
               ))}
@@ -376,92 +409,88 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
             )}
           </span>
         </section>
-      </section>
-      <p role="status">{message}</p>
-      {game.state.completed ? null : (
-        <section className="human-seat" aria-label="你的手牌">
-          <h2>
-            你的手牌{" "}
-            <span className={hand.length < 10 ? "card-count urgent" : "card-count"}>
-              {hand.length}
-            </span>
-          </h2>
-          <span className="seat-actions south-actions">
-            {recentActionsFor(HUMAN_SEAT).map((action) =>
-              renderAction(action, action === publicPlay(HUMAN_SEAT))
-            )}
-          </span>
-          <p id="hand-arrangement-help">
-            已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
-          </p>
-          <div className="card-groups human-hand">
-            {handGroups.map((group) => (
-              <span className="card-stack" key={group.key}>
-                {group.cardIds.map((cardId) => {
-                  const card = game.cardsById.get(cardId);
-                  if (!card) return null;
-                  const selected = selectedCardIds.includes(cardId);
-                  return (
-                    <button
-                      key={cardId}
-                      type="button"
-                      className="hand-card"
-                      aria-pressed={selected}
-                      aria-label={`选择${formatCard(card)}`}
-                      aria-describedby="hand-arrangement-help"
-                      draggable={game.state.current === HUMAN_SEAT}
-                      onClick={() => toggleCard(cardId)}
-                      onDragStart={(event) => dragStart(event, cardId)}
-                      onDragEnd={() => setDraggingCardId(undefined)}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => dropOnCard(event, cardId)}
-                      onKeyDown={(event) => reorderWithKeyboard(event, cardId)}
-                    >
-                      <CardFace card={card} />
-                    </button>
-                  );
-                })}
+        <span className="seat-actions south-actions">
+          {recentActionsFor(HUMAN_SEAT).map((action) =>
+            renderAction(action, action === publicPlay(HUMAN_SEAT))
+          )}
+        </span>
+        {game.state.completed ? null : (
+          <section className="human-seat" aria-label="你的手牌">
+            <section aria-label="操作">
+              <button
+                type="button"
+                onClick={() => submit({ type: "pass", actor: HUMAN_SEAT })}
+                disabled={game.state.current !== HUMAN_SEAT || !canPass}
+              >
+                过牌
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const hint = getLegalSingleActions(game).find((action) => action.type === "play");
+                  if (!hint || hint.type !== "play") {
+                    setMessage("规则引擎没有提供可提示的出牌。");
+                    return;
+                  }
+                  setSelectedCardIds(hint.cardIds);
+                  setMessage(`提示：可出${formatInterpretation(hint.interpretation)}。`);
+                }}
+                disabled={game.state.current !== HUMAN_SEAT}
+              >
+                提示
+              </button>
+              <button
+                type="button"
+                onClick={() => submit(selectedActions[0])}
+                disabled={game.state.current !== HUMAN_SEAT || selectedActions.length === 0}
+              >
+                出牌
+                {selectedActions[0]?.type === "play"
+                  ? `（${formatInterpretation(selectedActions[0].interpretation)}）`
+                  : ""}
+              </button>
+            </section>
+            <div className={`card-groups human-hand ${handLayout}`}>
+              {handGroups.map((group) => (
+                <span className="card-stack" key={group.key}>
+                  {group.cardIds.map((cardId, index) => {
+                    const card = game.cardsById.get(cardId);
+                    if (!card) return null;
+                    const selected = selectedCardIds.includes(cardId);
+                    return (
+                      <button
+                        key={cardId}
+                        type="button"
+                        className="hand-card"
+                        aria-pressed={selected}
+                        aria-label={`选择${formatCard(card)}`}
+                        aria-describedby="hand-arrangement-help"
+                        draggable={game.state.current === HUMAN_SEAT}
+                        onClick={() => toggleCard(cardId)}
+                        onDragStart={(event) => dragStart(event, cardId)}
+                        onDragEnd={() => setDraggingCardId(undefined)}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={(event) => dropOnCard(event, cardId)}
+                        onKeyDown={(event) => reorderWithKeyboard(event, cardId)}
+                      >
+                        <CardFace card={card} compact={handLayout === "stacked" && index > 0} />
+                      </button>
+                    );
+                  })}
+                </span>
+              ))}
+            </div>
+            <div className="human-footer">
+              <p id="hand-arrangement-help">
+                已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
+              </p>
+              <span className={hand.length < 10 ? "card-count urgent" : "card-count"}>
+                {hand.length}
               </span>
-            ))}
-          </div>
-        </section>
-      )}
-      {game.state.completed ? null : (
-        <section aria-label="操作">
-          <button
-            type="button"
-            onClick={() => {
-              const hint = getLegalSingleActions(game).find((action) => action.type === "play");
-              if (!hint || hint.type !== "play") {
-                setMessage("规则引擎没有提供可提示的出牌。");
-                return;
-              }
-              setSelectedCardIds(hint.cardIds);
-              setMessage(`提示：可出${formatInterpretation(hint.interpretation)}。`);
-            }}
-            disabled={game.state.current !== HUMAN_SEAT}
-          >
-            提示
-          </button>
-          <button
-            type="button"
-            onClick={() => submit(selectedActions[0])}
-            disabled={game.state.current !== HUMAN_SEAT || selectedActions.length === 0}
-          >
-            出牌
-            {selectedActions[0]?.type === "play"
-              ? `（${formatInterpretation(selectedActions[0].interpretation)}）`
-              : ""}
-          </button>
-          <button
-            type="button"
-            onClick={() => submit({ type: "pass", actor: HUMAN_SEAT })}
-            disabled={game.state.current !== HUMAN_SEAT || !canPass}
-          >
-            过牌
-          </button>
-        </section>
-      )}
+            </div>
+          </section>
+        )}
+      </section>
     </main>
   );
 }
