@@ -36,7 +36,8 @@
 | P1-16D | P1-16C | 发布前桌面修正四：南家公开出牌与操作按钮建立不重叠的安全间距。 | 组件测试、全量回归、浏览器人工冒烟。 | 南家公开出牌的下缘略高于操作按钮上缘，所有手牌布局下均不重叠。 | accepted |
 | P1-16E | P1-16D | 机器人策略修正：三带二主组三张比较、级牌不低配、领出不拆完整同点数牌组。 | 固定牌例、机器人策略测试、自动对局与浏览器回归。 | 三带二只比较主三张；非残局级牌不低配；机器人领出完整三张而不拆单张。 | accepted |
 | P1-16F | P1-16E | 明牌布局修正：东/西家公开出牌贴近各自手牌内侧。 | 组件测试、浏览器人工冒烟。 | 明牌时东家出牌在手牌西侧、西家出牌在手牌东侧；关闭明牌恢复默认布局。 | accepted |
-| P1-17 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A, P1-16B, P1-16C, P1-16D, P1-16E, P1-16F | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
+| P1-16G | P1-16F | 明牌可读性修正：非南方明牌的卡面符号缩小并避免纵叠重叠。 | 组件测试、浏览器人工冒烟。 | 东/西/北家明牌的完整牌和露出牌均不发生点数/花色重叠。 | accepted |
+| P1-17 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A, P1-16B, P1-16C, P1-16D, P1-16E, P1-16F, P1-16G | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
 
 ### P1-12 自测记录（2026-07-13）
 
@@ -117,6 +118,12 @@
 - 明牌状态为牌桌加入 `show-all-hands` 标记；东家公开动作绝对定位在其手牌西侧，西家公开动作绝对定位在其手牌东侧。关闭明牌立即恢复默认位置。
 - `App.test.tsx` 覆盖明牌开关、东/西动作标记；`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner` 均通过（16 files / 70 tests），临时目录生产构建通过。
 - 真实浏览器中打出单张、机器人响应并开启明牌后，东家 `9♥` 位于东家手牌左侧，西家“不要”位于西家手牌右侧；唯一控制台错误为缺少 `favicon.ico` 的 404。
+
+### P1-16G 自测与验收（2026-07-14）
+
+- 非南方明牌使用更小的完整牌点数/花色；纵叠露出牌进一步缩小，并将花色锚定在右侧、牌点保留在左侧，避免窄卡内文字图案重叠。
+- `npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner` 均通过（16 files / 70 tests），临时目录生产构建通过。
+- 真实浏览器开启明牌后检查北、东、西三家：完整牌和纵叠露出牌的牌点与花色均可辨认且无重叠；唯一控制台错误为缺少 `favicon.ico` 的 404。
 
 ## P2：移动/PWA 与策略机器人
 

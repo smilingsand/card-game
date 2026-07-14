@@ -265,10 +265,25 @@ button:disabled {
 }
 
 .revealed-hand .card-rank {
-  font-size: 0.65rem;
+  top: 0.12rem;
+  left: 0.12rem;
+  font-size: 0.52rem;
 }
 .revealed-hand .card-suit {
-  font-size: 0.68rem;
+  font-size: 0.56rem;
+}
+.revealed-hand .card-face.compact {
+  height: 0.78rem;
+}
+.revealed-hand .card-face.compact .card-rank {
+  top: 0.08rem;
+  left: 0.12rem;
+  font-size: 0.44rem;
+}
+.revealed-hand .card-face.compact .card-suit {
+  right: 0.12rem;
+  left: auto;
+  font-size: 0.46rem;
 }
 .revealed-hand .card-badge {
   width: 0.56rem;
