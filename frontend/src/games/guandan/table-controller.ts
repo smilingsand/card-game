@@ -1,5 +1,5 @@
 import { dealFourPlayers, generateDeck, shuffleDeck } from "../../platform/deck";
-import type { Card, Event, Seat } from "../../platform/types";
+import type { Card, Event, Rank, Seat } from "../../platform/types";
 import { chooseBasicBotAction } from "./basic-bot";
 import { createBotView } from "./bot-view";
 import { getLegalActions } from "./legal-actions";
@@ -13,7 +13,7 @@ import {
 } from "./turns";
 
 const SEATS: readonly Seat[] = ["east", "south", "west", "north"];
-const LEVEL_RANK = "2" as const;
+const INITIAL_LEVEL_RANK = "2" as const;
 const STRAIGHT_RANKS: readonly Card["rank"][] = [
   "A",
   "2",
@@ -34,16 +34,24 @@ const STRAIGHT_RANKS: readonly Card["rank"][] = [
 export interface TableGame {
   readonly cardsById: ReadonlyMap<string, Card>;
   readonly state: TurnState;
+  readonly levelRank?: Exclude<Rank, "small-joker" | "big-joker">;
   /** 所有已提交动作的公开事实；机器人只能从这里记牌。 */
   readonly publicEvents: readonly Event[];
 }
 
-export function createTableGame(seed = 0): TableGame {
+export function createTableGame(
+  seed = 0,
+  options: {
+    readonly levelRank?: Exclude<Rank, "small-joker" | "big-joker">;
+    readonly leader?: Seat;
+  } = {}
+): TableGame {
   const cards = shuffleDeck(generateDeck({ deckCount: 2, includeJokers: true }), seed);
   const deal = dealFourPlayers(cards);
 
   return {
     cardsById: new Map(cards.map((card) => [card.id, card])),
+    levelRank: options.levelRank ?? INITIAL_LEVEL_RANK,
     state: {
       hands: {
         east: deal.east.map((card) => card.id),
@@ -51,8 +59,8 @@ export function createTableGame(seed = 0): TableGame {
         west: deal.west.map((card) => card.id),
         north: deal.north.map((card) => card.id)
       },
-      current: "south",
-      leader: "south",
+      current: options.leader ?? "south",
+      leader: options.leader ?? "south",
       passes: 0,
       finished: []
     },
@@ -127,7 +135,7 @@ function botCardCandidates(game: TableGame): readonly (readonly Card[])[] {
  */
 export function getLegalBotActions(game: TableGame): readonly TurnAction[] {
   const plays = botCardCandidates(game).flatMap((cards) => {
-    const recognition = recognizePatterns(cards, LEVEL_RANK);
+    const recognition = recognizePatterns(cards, game.levelRank ?? INITIAL_LEVEL_RANK);
     if (!recognition.ok) return [];
     return recognition.interpretations.map((interpretation) => ({
       type: "play" as const,
@@ -156,7 +164,7 @@ export function getSelectedPlayActions(
     .filter((card): card is Card => card !== undefined);
   if (cards.length !== selectedCardIds.length) return [];
 
-  const recognition = recognizePatterns(cards, LEVEL_RANK);
+  const recognition = recognizePatterns(cards, game.levelRank ?? INITIAL_LEVEL_RANK);
   if (!recognition.ok) return [];
   return getLegalActions(
     game.state,
@@ -181,7 +189,7 @@ function chooseTableStrategicAction(game: TableGame): TurnAction | undefined {
       selfSeat: game.state.current,
       leader: game.state.leader,
       highestSeat: game.state.highestSeat,
-      levelRank: LEVEL_RANK,
+      levelRank: game.levelRank ?? INITIAL_LEVEL_RANK,
       hand: game.state.hands[game.state.current]
         .map((cardId) => game.cardsById.get(cardId))
         .filter((card): card is Card => card !== undefined),

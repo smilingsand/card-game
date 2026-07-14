@@ -41,7 +41,8 @@
 | P1-16I | P1-16H | 基础机器人领出策略修正：同型回收牌门槛、小牌优先和多出牌优先。 | 固定策略牌例、自动对局、浏览器回归。 | 低位短牌无同型回收时让位；有回收时优先走小牌；同等牌点优先多张牌型；顺子无回收门槛。 | accepted |
 | P1-16J | P1-16I | 人类“提示”与机器人共用领出及接牌策略。 | 固定牌例、组件测试、自动对局与浏览器回归。 | 提示只高亮建议牌、不自动提交；不再按候选顺序拆炸弹；提示与机器人在相同局面得到同一动作。 | accepted |
 | P1-16K | P1-16J | 最近一圈出牌显示去重：同一座位仅保留最后一次公开动作。 | 组件固定牌例、全量回归、浏览器回归。 | 东南西北任一座位的旧“不要”或旧出牌被该座位最近动作覆盖；一圈内每座位最多显示一次。 | accepted |
-| P1-17 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A, P1-16B, P1-16C, P1-16D, P1-16E, P1-16F, P1-16G, P1-16H, P1-16I, P1-16J, P1-16K | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
+| P1-18 | P1-16K | 连续多局：双方等级、动态级牌、结算、单下/双下进贡、抗贡、还贡、存档恢复与桌面提示。 | 固定牌例、会话恢复、组件测试、自动对局、构建。 | 可连续开始下一局；南家手动进贡/还贡；机器人自动交牌；贡后先手与级牌正确；左上记分/贡牌和完成顺序提示可见。 | accepted |
+| P1-17 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A, P1-16B, P1-16C, P1-16D, P1-16E, P1-16F, P1-16G, P1-16H, P1-16I, P1-16J, P1-16K, P1-18 | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
 
 ### P1-12 自测记录（2026-07-13）
 
@@ -154,6 +155,13 @@
 - `App.test.tsx` 固定牌例覆盖“西家重复过牌，中间夹有东/北动作”的情形，确认仅保留西家最后一次“不要”；该逻辑使用 `Seat` 作为统一键，四个座位共享同一实现。
 - `npm.cmd run format`、`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（16 files / 76 tests，含批量自动对局）及 `npm.cmd run build` 均通过；`git diff --check` 通过。
 - 沿用 P1-16I 的环境结论：本地 Playwright CLI 初始化长期无输出，无法完成真实浏览器 CLI 冒烟；本补丁的 UI 路径已由 `App.test.tsx` 回归覆盖，未影响构建与显示逻辑验收。
+
+### P1-18 自测与验收（2026-07-14）
+
+- 新增纯赛局规则与实体换牌固定牌例：双方独立等级、先出方级牌、双上/头三/头末升级、单下/双下贡牌分配、抗贡、最大贡牌与不大于 10 的还贡校验。
+- 连续会话升级为 `guandan-v3` / schema 3，持久化双方等级、局号、先手、级牌、完成顺序、进贡阶段和换牌事件；旧单局存档明确拒绝。南家进贡及还贡均由手动选牌确认，机器人按确定性策略自动交牌。
+- `npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（18 files / 89 tests，含批量自动对局）及 `npm.cmd run build` 均通过；`git diff --check` 通过。
+- UI 覆盖左上双方等级圆形色块、贡牌/抗贡公开提示、完成顺序后的下一局提示，以及南家手动进贡阶段；本地 Playwright CLI 初始化仍长期无输出，组件回归替代真实浏览器 CLI 冒烟。
 
 ## P2：移动/PWA 与策略机器人
 

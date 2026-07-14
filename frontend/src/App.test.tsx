@@ -5,6 +5,8 @@ import type { StorageBoundary } from "./platform/storage";
 import {
   applyTableSessionAction,
   createTableSession,
+  getSouthTributeChoices,
+  prepareNextTableSession,
   serializeTableSession,
   type TableSave
 } from "./games/guandan/table-session";
@@ -95,12 +97,49 @@ describe("App", () => {
     ).toEqual(["过牌", "提示", "出牌"]);
   });
 
+  it("连续赛局的南家进贡阶段只允许选择贡牌并手动确认", async () => {
+    const initial = createTableSession(91);
+    const completed = {
+      ...initial,
+      game: {
+        ...initial.game,
+        state: {
+          ...initial.game.state,
+          completed: true as const,
+          finished: ["east", "north", "west", "south"] as const
+        }
+      },
+      match: { ...initial.match, currentFinish: ["east", "north", "west", "south"] as const }
+    };
+    const awaitingTribute = prepareNextTableSession(completed);
+    const choices = getSouthTributeChoices(awaitingTribute);
+    expect(choices).not.toHaveLength(0);
+
+    render(<App storage={memoryStorage(serializeTableSession(awaitingTribute))} />);
+
+    await waitFor(() => expect(screen.getByText("请你（南家）上贡")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "过牌" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "提示" })).toBeDisabled();
+    const hand = screen.getByLabelText("你的手牌");
+    const tributeCard = within(hand)
+      .getAllByRole("button", { name: /^选择/ })
+      .find((button) => choices.includes(button.dataset.cardId ?? ""));
+    expect(tributeCard).toBeDefined();
+    if (!tributeCard) throw new Error("expected a south tribute card");
+    fireEvent.click(tributeCard);
+    fireEvent.click(screen.getByRole("button", { name: "确认进贡" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "确认进贡" })).not.toBeInTheDocument()
+    );
+  });
+
   it("提示和出牌仍通过规则入口提交", async () => {
     render(<App storage={memoryStorage()} />);
     fireEvent.click(screen.getByRole("button", { name: "提示" }));
     expect(screen.getByRole("status")).toHaveTextContent(/^提示：可出/);
     fireEvent.click(screen.getByRole("button", { name: /^出牌/ }));
-    await waitFor(() => expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/^已出/));
   });
 
   it("明牌以同一组牌布局显示其他三家，并可立即关闭", async () => {

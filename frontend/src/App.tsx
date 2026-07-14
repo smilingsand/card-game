@@ -14,9 +14,14 @@ import {
 import {
   applyTableSessionAction,
   createTableSession,
+  getSouthReturnChoices,
+  getSouthTributeChoices,
+  prepareNextTableSession,
   restoreTableSession,
   serializeTableSession,
   setHumanDisplayOrder,
+  submitSouthReturn,
+  submitSouthTribute,
   type TableSave,
   type TableSession
 } from "./games/guandan/table-session";
@@ -39,6 +44,12 @@ const seatName: Record<Seat, string> = {
   west: "西家",
   north: "北家"
 };
+const seatShortName: Record<Seat, string> = {
+  east: "东家",
+  south: "南家",
+  west: "西家",
+  north: "北家"
+};
 
 function newSeed(): number {
   return Math.floor(Math.random() * 2 ** 31);
@@ -55,16 +66,18 @@ function defaultStorage(): StorageBoundary<TableSave> {
 function CardFace({
   card,
   wildcardAs,
-  compact = false
+  compact = false,
+  levelRank = "2"
 }: {
   readonly card: Card;
   readonly wildcardAs?: { readonly rank: Card["rank"] };
   readonly compact?: boolean;
+  readonly levelRank?: Card["rank"];
 }) {
   const suit = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣", joker: "" }[card.suit];
   const rank =
     card.rank === "small-joker" ? "小王" : card.rank === "big-joker" ? "大王" : card.rank;
-  const badge = card.rank === "2" ? (card.suit === "hearts" ? "配" : "级") : undefined;
+  const badge = card.rank === levelRank ? (card.suit === "hearts" ? "配" : "级") : undefined;
   return (
     <span className={`card-face ${card.suit}${compact ? " compact" : ""}`}>
       {badge ? <span className="card-badge">{badge}</span> : null}
@@ -87,6 +100,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   const [showAllHands, setShowAllHands] = useState(false);
   const [handLayout, setHandLayout] = useState<HandLayout>("stacked");
   const game: TableGame = session.game;
+  const levelRank = game.levelRank ?? session.match.levelRank;
 
   useEffect(() => {
     let active = true;
@@ -117,7 +131,12 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   }, [saveBlocked, saveStorage, session, storageReady]);
 
   useEffect(() => {
-    if (game.state.completed || game.state.current === HUMAN_SEAT) return;
+    if (
+      game.state.completed ||
+      session.match.tributePhase !== "ready" ||
+      game.state.current === HUMAN_SEAT
+    )
+      return;
     const timer = window.setTimeout(() => {
       const action = chooseTableBotAction(game);
       if (!action) {
@@ -134,15 +153,29 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     return () => window.clearTimeout(timer);
   }, [game, session]);
 
+  useEffect(() => {
+    if (!game.state.completed) return;
+    const timer = window.setTimeout(() => {
+      try {
+        setSession((current) => prepareNextTableSession(current));
+        setSelectedCardIds([]);
+        setMessage("本局已结算，正在准备下一局。");
+      } catch {
+        setMessage("下一局准备失败，请开始新局。");
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [game.state.completed]);
+
   const hand = reconcileHumanDisplayOrder(
     session.humanDisplayOrder,
     game.state.hands[HUMAN_SEAT],
     game.cardsById,
-    "2"
+    levelRank
   );
   const handGroups = session.humanDisplayOrder
     ? groupOrderedDisplayCards(hand, game.cardsById)
-    : groupHumanDisplayCards(hand, game.cardsById, "2");
+    : groupHumanDisplayCards(hand, game.cardsById, levelRank);
   const selectedActions = getSelectedPlayActions(game, selectedCardIds);
   const canPass = getLegalSingleActions(game).some((action) => action.type === "pass");
   const highestPlay = game.state.highestSeat
@@ -155,7 +188,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         )
     : undefined;
   const revealedHand = (seat: BotSeat) =>
-    groupHumanDisplayCards(game.state.hands[seat], game.cardsById, "2");
+    groupHumanDisplayCards(game.state.hands[seat], game.cardsById, levelRank);
   const publicPlay = (seat: Seat) => (highestPlay?.actor === seat ? highestPlay : undefined);
   const recentActions = latestRecentActionsBySeat(game.publicEvents);
   const recentActionsFor = (seat: Seat) => recentActions.filter((action) => action.actor === seat);
@@ -169,7 +202,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
       {action.type === "pass" ? (
         <span className="pass-word">不要</span>
       ) : (
-        sortPlayedCards(action.cardIds, game.cardsById, "2", action.interpretation).map(
+        sortPlayedCards(action.cardIds, game.cardsById, levelRank, action.interpretation).map(
           (cardId) => {
             const card = game.cardsById.get(cardId);
             if (!card) return null;
@@ -177,6 +210,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
               <CardFace
                 key={cardId}
                 card={card}
+                levelRank={levelRank}
                 wildcardAs={action.interpretation.wildcardAs[cardId]}
               />
             );
@@ -201,10 +235,67 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     );
   };
 
+  const southTributeChoices = getSouthTributeChoices(session);
+  const southReturnChoices = getSouthReturnChoices(session);
+  const southManualChoices =
+    session.match.tributePhase === "awaiting-tribute" ? southTributeChoices : southReturnChoices;
+  const awaitingSouthTribute = southTributeChoices.length > 0;
+  const awaitingSouthReturn = southReturnChoices.length > 0;
+  const humanCanAct =
+    session.match.tributePhase === "ready" &&
+    game.state.current === HUMAN_SEAT &&
+    !game.state.completed;
+  const tributeHint = (() => {
+    if (!session.match.previousFinish) return "首局由南家先出";
+    if (session.match.tributePlan.antiTribute) return "本局抗贡，无需进贡";
+    if (awaitingSouthTribute) return "请你（南家）上贡";
+    if (awaitingSouthReturn) return "请你（南家）还贡";
+    const next = session.match.tributePlan.obligations.find(
+      (item) => !session.match.submittedTributes.includes(item.cardId)
+    );
+    return next ? `请${seatShortName[next.from]}上贡` : "下一局已准备完成";
+  })();
+  const tributeSummary = session.match.tributePlan.antiTribute
+    ? ["抗贡"]
+    : session.match.tributePlan.obligations.map((item) => {
+        const card = game.cardsById.get(item.cardId);
+        return `${seatShortName[item.from]}贡${card ? formatCard(card) : "牌"}`;
+      });
+  const displayedFinish = session.match.currentFinish ?? session.match.previousFinish;
+
+  const submitManualTribute = () => {
+    const cardId = selectedCardIds[0];
+    if (!cardId) return;
+    try {
+      setSession(submitSouthTribute(session, cardId));
+      setSelectedCardIds([]);
+      setMessage("已提交进贡牌，正在处理其余贡牌。");
+    } catch {
+      setMessage("所选牌不符合进贡要求。");
+    }
+  };
+
+  const submitManualReturn = () => {
+    const cardId = selectedCardIds[0];
+    if (!cardId) return;
+    try {
+      setSession(submitSouthReturn(session, cardId));
+      setSelectedCardIds([]);
+      setMessage("已提交还贡牌，下一局开始。");
+    } catch {
+      setMessage("所选牌不能用于还贡。");
+    }
+  };
+
   const toggleCard = (cardId: string) => {
-    if (game.state.current !== HUMAN_SEAT || game.state.completed) return;
+    const selectable = humanCanAct || southManualChoices.includes(cardId);
+    if (!selectable) return;
     setSelectedCardIds((current) =>
-      current.includes(cardId) ? current.filter((id) => id !== cardId) : [...current, cardId]
+      current.includes(cardId)
+        ? current.filter((id) => id !== cardId)
+        : humanCanAct
+          ? [...current, cardId]
+          : [cardId]
     );
   };
 
@@ -284,10 +375,10 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
           {handLayout === "stacked" ? "横排" : "竖排"}
         </button>
       </header>
-      {game.state.completed ? (
-        <section aria-label="对局结算">
-          <h2>本局结束</h2>
-          <p>完成顺序：{game.state.finished.map((seat) => seatName[seat]).join("、")}</p>
+      {displayedFinish ? (
+        <section className="round-announcement" aria-label="本局结算与下一局提示">
+          <span>完成顺序：{displayedFinish.map((seat) => seatName[seat]).join("、")}</span>
+          <strong>{tributeHint}</strong>
         </section>
       ) : null}
       {rulesOpen ? (
@@ -297,6 +388,17 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         </aside>
       ) : null}
       <section className={`table${showAllHands ? " show-all-hands" : ""}`} aria-label="牌桌">
+        <section className="match-scoreboard" aria-label="赛局记分与贡牌">
+          <span>我方</span>
+          <span className="match-token">{session.match.levels.northSouth}</span>
+          <span>对方</span>
+          <span className="match-token">{session.match.levels.eastWest}</span>
+          {tributeSummary.map((summary) => (
+            <span className="tribute-token" key={summary}>
+              {summary}
+            </span>
+          ))}
+        </section>
         <section className="seat north" aria-label="北家座位">
           <strong>{seatName.north}</strong>
           <span className={game.state.hands.north.length < 10 ? "card-count urgent" : "card-count"}>
@@ -313,6 +415,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
                         card={card}
                         compact={handLayout === "stacked" && index > 0}
                         key={cardId}
+                        levelRank={levelRank}
                       />
                     ) : null;
                   })}
@@ -342,6 +445,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
                         card={card}
                         compact={handLayout === "stacked" && index > 0}
                         key={cardId}
+                        levelRank={levelRank}
                       />
                     ) : null;
                   })}
@@ -382,6 +486,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
                         card={card}
                         compact={handLayout === "stacked" && index > 0}
                         key={cardId}
+                        levelRank={levelRank}
                       />
                     ) : null;
                   })}
@@ -406,7 +511,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
               <button
                 type="button"
                 onClick={() => submit({ type: "pass", actor: HUMAN_SEAT })}
-                disabled={game.state.current !== HUMAN_SEAT || !canPass}
+                disabled={!humanCanAct || !canPass}
               >
                 过牌
               </button>
@@ -421,20 +526,38 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
                   setSelectedCardIds(hint.cardIds);
                   setMessage(`提示：可出${formatInterpretation(hint.interpretation)}。`);
                 }}
-                disabled={game.state.current !== HUMAN_SEAT}
+                disabled={!humanCanAct}
               >
                 提示
               </button>
               <button
                 type="button"
                 onClick={() => submit(selectedActions[0])}
-                disabled={game.state.current !== HUMAN_SEAT || selectedActions.length === 0}
+                disabled={!humanCanAct || selectedActions.length === 0}
               >
                 出牌
                 {selectedActions[0]?.type === "play"
                   ? `（${formatInterpretation(selectedActions[0].interpretation)}）`
                   : ""}
               </button>
+              {awaitingSouthTribute ? (
+                <button
+                  type="button"
+                  onClick={submitManualTribute}
+                  disabled={selectedCardIds.length !== 1}
+                >
+                  确认进贡
+                </button>
+              ) : null}
+              {awaitingSouthReturn ? (
+                <button
+                  type="button"
+                  onClick={submitManualReturn}
+                  disabled={selectedCardIds.length !== 1}
+                >
+                  确认还贡
+                </button>
+              ) : null}
             </section>
             <div className={`card-groups human-hand ${handLayout}`}>
               {handGroups.map((group) => (
@@ -451,7 +574,9 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
                         aria-pressed={selected}
                         aria-label={`选择${formatCard(card)}`}
                         aria-describedby="hand-arrangement-help"
-                        draggable={game.state.current === HUMAN_SEAT}
+                        data-card-id={cardId}
+                        disabled={!humanCanAct && !southManualChoices.includes(cardId)}
+                        draggable={humanCanAct}
                         onClick={() => toggleCard(cardId)}
                         onDragStart={(event) => dragStart(event, cardId)}
                         onDragEnd={() => setDraggingCardId(undefined)}
@@ -459,7 +584,11 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
                         onDrop={(event) => dropOnCard(event, cardId)}
                         onKeyDown={(event) => reorderWithKeyboard(event, cardId)}
                       >
-                        <CardFace card={card} compact={handLayout === "stacked" && index > 0} />
+                        <CardFace
+                          card={card}
+                          compact={handLayout === "stacked" && index > 0}
+                          levelRank={levelRank}
+                        />
                       </button>
                     );
                   })}

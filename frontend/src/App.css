@@ -73,6 +73,48 @@ button:disabled {
     0 8px 22px rgba(14, 72, 93, 0.25);
 }
 
+.round-announcement {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin: 0.5rem 0;
+  color: #134860;
+  font-weight: 700;
+}
+.match-scoreboard {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 15rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 0.65rem;
+  color: #fff;
+  background: rgba(16, 65, 91, 0.72);
+  font-weight: 800;
+}
+.match-token,
+.tribute-token {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.9rem;
+  min-height: 1.9rem;
+  padding: 0.2rem 0.42rem;
+  border: 2px solid #f7e9b5;
+  border-radius: 999px;
+  color: #fff;
+  background: #d58222;
+  box-shadow: 0 1px 3px #31536a;
+}
+.tribute-token {
+  font-size: 0.76rem;
+}
+
 .seat,
 .table-info {
   position: absolute;
