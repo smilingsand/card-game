@@ -135,6 +135,18 @@ button:disabled {
   justify-items: center;
   min-height: 2rem;
 }
+.show-all-hands .east-actions,
+.show-all-hands .west-actions {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.show-all-hands .east-actions {
+  right: calc(100% + 0.65rem);
+}
+.show-all-hands .west-actions {
+  left: calc(100% + 0.65rem);
+}
 .public-action {
   display: inline-flex;
   align-items: flex-end;

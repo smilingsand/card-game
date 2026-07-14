@@ -310,7 +310,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
           为唯一口径；牌型与跟牌均由规则引擎判定。
         </aside>
       ) : null}
-      <section className="table" aria-label="牌桌">
+      <section className={`table${showAllHands ? " show-all-hands" : ""}`} aria-label="牌桌">
         <section className="seat north" aria-label="北家座位">
           <strong>{seatName.north}</strong>
           <span className={game.state.hands.north.length < 10 ? "card-count urgent" : "card-count"}>
@@ -363,7 +363,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
               ))}
             </span>
           ) : null}
-          <span className="seat-actions">
+          <span className="seat-actions east-actions">
             {recentActionsFor("east").map((action) =>
               renderAction(action, action === publicPlay("east"))
             )}
@@ -403,7 +403,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
               ))}
             </span>
           ) : null}
-          <span className="seat-actions">
+          <span className="seat-actions west-actions">
             {recentActionsFor("west").map((action) =>
               renderAction(action, action === publicPlay("west"))
             )}

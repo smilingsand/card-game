@@ -71,8 +71,12 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "明牌" }));
     const revealed = screen.getByLabelText("东家明牌");
     expect(revealed.querySelectorAll(".card-face")).toHaveLength(27);
+    expect(screen.getByLabelText("牌桌")).toHaveClass("show-all-hands");
+    expect(screen.getByLabelText("东家座位").querySelector(".east-actions")).toBeInTheDocument();
+    expect(screen.getByLabelText("西家座位").querySelector(".west-actions")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "明牌" }));
     expect(screen.queryByLabelText("东家明牌")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("牌桌")).not.toHaveClass("show-all-hands");
   });
 
   it("桌面保留本轮最近动作，过牌显示为不要", async () => {
