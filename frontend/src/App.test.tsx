@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App } from "./App";
+import { latestRecentActionsBySeat } from "./games/guandan/recent-actions";
 import type { StorageBoundary } from "./platform/storage";
 import {
   applyTableSessionAction,
@@ -31,6 +32,43 @@ function memoryStorage(
 }
 
 describe("App", () => {
+  it("最近一圈内同一座位的旧动作会被该座位新动作覆盖", () => {
+    const firstWestPass = { type: "pass" as const, actor: "west" as const };
+    const latestWestPass = { type: "pass" as const, actor: "west" as const };
+    const eastPlay = {
+      type: "play" as const,
+      actor: "east" as const,
+      cardIds: ["east-3"],
+      interpretation: {
+        type: "single" as const,
+        comparisonKey: [3],
+        cardIds: ["east-3"],
+        wildcardAs: {}
+      }
+    };
+    const northPlay = {
+      type: "play" as const,
+      actor: "north" as const,
+      cardIds: ["north-4"],
+      interpretation: {
+        type: "single" as const,
+        comparisonKey: [4],
+        cardIds: ["north-4"],
+        wildcardAs: {}
+      }
+    };
+    const events = [firstWestPass, eastPlay, latestWestPass, northPlay].map((action, sequence) => ({
+      sequence,
+      type: "action.applied",
+      payload: { action }
+    }));
+
+    const latest = latestRecentActionsBySeat(events);
+
+    expect(latest).toHaveLength(3);
+    expect(latest.filter((action) => action.actor === "west")).toEqual([latestWestPass]);
+  });
+
   it("首局由南家行动，牌桌按四边座位显示并高亮可选牌", async () => {
     render(<App storage={memoryStorage()} />);
 

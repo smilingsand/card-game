@@ -40,7 +40,8 @@
 | P1-16H | P1-16G | 输出当前牌型规则、基础机器人领出与跟牌策略说明。 | 文档审阅、链接与仓库状态检查。 | 文档明确区分冻结规则与当前基础策略，并披露策略边界。 | accepted |
 | P1-16I | P1-16H | 基础机器人领出策略修正：同型回收牌门槛、小牌优先和多出牌优先。 | 固定策略牌例、自动对局、浏览器回归。 | 低位短牌无同型回收时让位；有回收时优先走小牌；同等牌点优先多张牌型；顺子无回收门槛。 | accepted |
 | P1-16J | P1-16I | 人类“提示”与机器人共用领出及接牌策略。 | 固定牌例、组件测试、自动对局与浏览器回归。 | 提示只高亮建议牌、不自动提交；不再按候选顺序拆炸弹；提示与机器人在相同局面得到同一动作。 | accepted |
-| P1-17 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A, P1-16B, P1-16C, P1-16D, P1-16E, P1-16F, P1-16G, P1-16H, P1-16I, P1-16J | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
+| P1-16K | P1-16J | 最近一圈出牌显示去重：同一座位仅保留最后一次公开动作。 | 组件固定牌例、全量回归、浏览器回归。 | 东南西北任一座位的旧“不要”或旧出牌被该座位最近动作覆盖；一圈内每座位最多显示一次。 | accepted |
+| P1-17 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A, P1-16B, P1-16C, P1-16D, P1-16E, P1-16F, P1-16G, P1-16H, P1-16I, P1-16J, P1-16K | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
 
 ### P1-12 自测记录（2026-07-13）
 
@@ -146,6 +147,13 @@
 - 固定牌例验证：南家持有 `JJJJ` 与单张 `A` 时，提示与机器人均建议整体 `J` 普通炸弹，不会拆为单张；跟牌牌例验证提示与机器人返回同一压制动作。`App.test.tsx` 验证按钮提示和后续出牌流程。
 - `npm.cmd run format`、`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（16 files / 75 tests，含批量自动对局）及 `npm.cmd run build` 均通过；`git diff --check` 通过。
 - 沿用 P1-16I 的环境结论：本地 Playwright CLI 初始化长期无输出，无法完成真实浏览器 CLI 冒烟；本补丁的交互路径已由 `App.test.tsx` 覆盖，未影响构建与策略逻辑验收。
+
+### P1-16K 自测与验收（2026-07-14）
+
+- 最近一圈仍以最多四手公开动作作为范围，但在渲染前按座位覆盖：东、南、西、北任一座位只保留该范围内的最后一次动作。因此旧“不要”和旧出牌均不会与该座位更新后的动作并列显示。
+- `App.test.tsx` 固定牌例覆盖“西家重复过牌，中间夹有东/北动作”的情形，确认仅保留西家最后一次“不要”；该逻辑使用 `Seat` 作为统一键，四个座位共享同一实现。
+- `npm.cmd run format`、`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（16 files / 76 tests，含批量自动对局）及 `npm.cmd run build` 均通过；`git diff --check` 通过。
+- 沿用 P1-16I 的环境结论：本地 Playwright CLI 初始化长期无输出，无法完成真实浏览器 CLI 冒烟；本补丁的 UI 路径已由 `App.test.tsx` 回归覆盖，未影响构建与显示逻辑验收。
 
 ## P2：移动/PWA 与策略机器人
 

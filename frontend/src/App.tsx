@@ -28,6 +28,7 @@ import {
   sortPlayedCards
 } from "./games/guandan/display-order";
 import type { TurnAction } from "./games/guandan/turns";
+import { actionFromPublicEvent, latestRecentActionsBySeat } from "./games/guandan/recent-actions";
 
 const HUMAN_SEAT: Seat = "south";
 type BotSeat = "east" | "north" | "west";
@@ -49,22 +50,6 @@ function defaultStorage(): StorageBoundary<TableSave> {
     storeName: "saves",
     key: "guandan-current"
   });
-}
-
-function actionFromPublicEvent(event: TableGame["publicEvents"][number]): TurnAction | undefined {
-  return (event.payload as { readonly action?: TurnAction }).action;
-}
-
-function currentTrickActions(events: TableGame["publicEvents"]): readonly TurnAction[] {
-  const actions = events
-    .map(actionFromPublicEvent)
-    .filter((action): action is TurnAction => !!action);
-  let start = 0;
-  for (let index = 0; index <= actions.length - 3; index += 1) {
-    if (actions.slice(index, index + 3).every((action) => action.type === "pass"))
-      start = index + 3;
-  }
-  return actions.slice(start).slice(-4);
 }
 
 function CardFace({
@@ -172,7 +157,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   const revealedHand = (seat: BotSeat) =>
     groupHumanDisplayCards(game.state.hands[seat], game.cardsById, "2");
   const publicPlay = (seat: Seat) => (highestPlay?.actor === seat ? highestPlay : undefined);
-  const recentActions = currentTrickActions(game.publicEvents);
+  const recentActions = latestRecentActionsBySeat(game.publicEvents);
   const recentActionsFor = (seat: Seat) => recentActions.filter((action) => action.actor === seat);
 
   const renderAction = (action: TurnAction, current: boolean) => (
