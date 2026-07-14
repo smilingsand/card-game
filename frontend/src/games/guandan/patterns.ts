@@ -71,6 +71,12 @@ function comparisonKey(
   const values = cards.map((card) => value(card.rank));
   if (type === "four-jokers") return [4];
   if (type === "normal-bomb") return [cards.length, values[0]];
+  if (type === "three-with-pair") {
+    const tripleRank = cards.find(
+      (card) => cards.filter((other) => other.rank === card.rank).length === 3
+    )?.rank;
+    return tripleRank ? [value(tripleRank)] : [];
+  }
   return [Math.max(...values)];
 }
 /** 返回全部逢人配投影；输入 Card 永不被修改。 */

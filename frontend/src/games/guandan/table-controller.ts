@@ -58,18 +58,46 @@ function combinations<T>(items: readonly T[], size: number): readonly (readonly 
   return result;
 }
 
+function leadingCardCandidates(hand: readonly Card[]): readonly (readonly Card[])[] {
+  const groups = [
+    ...hand
+      .reduce((byRank, card) => {
+        byRank.set(card.rank, [...(byRank.get(card.rank) ?? []), card]);
+        return byRank;
+      }, new Map<Card["rank"], Card[]>())
+      .values()
+  ];
+  const completeGroups = groups.filter((group) => group.length >= 2 && group.length <= 10);
+  const threeWithPairs = groups
+    .filter((group) => group.length === 3)
+    .flatMap((triple) =>
+      groups.filter((group) => group.length === 2).map((pair) => [...triple, ...pair])
+    );
+  const candidates = [...hand.map((card) => [card]), ...completeGroups, ...threeWithPairs];
+  const seen = new Set<string>();
+  return candidates.filter((cards) => {
+    const key = cards
+      .map((card) => card.id)
+      .sort()
+      .join(",");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function botCardCandidates(game: TableGame): readonly (readonly Card[])[] {
   const hand = game.state.hands[game.state.current]
     .map((cardId) => game.cardsById.get(cardId))
     .filter((card): card is Card => card !== undefined);
-  const size = game.state.highest?.cardIds.length ?? 1;
-  return size === 1 ? hand.map((card) => [card]) : combinations(hand, size);
+  if (!game.state.highest) return leadingCardCandidates(hand);
+  return combinations(hand, game.state.highest.cardIds.length);
 }
 
 /**
  * 机器人候选只来源于自己的手牌，并先通过规则引擎筛选。
- * 领出时保留基础策略的单张；跟牌时枚举与当前牌张数相同的组合，
- * 因而能覆盖对子、三张、三带二等非单张同牌型压制。
+ * 领出时枚举单张、完整同点数组及不拆组的三带二；跟牌时枚举与当前牌
+ * 张数相同的组合，因而能覆盖对子、三张、三带二等非单张同牌型压制。
  */
 export function getLegalBotActions(game: TableGame): readonly TurnAction[] {
   const plays = botCardCandidates(game).flatMap((cards) => {

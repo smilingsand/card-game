@@ -16,6 +16,19 @@ function splitGroupPenalty(action: TurnAction, hand: BotView["selfHand"]): numbe
   }, 0);
 }
 
+function wildcardDownrankPenalty(action: TurnAction, view: BotView, endgame: boolean): number {
+  if (action.type !== "play" || endgame) return 0;
+
+  return Object.entries(action.interpretation.wildcardAs).some(([cardId, assigned]) => {
+    const card = view.selfHand.find((item) => item.id === cardId);
+    return (
+      card?.suit === "hearts" && card.rank === view.levelRank && assigned.rank !== view.levelRank
+    );
+  })
+    ? 10_000
+    : 0;
+}
+
 function score(
   action: TurnAction,
   view: BotView,
@@ -31,6 +44,7 @@ function score(
   return (
     10 +
     splitGroupPenalty(action, view.selfHand) +
+    wildcardDownrankPenalty(action, view, endgame) +
     action.cardIds.length * 100 +
     action.interpretation.comparisonKey.reduce((sum, value) => sum + value, 0)
   );

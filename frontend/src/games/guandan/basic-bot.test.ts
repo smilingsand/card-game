@@ -66,6 +66,38 @@ test("同等压制时优先不拆三张", () => {
   };
   expect(chooseBasicBotAction(triplet)).toBe(triplet.legalActions[1]);
 });
+test("级牌单张可压制时保持级牌点数，不低配成较小牌", () => {
+  const lowerWildcard = {
+    type: "play" as const,
+    actor: "east" as const,
+    cardIds: ["h2"],
+    interpretation: {
+      type: "single" as const,
+      comparisonKey: [10],
+      cardIds: ["h2"],
+      wildcardAs: { h2: { rank: "10" as const, suit: "spades" as const } }
+    }
+  };
+  const naturalLevel = {
+    ...lowerWildcard,
+    interpretation: {
+      ...lowerWildcard.interpretation,
+      comparisonKey: [15],
+      wildcardAs: { h2: { rank: "2" as const, suit: "hearts" as const } }
+    }
+  };
+  const input = {
+    ...view([lowerWildcard, naturalLevel], 3),
+    highestSeat: "south" as const,
+    selfHand: [
+      { id: "h2", deckIndex: 0, suit: "hearts" as const, rank: "2" as const },
+      { id: "other-3", deckIndex: 0, suit: "spades" as const, rank: "3" as const },
+      { id: "other-4", deckIndex: 0, suit: "spades" as const, rank: "4" as const }
+    ]
+  };
+
+  expect(chooseBasicBotAction(input)).toBe(naturalLevel);
+});
 test("尾盘公开剩余牌临界时选择拦截动作", () => {
   const pass = { type: "pass" as const, actor: "east" as const };
   const input = {

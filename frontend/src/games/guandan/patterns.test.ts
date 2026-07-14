@@ -72,3 +72,15 @@ test("逢人配枚举解释且不改动实体牌", () => {
   expect(result.ok && result.interpretations.some((item) => item.type === "triple")).toBe(true);
   expect(hand).toEqual(before);
 });
+
+test("三带二的比较键只取三张牌点，不受附属对子影响", () => {
+  const result = recognizePatterns(
+    cards(["7", "spades"], ["7", "clubs"], ["7", "diamonds"], ["A", "spades"], ["A", "clubs"]),
+    "2"
+  );
+
+  expect(result).toMatchObject({
+    ok: true,
+    interpretations: [expect.objectContaining({ type: "three-with-pair", comparisonKey: [7] })]
+  });
+});

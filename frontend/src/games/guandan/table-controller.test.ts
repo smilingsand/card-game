@@ -119,6 +119,37 @@ test("机器人从合法动作中枚举并压制三带二", () => {
     type: "play",
     actor: "west",
     cardIds: expect.arrayContaining(westCards.map((item) => item.id)),
-    interpretation: { type: "three-with-pair", comparisonKey: [9] }
+    interpretation: { type: "three-with-pair", comparisonKey: [8] }
+  });
+});
+
+test("机器人领出时不把完整三张拆成单张", () => {
+  const southCards = [
+    card("south-9a", "9", "spades"),
+    card("south-9b", "9", "clubs"),
+    card("south-9c", "9", "diamonds")
+  ];
+  const game: TableGame = {
+    cardsById: new Map(southCards.map((item) => [item.id, item])),
+    state: {
+      hands: {
+        east: ["east-1", "east-2", "east-3"],
+        south: southCards.map((item) => item.id),
+        west: ["west-1", "west-2", "west-3"],
+        north: ["north-1", "north-2", "north-3"]
+      },
+      current: "south",
+      leader: "south",
+      passes: 0,
+      finished: []
+    },
+    publicEvents: []
+  };
+
+  expect(chooseTableBotAction(game)).toMatchObject({
+    type: "play",
+    actor: "south",
+    cardIds: southCards.map((item) => item.id),
+    interpretation: { type: "triple" }
   });
 });
