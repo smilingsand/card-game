@@ -55,11 +55,11 @@ test("还贡按当前级牌排序且不大于10", () => {
   expect(canReturnTribute("J", "2")).toBe(false);
   expect(canReturnTribute("2", "2")).toBe(false);
 });
-test("单下进贡和还贡产生可重放事件并由末游下家首出", () => {
+test("单下进贡和还贡产生可重放事件并由进贡者首出", () => {
   expect(
     settleSingleTribute("2", "east", "north", { id: "t", rank: "A" }, { id: "r", rank: "10" })
   ).toMatchObject({
-    nextLeader: "west",
+    nextLeader: "north",
     events: [
       {
         sequence: 0,

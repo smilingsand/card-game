@@ -46,7 +46,7 @@ describe("牌桌事件存档", () => {
     const arranged = setHumanDisplayOrder(initial, preferred);
     const save = serializeTableSession(arranged);
 
-    expect(save.saveSchemaVersion).toBe(3);
+    expect(save.saveSchemaVersion).toBe(4);
     expect(save.humanDisplayOrder).toEqual(preferred);
     expect(save.stream.events).toEqual(initial.stream.events);
     expect(save.snapshot.state).toEqual(initial.snapshot.state);
@@ -88,6 +88,37 @@ describe("牌桌事件存档", () => {
     expect(next.game.levelRank).toBe("5");
     expect(restored.match).toEqual(next.match);
     expect(restored.game.state).toEqual(next.game.state);
+  });
+
+  test("北家头游而东家进贡时，下一局由东家先出并使用东/西方等级", () => {
+    const initial = createTableSession(74);
+    const completed = {
+      ...initial,
+      game: {
+        ...initial.game,
+        state: {
+          ...initial.game.state,
+          completed: true as const,
+          finished: ["north", "west", "south", "east"] as const
+        }
+      },
+      match: {
+        ...initial.match,
+        levels: { northSouth: "6" as const, eastWest: "2" as const },
+        currentFinish: ["north", "west", "south", "east"] as const
+      }
+    };
+
+    const next = prepareNextTableSession(completed);
+
+    expect(next.match).toMatchObject({
+      levels: { northSouth: "8", eastWest: "2" },
+      leader: "east",
+      levelRank: "8",
+      tributePhase: "ready"
+    });
+    expect(next.game.state.leader).toBe("east");
+    expect(next.game.levelRank).toBe("8");
   });
 
   test("出牌后恢复的显示顺序会剔除已出实体牌 ID", () => {

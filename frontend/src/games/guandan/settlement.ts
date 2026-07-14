@@ -48,7 +48,7 @@ export function settleSingleTribute(
 ) {
   if (!canReturnTribute(returned.rank, level)) throw new Error("invalid return tribute");
   return {
-    nextLeader: { east: "north", north: "west", west: "south", south: "east" }[loser] as Seat,
+    nextLeader: loser,
     events: [
       {
         sequence: 0,

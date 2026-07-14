@@ -24,8 +24,8 @@ import {
 } from "./tribute";
 import type { TurnAction, TurnResult, TurnState } from "./turns";
 
-export const TABLE_RULES_VERSION = "guandan-v3";
-export const TABLE_SAVE_SCHEMA_VERSION = 3;
+export const TABLE_RULES_VERSION = "guandan-v4";
+export const TABLE_SAVE_SCHEMA_VERSION = 4;
 
 export type TributePhase = "ready" | "awaiting-tribute" | "awaiting-return";
 
@@ -389,9 +389,8 @@ function advanceAutomatedTribute(session: TableSession): TableSession {
     match.submittedReturns
   );
   const leader = leaderAfterTribute({ ...session, match });
-  const levelRank = levelForLeader(match.levels, leader);
-  match = { ...match, leader, levelRank };
-  const game = gameWithHands(session.game, exchange.hands, leader, levelRank);
+  match = { ...match, leader };
+  const game = gameWithHands(session.game, exchange.hands, leader, match.levelRank);
   const stream = appendEvent(session.stream, {
     sequence: session.stream.events.length,
     type: "tribute.resolved",
@@ -476,7 +475,8 @@ export function prepareNextTableSession(session: TableSession): TableSession {
   const levels = levelsAfterRound(session.match.levels, finish);
   const roundNumber = session.match.roundNumber + 1;
   const roundSeed = nextRoundSeed(session.seed, roundNumber);
-  const levelRank = levelForLeader(levels, leader);
+  // 级牌取上一局胜方（头游方）升级后的等级，与进贡确定的先手分离。
+  const levelRank = levelForLeader(levels, finish[0]);
   const game = createTableGame(roundSeed, { leader, levelRank });
   const tributePlan = createTributePlan(levelRank, finish, cardsForHands(game));
   const match: MatchSessionState = {
