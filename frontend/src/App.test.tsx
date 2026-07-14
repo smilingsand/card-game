@@ -117,6 +117,42 @@ describe("App", () => {
     expect(sixes.some((face) => face.querySelector(".card-badge"))).toBe(true);
   });
 
+  it("抗贡提示说明抗贡理由，记分牌仅高亮本局级别所属方", async () => {
+    const antiTribute = Array.from({ length: 500 }, (_, seed) => {
+      const initial = createTableSession(seed);
+      return prepareNextTableSession({
+        ...initial,
+        game: {
+          ...initial.game,
+          state: {
+            ...initial.game.state,
+            completed: true as const,
+            finished: ["north", "south", "west", "east"] as const
+          }
+        },
+        match: { ...initial.match, currentFinish: ["north", "south", "west", "east"] as const }
+      });
+    }).find(
+      (session) =>
+        session.match.tributePlan.antiTribute &&
+        session.match.tributePlan.proof.every((cardId) =>
+          session.game.state.hands.west.includes(cardId)
+        )
+    );
+    if (!antiTribute) throw new Error("expected a west two-big-joker anti-tribute seed");
+
+    render(<App storage={memoryStorage(serializeTableSession(antiTribute))} />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("本局结算与下一局提示")).toHaveTextContent(
+        "完成顺序：北家（机器人）、南家（你）、西家（机器人）、东家（机器人）。本局抗贡，无需进贡（西家两个大王）"
+      )
+    );
+    const scoreTokens = screen.getByLabelText("赛局记分与贡牌").querySelectorAll(".match-token");
+    expect(scoreTokens[0]).not.toHaveClass("inactive");
+    expect(scoreTokens[1]).toHaveClass("inactive");
+  });
+
   it("连续赛局的南家进贡阶段只允许选择贡牌并手动确认", async () => {
     const initial = createTableSession(91);
     const completed = {

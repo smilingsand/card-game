@@ -115,6 +115,11 @@ button:disabled {
 .tribute-token {
   font-size: 0.76rem;
 }
+.match-token.inactive {
+  border-color: #78828a;
+  background: #47515a;
+  box-shadow: 0 1px 3px #1f2930;
+}
 
 .seat,
 .table-info {

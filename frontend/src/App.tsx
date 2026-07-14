@@ -52,6 +52,23 @@ const seatShortName: Record<Seat, string> = {
   north: "北家"
 };
 
+function levelTeam(seat: Seat): "northSouth" | "eastWest" {
+  return seat === "north" || seat === "south" ? "northSouth" : "eastWest";
+}
+
+function antiTributeReason(game: TableGame, proof: readonly string[]): string {
+  const counts = new Map<Seat, number>();
+  for (const cardId of proof) {
+    const seat = (["east", "south", "west", "north"] as const).find((candidate) =>
+      game.state.hands[candidate].includes(cardId)
+    );
+    if (seat) counts.set(seat, (counts.get(seat) ?? 0) + 1);
+  }
+  return [...counts]
+    .map(([seat, count]) => `${seatShortName[seat]}${count === 2 ? "两个" : "一个"}大王`)
+    .join("，");
+}
+
 function newSeed(): number {
   return Math.floor(Math.random() * 2 ** 31);
 }
@@ -246,9 +263,12 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     session.match.tributePhase === "ready" &&
     game.state.current === HUMAN_SEAT &&
     !game.state.completed;
+  const activeLevelTeam = levelTeam(session.match.previousFinish?.[0] ?? session.match.leader);
+  const antiTributeProof = antiTributeReason(game, session.match.tributePlan.proof);
   const tributeHint = (() => {
     if (!session.match.previousFinish) return "首局由南家先出";
-    if (session.match.tributePlan.antiTribute) return "本局抗贡，无需进贡";
+    if (session.match.tributePlan.antiTribute)
+      return `本局抗贡，无需进贡${antiTributeProof ? `（${antiTributeProof}）` : ""}`;
     if (awaitingSouthTribute) return "请你（南家）上贡";
     if (awaitingSouthReturn) return "请你（南家）还贡";
     const next = session.match.tributePlan.obligations.find(
@@ -391,9 +411,13 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
       <section className={`table${showAllHands ? " show-all-hands" : ""}`} aria-label="牌桌">
         <section className="match-scoreboard" aria-label="赛局记分与贡牌">
           <span>我方</span>
-          <span className="match-token">{session.match.levels.northSouth}</span>
+          <span className={`match-token${activeLevelTeam === "northSouth" ? "" : " inactive"}`}>
+            {session.match.levels.northSouth}
+          </span>
           <span>对方</span>
-          <span className="match-token">{session.match.levels.eastWest}</span>
+          <span className={`match-token${activeLevelTeam === "eastWest" ? "" : " inactive"}`}>
+            {session.match.levels.eastWest}
+          </span>
           {tributeSummary.map((summary) => (
             <span className="tribute-token" key={summary}>
               {summary}
