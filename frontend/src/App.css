@@ -279,7 +279,7 @@ button:disabled {
 }
 .south-actions {
   position: absolute;
-  bottom: 14rem;
+  bottom: 18rem;
   left: 50%;
   transform: translateX(-50%);
 }
