@@ -43,7 +43,7 @@
 | P1-16K | P1-16J | 最近一圈出牌显示去重：同一座位仅保留最后一次公开动作。 | 组件固定牌例、全量回归、浏览器回归。 | 东南西北任一座位的旧“不要”或旧出牌被该座位最近动作覆盖；一圈内每座位最多显示一次。 | accepted |
 | P1-18 | P1-16K | 连续多局：双方等级、动态级牌、结算、单下/双下进贡、抗贡、还贡、存档恢复与桌面提示。 | 固定牌例、会话恢复、组件测试、自动对局、构建。 | 可连续开始下一局；南家手动进贡/还贡；机器人自动交牌；贡后先手与级牌正确；左上记分/贡牌和完成顺序提示可见。 | accepted |
 | P1-19 | P1-18 | 机器人思考时间、结算提示文案与四家机器人称谓统一、动态级牌展示与排序回归。 | 定时固定牌例、组件测试、排序固定牌例、全量回归、构建。 | 机器人每次动作等待 0.8–1.34 秒；结算文字左对齐且以“南家（你）”表述；东/北/西均标注机器人；动态级牌正确排序并仅标注本局级牌。 | accepted |
-| P1-17 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A, P1-16B, P1-16C, P1-16D, P1-16E, P1-16F, P1-16G, P1-16H, P1-16I, P1-16J, P1-16K, P1-18, P1-19 | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
+| P1-20 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A, P1-16B, P1-16C, P1-16D, P1-16E, P1-16F, P1-16G, P1-16H, P1-16I, P1-16J, P1-16K, P1-18, P1-19 | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | in_progress |
 
 ### P1-12 自测记录（2026-07-13）
 
@@ -175,7 +175,7 @@
 - 非打 2 局的展示排序明确将 2 降为最小普通牌；`CardFace` 以当前 `levelRank` 判断“级/配”，组件回归验证打 6 时仅 6 标记、2 不标记。
 - 在 `frontend/` 执行 `npm.cmd run format`、`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`：全部通过，19 files / 92 tests passed。`npm.cmd run build -- --configLoader runner --outDir D:\MyWorks\card-game\temp\p1-19-build` 通过。
 
-| P2-01 | P1-17        | 响应式牌桌、横屏优先布局、安全区与触摸选牌。           | Playwright 手机视口 + 真机抽测。 | Android Chrome、iPhone Safari 可完成核心回合。      | not_started |
+| P2-01 | P1-20        | 响应式牌桌、横屏优先布局、安全区与触摸选牌。           | Playwright 手机视口 + 真机抽测。 | Android Chrome、iPhone Safari 可完成核心回合。      | not_started |
 | P2-02 | P2-01        | Manifest、Service Worker、离线壳与版本升级提示。       | 离线/升级/缓存清理测试。         | 安装后可离线启动；不以旧缓存运行新规则版本。        | not_started |
 | P2-03 | P1-12        | 手牌结构、手数、主攻/助攻、公开大牌统计和置信度模型。  | 固定牌力/过牌样例。              | 推断与确定事实分层；不泄露隐藏牌。                  | not_started |
 | P2-04 | P2-03        | 普通难度评分机器人、队友协同、炸弹策略和局面阶段权重。 | 固定策略局 + 固定 seed 对局。    | 机器人选择可解释；不频繁无意义压队友。              | not_started |
