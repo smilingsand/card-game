@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { App, CardFace } from "./App";
+import { App, CardFace, PlayerCardCount } from "./App";
 import { latestRecentActionsBySeat } from "./games/guandan/recent-actions";
 import type { StorageBoundary } from "./platform/storage";
 import {
@@ -118,6 +118,23 @@ describe("App", () => {
     expect(sixes).not.toHaveLength(0);
     expect(twos.every((face) => !face.querySelector(".card-badge"))).toBe(true);
     expect(sixes.some((face) => face.querySelector(".card-badge"))).toBe(true);
+  });
+
+  it("完成出牌者用名次替代手牌数量", () => {
+    const { container } = render(
+      <>
+        <PlayerCardCount handSize={0} finishIndex={0} />
+        <PlayerCardCount handSize={0} finishIndex={1} />
+        <PlayerCardCount handSize={0} finishIndex={2} />
+        <PlayerCardCount handSize={0} finishIndex={3} />
+        <PlayerCardCount handSize={7} finishIndex={-1} />
+      </>
+    );
+    const counts = [...container.querySelectorAll(".card-count")];
+
+    expect(counts.map((count) => count.textContent)).toEqual(["头家", "二家", "三家", "末家", "7"]);
+    expect(counts.slice(0, 4).every((count) => !count.classList.contains("urgent"))).toBe(true);
+    expect(counts[4]).toHaveClass("urgent");
   });
 
   it("抗贡提示说明抗贡理由，记分牌仅高亮本局级别所属方", async () => {

@@ -52,6 +52,7 @@ const seatShortName: Record<Seat, string> = {
   west: "西家",
   north: "北家"
 };
+const finishNames = ["头家", "二家", "三家", "末家"] as const;
 
 function levelTeam(seat: Seat): "northSouth" | "eastWest" {
   return seat === "north" || seat === "south" ? "northSouth" : "eastWest";
@@ -107,6 +108,23 @@ export function CardFace({
   );
 }
 
+export function PlayerCardCount({
+  handSize,
+  finishIndex
+}: {
+  readonly handSize: number;
+  readonly finishIndex: number;
+}) {
+  const finishName = finishNames[finishIndex];
+  return (
+    <span
+      className={finishName ? "card-count" : handSize < 10 ? "card-count urgent" : "card-count"}
+    >
+      {finishName ?? handSize}
+    </span>
+  );
+}
+
 export function App({ storage }: { readonly storage?: StorageBoundary<TableSave> }) {
   const saveStorage = useMemo(() => storage ?? defaultStorage(), [storage]);
   const [session, setSession] = useState<TableSession>(() => createTableSession(newSeed()));
@@ -120,6 +138,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   const [handLayout, setHandLayout] = useState<HandLayout>("stacked");
   const game: TableGame = session.game;
   const levelRank = game.levelRank ?? session.match.levelRank;
+  const finishIndex = (seat: Seat) => game.state.finished.indexOf(seat);
 
   useEffect(() => {
     let active = true;
@@ -428,9 +447,10 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         </section>
         <section className="seat north" aria-label="北家座位">
           <strong>{seatName.north}</strong>
-          <span className={game.state.hands.north.length < 10 ? "card-count urgent" : "card-count"}>
-            {game.state.hands.north.length}
-          </span>
+          <PlayerCardCount
+            handSize={game.state.hands.north.length}
+            finishIndex={finishIndex("north")}
+          />
           {showAllHands ? (
             <span className={`revealed-hand card-groups ${handLayout}`} aria-label="北家明牌">
               {revealedHand("north").map((group) => (
@@ -458,9 +478,10 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         </section>
         <section className="seat east" aria-label="东家座位">
           <strong>{seatName.east}</strong>
-          <span className={game.state.hands.east.length < 10 ? "card-count urgent" : "card-count"}>
-            {game.state.hands.east.length}
-          </span>
+          <PlayerCardCount
+            handSize={game.state.hands.east.length}
+            finishIndex={finishIndex("east")}
+          />
           {showAllHands ? (
             <span className={`revealed-hand card-groups ${handLayout}`} aria-label="东家明牌">
               {revealedHand("east").map((group) => (
@@ -499,9 +520,10 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         </section>
         <section className="seat west" aria-label="西家座位">
           <strong>{seatName.west}</strong>
-          <span className={game.state.hands.west.length < 10 ? "card-count urgent" : "card-count"}>
-            {game.state.hands.west.length}
-          </span>
+          <PlayerCardCount
+            handSize={game.state.hands.west.length}
+            finishIndex={finishIndex("west")}
+          />
           {showAllHands ? (
             <span className={`revealed-hand card-groups ${handLayout}`} aria-label="西家明牌">
               {revealedHand("west").map((group) => (
@@ -626,9 +648,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
               <p id="hand-arrangement-help">
                 已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
               </p>
-              <span className={hand.length < 10 ? "card-count urgent" : "card-count"}>
-                {hand.length}
-              </span>
+              <PlayerCardCount handSize={hand.length} finishIndex={finishIndex(HUMAN_SEAT)} />
             </div>
           </section>
         )}
