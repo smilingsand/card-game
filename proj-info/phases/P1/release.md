@@ -6,5 +6,5 @@
 - Vercel Project：`wentop/card-game`，Root Directory 为 `frontend`，使用 Hobby 计划。
 - Production：[https://card-game-wentop.vercel.app](https://card-game-wentop.vercel.app)
 - 部署详情：[Vercel Inspect](https://vercel.com/wentop/card-game/5KQwZTgQ7REFJcdpFUxxRX51g8tJ)
-- 验收：Vercel 云端执行 `npm run build` 成功；本地全量 19 个测试文件 / 98 项通过，typecheck、lint、生产构建通过。该 Production URL 已生成，但项目当前的 SSO 部署保护会要求匿名访问者登录。
+- 验收：Vercel 云端执行 `npm run build` 成功；2026-07-15 P1 完结复核再次通过 `format:check`、typecheck、lint、全量 Vitest（19 个测试文件 / 98 项，含 1,000 局自动对局）和生产构建。该 Production URL 已生成，但项目当前的 SSO 部署保护会要求匿名访问者登录。
 - 回滚目标：这是该项目首个 Production 部署；尚无前一 Production 版本。后续可在 Vercel 将本次部署作为可回滚版本。

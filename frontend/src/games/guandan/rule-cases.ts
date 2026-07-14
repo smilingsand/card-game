@@ -24,12 +24,12 @@ export const GUANDAN_RULE_CASES = [
     source: "docs/resolved-rules.md#适用范围"
   },
   {
-    id: "scope-first-round-east-leads",
+    id: "scope-first-round-south-leads",
     section: "适用范围",
-    title: "首局固定东家领出",
+    title: "首局固定南家领出",
     input: ["首局", "当前级牌为 2"],
-    expected: ["east 为首个领出者"],
-    source: "proj-info/adr/ADR-0001-p0-guandan-rule-freeze.md#决策-1"
+    expected: ["south 为首个领出者"],
+    source: "proj-info/adr/ADR-0011-south-first-rules-version.md#决策"
   },
   {
     id: "scope-heart-level-wildcard",
@@ -140,7 +140,7 @@ export const GUANDAN_RULE_CASES = [
     section: "回合与结束",
     title: "领出者与逆时针响应",
     input: ["首局发牌完成", "非首局进贡完成"],
-    expected: ["首局 east 领出", "后续局按进贡后的出牌权领出", "其余玩家逆时针响应"],
+    expected: ["首局 south 领出", "后续局按进贡后的出牌权领出", "其余玩家逆时针响应"],
     source: "docs/resolved-rules.md#回合与结束"
   },
   {
@@ -227,7 +227,7 @@ export const GUANDAN_RULE_CASES = [
 
 export const REQUIRED_RULE_IDS = [
   "scope-double-deck-four-player",
-  "scope-first-round-east-leads",
+  "scope-first-round-south-leads",
   "scope-heart-level-wildcard",
   "pattern-basic-single-pair-triple",
   "pattern-three-with-pair",

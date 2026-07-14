@@ -2,7 +2,7 @@
 
 ## 目的与执行方式
 
-本矩阵的唯一产品口径是 `docs/resolved-rules.md` 和 ADR-0001。每个条目在
+本矩阵的唯一产品口径是 `docs/resolved-rules.md`、ADR-0011 与 ADR-0012。每个条目在
 `frontend/src/games/guandan/rule-cases.ts` 中有同 ID 的固定输入、预期和来源；
 `rule-cases.test.ts` 会实际检查 ID 集合、输入、预期、来源和全部规则章节覆盖。
 
@@ -12,7 +12,7 @@
 | ID | 冻结规则/固定情形 | 来源 |
 | --- | --- | --- |
 | scope-double-deck-four-player | 两副、108 张、四人对家、每家 27 张 | resolved-rules#适用范围 |
-| scope-first-round-east-leads | 首局打 2，东家首出 | ADR-0001#决策-1 |
+| scope-first-round-south-leads | 首局打 2，南家首出 | ADR-0011#决策 |
 | scope-heart-level-wildcard | 红桃级牌逢人配且不改原牌面 | resolved-rules#适用范围 |
 | pattern-basic-single-pair-triple | 单张、对子、三张及点数比较 | resolved-rules#牌型与比较 |
 | pattern-three-with-pair | 三带二只比较三张 | resolved-rules#牌型与比较 |

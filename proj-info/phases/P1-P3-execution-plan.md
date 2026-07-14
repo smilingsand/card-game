@@ -175,6 +175,12 @@
 - 非打 2 局的展示排序明确将 2 降为最小普通牌；`CardFace` 以当前 `levelRank` 判断“级/配”，组件回归验证打 6 时仅 6 标记、2 不标记。
 - 在 `frontend/` 执行 `npm.cmd run format`、`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`：全部通过，19 files / 92 tests passed。`npm.cmd run build -- --configLoader runner --outDir D:\MyWorks\card-game\temp\p1-19-build` 通过。
 
+### P1 完结复核（2026-07-15）
+
+- P1-01 至 P1-20 均为 `accepted`；规则、策略、架构、ADR、固定牌例、阶段计划与发布记录已对齐到 `guandan-v4` / 存档 schema 4。
+- `npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run`（19 files / 98 tests，含 1,000 局自动对局）和 `npm.cmd run build` 全部通过。Windows 常规权限无法写入 `node_modules/.vite-temp`，最终 Vitest/Vite 验证在受控权限下完成。
+- P1 交接入口见 `proj-info/phases/P1/phase-1-closeout.md`；P2 从 P2-01 开始。
+
 | P2-01 | P1-20        | 响应式牌桌、横屏优先布局、安全区与触摸选牌。           | Playwright 手机视口 + 真机抽测。 | Android Chrome、iPhone Safari 可完成核心回合。      | not_started |
 | P2-02 | P2-01        | Manifest、Service Worker、离线壳与版本升级提示。       | 离线/升级/缓存清理测试。         | 安装后可离线启动；不以旧缓存运行新规则版本。        | not_started |
 | P2-03 | P1-12        | 手牌结构、手数、主攻/助攻、公开大牌统计和置信度模型。  | 固定牌力/过牌样例。              | 推断与确定事实分层；不泄露隐藏牌。                  | not_started |

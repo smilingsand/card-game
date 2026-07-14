@@ -1,10 +1,17 @@
 # 扑克牌游戏平台架构基线
 
+## 当前实现状态（P1 已完成）
+
+- 浏览器应用位于 `frontend/`，使用 React、TypeScript、Vite；Vercel 项目 Root Directory 为 `frontend`。
+- 当前实现为 1 名人类南家与 3 个基础机器人的本地掼蛋；规则版本为 `guandan-v4`，存档 schema 为 4。旧规则/存档不做静默迁移。
+- 连续多局状态（双方等级、局号、进贡阶段、贡/还贡和首出者）由 `TableSession` 的版本化事件流与快照保存；手动理牌仅为南家的显示偏好，不属于规则事实。
+- P2 之前不引入后端、账号或联网；P3 才建立权威服务端。
+
 ## 首版技术选择
 
 - `frontend/`：React + TypeScript + Vite；纯静态构建，适合单机掼蛋直接托管于 Vercel。
 - 规则与状态：纯 TypeScript 函数，不依赖 React、浏览器 API 或 DOM。
-- 测试：Vitest（单元/固定牌例/属性或随机局）；Playwright（关键桌面与移动交互）。
+- 测试：Vitest（单元/固定牌例/随机自动对局）；关键桌面交互由组件回归覆盖。P2 再补移动 Playwright/真机验收。
 - 存储：IndexedDB，保存版本化事件流与快照；不把规则状态只放在组件 state。
 - PWA：仅在单机核心稳定后加入 Service Worker、manifest 和离线壳。
 
@@ -65,4 +72,3 @@ interface GameEvent { sequence: number; type: string; actorId?: PlayerId; payloa
 ## 状态与回放
 
 `seed + initial options + append-only GameEvent[]` 是可复现事实来源；每 N 个事件保存一个快照用于快速恢复。任何规则变更都增加 `rulesVersion`，旧存档不自动用新规则解释。
-

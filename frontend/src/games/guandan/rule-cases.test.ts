@@ -11,7 +11,7 @@ describe("P1-05 掼蛋冻结规则测试矩阵", () => {
       expect(ruleCase.input.length).toBeGreaterThan(0);
       expect(ruleCase.expected.length).toBeGreaterThan(0);
       expect(ruleCase.source).toMatch(
-        /^(docs\/resolved-rules\.md#|proj-info\/adr\/ADR-0001-p0-guandan-rule-freeze\.md#)/
+        /^(docs\/resolved-rules\.md#|proj-info\/adr\/ADR-\d{4}-[\w-]+\.md#)/
       );
     }
   });
