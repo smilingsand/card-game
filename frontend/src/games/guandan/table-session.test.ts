@@ -7,6 +7,7 @@ import {
   getSouthReturnChoices,
   getSouthTributeChoices,
   restoreTableSession,
+  restartCurrentTableSession,
   serializeTableSession,
   setHumanDisplayOrder,
   submitSouthReturn,
@@ -119,6 +120,37 @@ describe("牌桌事件存档", () => {
     });
     expect(next.game.state.leader).toBe("east");
     expect(next.game.levelRank).toBe("8");
+  });
+
+  test("重开本局保留上局结果、等级与级牌，但重新发牌并计算贡牌", () => {
+    const initial = createTableSession(73);
+    const completed = {
+      ...initial,
+      game: {
+        ...initial.game,
+        state: {
+          ...initial.game.state,
+          completed: true as const,
+          finished: ["north", "south", "west", "east"] as const
+        }
+      },
+      match: { ...initial.match, currentFinish: ["north", "south", "west", "east"] as const }
+    };
+    const current = prepareNextTableSession(completed);
+    const restarted = restartCurrentTableSession(current, 987_654_321);
+
+    expect(restarted.match).toMatchObject({
+      roundNumber: current.match.roundNumber,
+      roundSeed: 987_654_321,
+      levels: current.match.levels,
+      levelRank: current.match.levelRank,
+      previousFinish: current.match.previousFinish,
+      currentFinish: undefined
+    });
+    expect(restarted.game.state.hands).not.toEqual(current.game.state.hands);
+    expect(restarted.match.tributePlan).not.toEqual(current.match.tributePlan);
+    expect(restarted.humanDisplayOrder).toBeUndefined();
+    expect(restoreTableSession(serializeTableSession(restarted)).match).toEqual(restarted.match);
   });
 
   test("出牌后恢复的显示顺序会剔除已出实体牌 ID", () => {

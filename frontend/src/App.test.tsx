@@ -98,6 +98,9 @@ describe("App", () => {
         .getAllByRole("button")
         .map((button) => button.textContent)
     ).toEqual(["过牌", "提示", "出牌"]);
+    expect(screen.getByRole("button", { name: "重新开赛" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重开本局" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "清除存档" })).not.toBeInTheDocument();
   });
 
   it("动态级牌只在本局级牌上标注级或配，2 不会沿用级牌标记", async () => {
@@ -284,7 +287,7 @@ describe("App", () => {
       expect(screen.getByRole("status")).toHaveTextContent("存档不兼容或恢复失败")
     );
     expect(storage.saveCalls).toBe(0);
-    fireEvent.click(screen.getByRole("button", { name: "新局" }));
+    fireEvent.click(screen.getByRole("button", { name: "重新开赛" }));
     await waitFor(() => expect(storage.saveCalls).toBeGreaterThan(0));
   });
 });

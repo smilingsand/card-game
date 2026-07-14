@@ -17,6 +17,7 @@ import {
   getSouthReturnChoices,
   getSouthTributeChoices,
   prepareNextTableSession,
+  restartCurrentTableSession,
   restoreTableSession,
   serializeTableSession,
   setHumanDisplayOrder,
@@ -133,7 +134,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
       .catch(() => {
         if (!active) return;
         setSaveBlocked(true);
-        setMessage("存档不兼容或恢复失败；请新局或清除存档。");
+        setMessage("存档不兼容或恢复失败；请重新开赛。");
       })
       .finally(() => {
         if (active) setStorageReady(true);
@@ -352,16 +353,17 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     setMessage("已调整手牌显示顺序。");
   };
 
-  const startNewGame = () => {
+  const restartMatch = () => {
     setSaveBlocked(false);
     setSession(createTableSession(newSeed()));
     setSelectedCardIds([]);
-    setMessage("已开始新局。");
+    setMessage("已重新开赛，双方从 2 级开始。");
   };
 
-  const clearSave = () => {
-    void saveStorage.clear().catch(() => undefined);
-    startNewGame();
+  const restartCurrentRound = () => {
+    setSession(restartCurrentTableSession(session, newSeed()));
+    setSelectedCardIds([]);
+    setMessage("已重新发当前局手牌，贡牌和先手已重新计算。");
   };
 
   return (
@@ -375,11 +377,11 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         >
           规则
         </button>
-        <button type="button" onClick={startNewGame}>
-          新局
+        <button type="button" onClick={restartMatch}>
+          重新开赛
         </button>
-        <button type="button" onClick={clearSave}>
-          清除存档
+        <button type="button" onClick={restartCurrentRound}>
+          重开本局
         </button>
         <button
           type="button"

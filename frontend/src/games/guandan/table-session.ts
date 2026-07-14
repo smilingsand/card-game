@@ -506,6 +506,41 @@ export function prepareNextTableSession(session: TableSession): TableSession {
   return tributePlan.kind === "none" ? prepared : advanceAutomatedTribute(prepared);
 }
 
+/**
+ * Re-deals the current round without changing the result of the prior round.
+ * The new hand must produce a new tribute plan, and may therefore produce a new leader.
+ */
+export function restartCurrentTableSession(session: TableSession, roundSeed: number): TableSession {
+  const leader = session.match.previousFinish?.[0] ?? "south";
+  const game = createTableGame(roundSeed, { leader, levelRank: session.match.levelRank });
+  const tributePlan = session.match.previousFinish
+    ? createTributePlan(session.match.levelRank, session.match.previousFinish, cardsForHands(game))
+    : noTributePlan();
+  const match: MatchSessionState = {
+    ...session.match,
+    roundSeed,
+    leader,
+    currentFinish: undefined,
+    tributePlan,
+    tributePhase: tributePlan.kind === "none" ? "ready" : "awaiting-tribute",
+    submittedTributes: [],
+    submittedReturns: []
+  };
+  const roundEvent: RoundStartedEvent = {
+    sequence: session.stream.events.length,
+    type: "round.started",
+    payload: { match }
+  };
+  const restarted = createSessionFromGame(
+    session.seed,
+    game,
+    match,
+    appendEvent(session.stream, roundEvent),
+    undefined
+  );
+  return tributePlan.kind === "none" ? restarted : advanceAutomatedTribute(restarted);
+}
+
 export function serializeTableSession(session: TableSession): TableSave {
   return {
     saveSchemaVersion: TABLE_SAVE_SCHEMA_VERSION,
