@@ -3,6 +3,7 @@ import "./App.css";
 import type { Card, Seat } from "./platform/types";
 import { createIndexedDbStorage, type StorageBoundary } from "./platform/storage";
 import {
+  chooseTableHintAction,
   chooseTableBotAction,
   formatCard,
   formatInterpretation,
@@ -427,7 +428,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
               <button
                 type="button"
                 onClick={() => {
-                  const hint = getLegalSingleActions(game).find((action) => action.type === "play");
+                  const hint = chooseTableHintAction(game);
                   if (!hint || hint.type !== "play") {
                     setMessage("规则引擎没有提供可提示的出牌。");
                     return;

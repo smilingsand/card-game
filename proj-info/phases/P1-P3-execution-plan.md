@@ -39,7 +39,8 @@
 | P1-16G | P1-16F | 明牌可读性修正：非南方明牌的卡面符号缩小并避免纵叠重叠。 | 组件测试、浏览器人工冒烟。 | 东/西/北家明牌的完整牌和露出牌均不发生点数/花色重叠。 | accepted |
 | P1-16H | P1-16G | 输出当前牌型规则、基础机器人领出与跟牌策略说明。 | 文档审阅、链接与仓库状态检查。 | 文档明确区分冻结规则与当前基础策略，并披露策略边界。 | accepted |
 | P1-16I | P1-16H | 基础机器人领出策略修正：同型回收牌门槛、小牌优先和多出牌优先。 | 固定策略牌例、自动对局、浏览器回归。 | 低位短牌无同型回收时让位；有回收时优先走小牌；同等牌点优先多张牌型；顺子无回收门槛。 | accepted |
-| P1-17 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A, P1-16B, P1-16C, P1-16D, P1-16E, P1-16F, P1-16G, P1-16H, P1-16I | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
+| P1-16J | P1-16I | 人类“提示”与机器人共用领出及接牌策略。 | 固定牌例、组件测试、自动对局与浏览器回归。 | 提示只高亮建议牌、不自动提交；不再按候选顺序拆炸弹；提示与机器人在相同局面得到同一动作。 | accepted |
+| P1-17 | P1-12, P1-14, P1-15A, P1-15B, P1-15C, P1-15D, P1-15E, P1-16A, P1-16B, P1-16C, P1-16D, P1-16E, P1-16F, P1-16G, P1-16H, P1-16I, P1-16J | PR Preview、生产部署、回滚演练与发布记录。 | CI 全量 + Preview 人工冒烟。 | GitHub `main` 对应 Vercel Production 可玩；`release.md` 含 URL、commit 和回滚目标。 | not_started |
 
 ### P1-12 自测记录（2026-07-13）
 
@@ -138,6 +139,13 @@
 - 领出候选新增自然顺子；固定牌例覆盖：低位单张无回收时领出顺子、低位三带二的同型回收、炸弹不作为对子回收，以及牌桌控制器实际枚举顺子。`basic-bot.test.ts` 与 `table-controller.test.ts` 共 17 项通过。
 - `npm.cmd run format`、`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（16 files / 74 tests，包含批量自动对局）及 `npm.cmd run build` 均通过；`git diff --check` 通过。
 - 已尝试本地 Playwright 冒烟，但受当前环境中 `@playwright/cli` 初始化长期无输出所限而中止；本补丁未改 UI，现有 `App.test.tsx` 7 项交互回归已在全量测试中通过。该工具初始化问题不影响构建与策略逻辑验收。
+
+### P1-16J 自测与验收（2026-07-14）
+
+- “提示”改为调用与机器人相同的策略入口；它仍只选中建议牌，实际出牌仍经原有规则入口校验和提交。领出与接牌均使用同一 `BotView`、合法动作集和确定性评分。
+- 固定牌例验证：南家持有 `JJJJ` 与单张 `A` 时，提示与机器人均建议整体 `J` 普通炸弹，不会拆为单张；跟牌牌例验证提示与机器人返回同一压制动作。`App.test.tsx` 验证按钮提示和后续出牌流程。
+- `npm.cmd run format`、`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（16 files / 75 tests，含批量自动对局）及 `npm.cmd run build` 均通过；`git diff --check` 通过。
+- 沿用 P1-16I 的环境结论：本地 Playwright CLI 初始化长期无输出，无法完成真实浏览器 CLI 冒烟；本补丁的交互路径已由 `App.test.tsx` 覆盖，未影响构建与策略逻辑验收。
 
 ## P2：移动/PWA 与策略机器人
 

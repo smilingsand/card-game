@@ -60,7 +60,7 @@ describe("App", () => {
   it("提示和出牌仍通过规则入口提交", async () => {
     render(<App storage={memoryStorage()} />);
     fireEvent.click(screen.getByRole("button", { name: "提示" }));
-    expect(screen.getByRole("status")).toHaveTextContent("提示：可出单张。");
+    expect(screen.getByRole("status")).toHaveTextContent(/^提示：可出/);
     fireEvent.click(screen.getByRole("button", { name: /^出牌/ }));
     await waitFor(() => expect(screen.getByText("轮到：你（南家）")).toBeInTheDocument());
   });

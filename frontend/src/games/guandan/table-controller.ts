@@ -174,7 +174,7 @@ export function submitTableAction(game: TableGame, action: TurnAction): TurnResu
   return validation.ok ? applyAction(game.state, action) : validation;
 }
 
-export function chooseTableBotAction(game: TableGame): TurnAction | undefined {
+function chooseTableStrategicAction(game: TableGame): TurnAction | undefined {
   const legalActions = getLegalBotActions(game);
   return chooseBasicBotAction(
     createBotView({
@@ -193,6 +193,11 @@ export function chooseTableBotAction(game: TableGame): TurnAction | undefined {
     })
   );
 }
+
+/** 人类提示只选中建议牌，评分和机器人领出/跟牌完全一致。 */
+export const chooseTableHintAction = chooseTableStrategicAction;
+
+export const chooseTableBotAction = chooseTableStrategicAction;
 
 export function formatCard(card: Card): string {
   if (card.rank === "small-joker") return "小王";

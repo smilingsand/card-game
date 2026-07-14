@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import type { Card } from "../../platform/types";
 import {
+  chooseTableHintAction,
   chooseTableBotAction,
   createTableGame,
   getSelectedPlayActions,
@@ -57,8 +58,10 @@ test("东家领出后，北家有可压制单张时会接牌", () => {
   expect(result).toMatchObject({ ok: true, state: { current: "north" } });
   if (!result.ok) return;
 
-  const response = chooseTableBotAction({ ...game, state: result.state });
+  const responseGame = { ...game, state: result.state };
+  const response = chooseTableBotAction(responseGame);
   expect(response).toMatchObject({ type: "play", actor: "north", cardIds: [north.id] });
+  expect(chooseTableHintAction(responseGame)).toEqual(response);
 });
 
 test("机器人从合法动作中枚举并压制三带二", () => {
@@ -185,5 +188,39 @@ test("低位单张没有回收牌时，机器人会枚举并领出自然顺子",
     actor: "south",
     cardIds: ["south-5", "south-6", "south-7", "south-8", "south-9"],
     interpretation: { type: "straight" }
+  });
+});
+
+test("提示与机器人共用策略，不拆 J 炸弹为单张", () => {
+  const southCards = [
+    card("south-ja", "J", "spades"),
+    card("south-jb", "J", "hearts"),
+    card("south-jc", "J", "clubs"),
+    card("south-jd", "J", "diamonds"),
+    card("south-a", "A")
+  ];
+  const game: TableGame = {
+    cardsById: new Map(southCards.map((item) => [item.id, item])),
+    state: {
+      hands: {
+        east: ["east-1", "east-2", "east-3"],
+        south: southCards.map((item) => item.id),
+        west: ["west-1", "west-2", "west-3"],
+        north: ["north-1", "north-2", "north-3"]
+      },
+      current: "south",
+      leader: "south",
+      passes: 0,
+      finished: []
+    },
+    publicEvents: []
+  };
+
+  expect(chooseTableHintAction(game)).toEqual(chooseTableBotAction(game));
+  expect(chooseTableHintAction(game)).toMatchObject({
+    type: "play",
+    actor: "south",
+    cardIds: ["south-ja", "south-jb", "south-jc", "south-jd"],
+    interpretation: { type: "normal-bomb" }
   });
 });
