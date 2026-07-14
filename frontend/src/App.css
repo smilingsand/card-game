@@ -162,9 +162,7 @@ button:disabled {
 }
 .card-face {
   position: relative;
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: space-between;
+  display: block;
   width: 3rem;
   height: 4.15rem;
   padding: 0.25rem;
@@ -181,18 +179,22 @@ button:disabled {
   color: #c92f35;
 }
 .card-face.compact {
-  flex-direction: row;
-  align-items: center;
   width: 3rem;
   height: 1.3rem;
-  padding: 0.08rem 0.25rem;
-  border-bottom-color: #d7e0e4;
+  padding: 0;
+  border-bottom: 0;
+  border-radius: 0.32rem 0.32rem 0 0;
+  box-shadow: none;
 }
 .card-face.compact .card-rank {
+  top: 0.14rem;
+  left: 0.25rem;
   font-size: 0.95rem;
 }
 .card-face.compact .card-suit {
-  margin-left: auto;
+  top: 50%;
+  left: 50%;
+  margin: 0;
   font-size: 1rem;
 }
 .card-face.compact .card-badge,
@@ -200,10 +202,16 @@ button:disabled {
   display: none;
 }
 .card-rank {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
   font-size: 1.2rem;
 }
 .card-suit {
-  align-self: flex-end;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   font-size: 1.35rem;
 }
 .card-badge {
@@ -265,22 +273,20 @@ button:disabled {
   bottom: 1.25rem;
   left: 1.25rem;
   display: grid;
-  gap: 0.65rem;
-  align-items: center;
-  min-height: 22rem;
+  gap: 0.25rem;
+  align-content: end;
   padding: 0.75rem;
 }
 .south-actions {
   position: absolute;
-  bottom: 23rem;
+  bottom: 14rem;
   left: 50%;
   transform: translateX(-50%);
 }
 .human-hand {
   justify-content: center;
   align-items: flex-end;
-  min-height: 12rem;
-  overflow: auto hidden;
+  overflow: visible;
 }
 .card-groups.flat .card-stack {
   display: contents;
@@ -290,7 +296,9 @@ button:disabled {
   height: 3.3rem;
 }
 .human-hand.flat {
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  align-content: end;
+  row-gap: 0.3rem;
 }
 .hand-card {
   padding: 0;
@@ -333,7 +341,7 @@ button:disabled {
     height: 3.35rem;
   }
   .card-stack > * + * {
-    margin-bottom: -1.65rem;
+    margin-bottom: 0;
   }
   .north {
     top: 0.5rem;
