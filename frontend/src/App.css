@@ -223,11 +223,14 @@ button:disabled {
   left: calc(100% + 0.65rem);
 }
 .public-action {
+  --public-card-height: 4.15rem;
   display: inline-flex;
   align-items: flex-end;
-  min-height: 3.7rem;
+  min-height: var(--public-card-height);
 }
 .pass-word {
+  display: block;
+  line-height: 1;
   color: #fff1a9;
   font-size: 1.8rem;
   font-weight: 900;
@@ -529,6 +532,7 @@ button:disabled {
     min-width: 0;
   }
   .public-action {
+    --public-card-height: clamp(2.5rem, 14vw, 3.35rem);
     max-width: 100%;
     flex-wrap: wrap;
     justify-content: center;
@@ -693,6 +697,9 @@ button:disabled {
     --wildcard-font-size: clamp(0.36rem, 1.6vw, 0.46rem);
     width: var(--card-width);
     height: var(--card-height);
+  }
+  .public-action {
+    --public-card-height: clamp(2.2rem, 8vw, 2.8rem);
   }
   .card-face.compact {
     height: var(--compact-card-height);

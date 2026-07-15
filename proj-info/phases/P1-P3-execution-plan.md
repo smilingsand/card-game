@@ -228,6 +228,7 @@
 - Production 已提升同一修复 Preview：`https://card-game-wentop.vercel.app`，部署 `dpl_GqnbABu5EoMVqacoQjgEyJwMo1k5` 状态 Ready；Chrome 访问正式入口可进入牌桌并显示 PWA 更新提示。上一 Production `https://card-game-ez2wq9nml-wentop.vercel.app` 可作为回滚目标。
 - 尚需用户在 iPhone Safari 以正式 HTTPS URL 完成“添加到主屏幕 → 关闭 Safari → 飞行模式离线启动 → 恢复网络并确认更新提示”的真机清单；完成后方可标记 `accepted` 并提交 P2-06 发布记录。
 - 回归修复（2026-07-15）：用户截图确认横排手牌的点击区域宽于牌面，现使 `.human-hand.flat .hand-card` 在桌面和移动断点均与实际牌面等宽。另发现正式牌桌错误调用初级机器人，导致跟牌时把四张炸弹误判为比三带二更低代价、拆小王对子和自然顺子；现改为接入普通策略机器人。新增三个固定牌例：同型三带二优先于无必要炸弹、单 A 时保留小王对子而走大王、面对小单张优先用小王而不拆 10-J-Q-K-A。主验收串行运行 `format:check`、`typecheck`、`lint`、`test:run -- --configLoader runner --maxWorkers=1 --minWorkers=1`（24 files / 118 tests）、生产构建 `D:\MyWorks\card-game\temp\strategy-ui-fix-build` 与 `git diff --check` 均通过。此修复尚待随下一次 Production 部署发布。
+- 规则与布局回归（2026-07-15）：修复级牌连续牌比较错误并通过 ADR-0015 将规则版本升级为 `guandan-v5`；连续牌型中级牌按普通点数，`A2345` 的 A 为最小端。固定牌例覆盖打 5 时 `334455` 不可压 `778899`、`444555` 与 `A2345` 的普通比较键。南家“不要”改为与公开牌相同高度的动作容器内底部对齐，消除其与出牌牌面下缘不齐造成的空档。待全量门禁和 Production 发布完成后补充验收证据。
 
 ## P3：多人联网掼蛋
 

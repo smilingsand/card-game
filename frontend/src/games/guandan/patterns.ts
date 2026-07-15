@@ -33,6 +33,14 @@ function consecutive(ranks: readonly Rank[], length: number): boolean {
     RUN.slice(index, index + length)
   ).some((window) => window.every((rank) => unique.has(rank)));
 }
+function consecutiveHighValue(ranks: readonly Rank[], length: number): number | undefined {
+  const unique = new Set(ranks);
+  const window = Array.from({ length: RUN.length - length + 1 }, (_, index) =>
+    RUN.slice(index, index + length)
+  ).find((candidate) => candidate.every((rank) => unique.has(rank)));
+  const high = window?.at(-1);
+  return high === undefined ? undefined : RANKS.indexOf(high) + 2;
+}
 function classify(cards: readonly { rank: Rank; suit: Suit }[]): PatternType | undefined {
   const ranks = cards.map((card) => card.rank);
   const counts = [
@@ -76,6 +84,18 @@ function comparisonKey(
       (card) => cards.filter((other) => other.rank === card.rank).length === 3
     )?.rank;
     return tripleRank ? [value(tripleRank)] : [];
+  }
+  if (
+    type === "three-consecutive-pairs" ||
+    type === "steel-plate" ||
+    type === "straight" ||
+    type === "straight-flush"
+  ) {
+    const high = consecutiveHighValue(
+      cards.map((card) => card.rank),
+      type === "three-consecutive-pairs" ? 3 : type === "steel-plate" ? 2 : 5
+    );
+    return high === undefined ? [] : [high];
   }
   return [Math.max(...values)];
 }

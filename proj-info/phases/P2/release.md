@@ -12,4 +12,6 @@ Production 已通过 Chrome 页面与移动视口复核。PWA 的真机安装/�
 
 2026-07-15：本地已完成下一次发布内容的质量验收：横排手牌占位改为与牌面同宽；正式牌桌改接普通策略机器人，并以固定牌例防止无必要炸弹、拆小王对子和拆 10-J-Q-K-A 自然顺子。串行全量回归为 24 个测试文件 / 118 项通过，生产构建输出位于 `temp/strategy-ui-fix-build`。该变更尚未发布到上述 Production deployment。
 
+2026-07-15：待发布规则修复将连续牌中的级牌恢复为普通点数语义，规则版本升级为 `guandan-v5`；同时修正南家“不要”与公开牌下缘的对齐。该变更完成全量门禁后更新本记录的部署信息。
+
 2026-07-15：已按产品授权关闭 `wentop/card-game` 的 Vercel SSO Deployment Protection；无登录态请求 `https://card-game-wentop.vercel.app/` 返回 HTTP 200，不再重定向至 `vercel.com/sso-api`。

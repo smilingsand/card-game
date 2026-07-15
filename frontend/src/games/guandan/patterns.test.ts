@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { recognizePatterns } from "./patterns";
+import { canFollow } from "./comparison";
 import type { Card, Rank, Suit } from "../../platform/types";
 
 const cards = (...faces: readonly [Rank, Suit][]): Card[] =>
@@ -83,4 +84,59 @@ test("三带二的比较键只取三张牌点，不受附属对子影响", () =>
     ok: true,
     interpretations: [expect.objectContaining({ type: "three-with-pair", comparisonKey: [7] })]
   });
+});
+
+test("级牌进入连续牌型时按普通点数比较，A2345 的 A 按最小端处理", () => {
+  const pairs778899 = recognizePatterns(
+    cards(
+      ["7", "spades"],
+      ["7", "clubs"],
+      ["8", "spades"],
+      ["8", "clubs"],
+      ["9", "spades"],
+      ["9", "clubs"]
+    ),
+    "5"
+  );
+  const pairs334455 = recognizePatterns(
+    cards(
+      ["3", "spades"],
+      ["3", "clubs"],
+      ["4", "spades"],
+      ["4", "clubs"],
+      ["5", "spades"],
+      ["5", "clubs"]
+    ),
+    "5"
+  );
+  const steel444555 = recognizePatterns(
+    cards(
+      ["4", "spades"],
+      ["4", "clubs"],
+      ["4", "diamonds"],
+      ["5", "spades"],
+      ["5", "clubs"],
+      ["5", "diamonds"]
+    ),
+    "5"
+  );
+  const aceLowStraight = recognizePatterns(
+    cards(["A", "spades"], ["2", "clubs"], ["3", "diamonds"], ["4", "spades"], ["5", "clubs"]),
+    "5"
+  );
+
+  const interpretation = (result: ReturnType<typeof recognizePatterns>, type: string) => {
+    if (!result.ok) throw new Error("expected a legal pattern");
+    const found = result.interpretations.find((item) => item.type === type);
+    if (!found) throw new Error(`expected ${type}`);
+    return found;
+  };
+
+  const highPairs = interpretation(pairs778899, "three-consecutive-pairs");
+  const lowPairs = interpretation(pairs334455, "three-consecutive-pairs");
+  expect(highPairs.comparisonKey).toEqual([9]);
+  expect(lowPairs.comparisonKey).toEqual([5]);
+  expect(canFollow(lowPairs, highPairs)).toBe(false);
+  expect(interpretation(steel444555, "steel-plate").comparisonKey).toEqual([5]);
+  expect(interpretation(aceLowStraight, "straight").comparisonKey).toEqual([5]);
 });

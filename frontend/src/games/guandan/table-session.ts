@@ -24,7 +24,7 @@ import {
 } from "./tribute";
 import type { TurnAction, TurnResult, TurnState } from "./turns";
 
-export const TABLE_RULES_VERSION = "guandan-v4";
+export const TABLE_RULES_VERSION = "guandan-v5";
 export const TABLE_SAVE_SCHEMA_VERSION = 4;
 
 export type TributePhase = "ready" | "awaiting-tribute" | "awaiting-return";
