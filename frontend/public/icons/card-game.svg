@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1b5778"/>
+  <rect x="126" y="72" width="260" height="368" rx="30" fill="#fff" transform="rotate(-8 256 256)"/>
+  <rect x="126" y="72" width="260" height="368" rx="30" fill="#f7e9b5" transform="rotate(8 256 256)"/>
+  <text x="256" y="315" text-anchor="middle" fill="#c92f35" font-family="serif" font-size="210">♦</text>
+</svg>

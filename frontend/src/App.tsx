@@ -43,6 +43,7 @@ import {
 import type { TurnAction } from "./games/guandan/turns";
 import { actionFromPublicEvent, latestRecentActionsBySeat } from "./games/guandan/recent-actions";
 import { botThinkDelayMs } from "./games/guandan/bot-timing";
+import { registerPwaServiceWorker } from "./pwa/service-worker";
 
 const HUMAN_SEAT: Seat = "south";
 type BotSeat = "east" | "north" | "west";
@@ -149,6 +150,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   const [draggingCardId, setDraggingCardId] = useState<string>();
   const [showAllHands, setShowAllHands] = useState(false);
   const [handLayout, setHandLayout] = useState<HandLayout>("stacked");
+  const [applyPwaUpdate, setApplyPwaUpdate] = useState<() => void>();
   const game: TableGame = session.game;
   const levelRank = game.levelRank ?? session.match.levelRank;
   const finishIndex = (seat: Seat) => game.state.finished.indexOf(seat);
@@ -180,6 +182,13 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     if (!storageReady || saveBlocked) return;
     void saveStorage.save(serializeTableSession(session)).catch(() => undefined);
   }, [saveBlocked, saveStorage, session, storageReady]);
+
+  useEffect(() => {
+    void registerPwaServiceWorker({
+      onUpdateAvailable: (applyUpdate) => setApplyPwaUpdate(() => applyUpdate),
+      onControllerChange: () => window.location.reload()
+    }).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (
@@ -435,6 +444,14 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
           {handLayout === "stacked" ? "横排" : "竖排"}
         </button>
       </header>
+      {applyPwaUpdate ? (
+        <section className="pwa-update" role="status" aria-label="应用更新提示">
+          <span>发现新版本，更新后将重新加载牌桌。</span>
+          <button type="button" onClick={applyPwaUpdate}>
+            更新
+          </button>
+        </section>
+      ) : null}
       {displayedFinish ? (
         <section className="round-announcement" aria-label="本局结算与下一局提示">
           <span>完成顺序：{displayedFinish.map((seat) => seatName[seat]).join("、")}。</span>

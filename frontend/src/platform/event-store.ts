@@ -1,4 +1,5 @@
 import type { Event } from "./types";
+import { cloneValue } from "./structured-clone";
 
 export const EVENT_SCHEMA_VERSION = 1;
 
@@ -63,7 +64,7 @@ function deepFreeze<Value>(value: Value, seen = new WeakSet<object>()): Immutabl
 }
 
 function cloneAndDeepFreeze<Value>(value: Value): Immutable<Value> {
-  return deepFreeze(structuredClone(value));
+  return deepFreeze(cloneValue(value));
 }
 
 /** 创建不可变的、版本化的空事件流。 */

@@ -1,0 +1,17 @@
+{
+  "name": "双副牌扑克游戏平台",
+  "short_name": "本地掼蛋",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#d9f3f7",
+  "theme_color": "#1b5778",
+  "icons": [
+    {
+      "src": "/icons/card-game.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
