@@ -1,6 +1,6 @@
 import { dealFourPlayers, generateDeck, shuffleDeck } from "../../platform/deck";
 import type { Card, Seat } from "../../platform/types";
-import { chooseBasicBotAction } from "./basic-bot";
+import { chooseNormalBotAction } from "./normal-bot";
 import { createBotView } from "./bot-view";
 import { getLegalActions } from "./legal-actions";
 import { recognizePatterns, type PatternInterpretation } from "./patterns";
@@ -98,7 +98,7 @@ function botAction(
   singlePatternsByCardId: ReadonlyMap<string, readonly PatternInterpretation[]>
 ): TurnAction | undefined {
   const legalActions = candidateActions(state, singlePatternsByCardId);
-  return chooseBasicBotAction(
+  return chooseNormalBotAction(
     createBotView({
       selfSeat: state.current,
       leader: state.leader,
@@ -113,7 +113,7 @@ function botAction(
       ) as Record<Seat, number>,
       legalActions
     })
-  );
+  )?.action;
 }
 
 /**
