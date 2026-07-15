@@ -22,6 +22,14 @@ export function chooseNormalBotAction(view: BotView): NormalBotDecision | undefi
     .map((action) => {
       const reasons: string[] = [];
       let score = action.type === "pass" ? 0 : (action.interpretation.comparisonKey.at(-1) ?? 0);
+      if (
+        action.type === "pass" &&
+        view.highestSeat !== undefined &&
+        view.highestSeat !== teammate[view.selfSeat]
+      ) {
+        score += 1_000;
+        reasons.push("对手领出时优先压制");
+      }
       if (view.highestSeat === teammate[view.selfSeat] && action.type === "pass") {
         score -= 10_000;
         reasons.push("让对家保持牌权");

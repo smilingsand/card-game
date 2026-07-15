@@ -14,7 +14,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run --exclude src/games/guandan/bot-benchmark.10k.test.ts",
+    "benchmark:p2": "vitest run --configLoader runner src/games/guandan/bot-benchmark.10k.test.ts -t \"分批基准 1\" && vitest run --configLoader runner src/games/guandan/bot-benchmark.10k.test.ts -t \"分批基准 2\" && vitest run --configLoader runner src/games/guandan/bot-benchmark.10k.test.ts -t \"分批基准 3\" && vitest run --configLoader runner src/games/guandan/bot-benchmark.10k.test.ts -t \"分批基准 4\""
   },
   "dependencies": {
     "react": "^19.1.0",

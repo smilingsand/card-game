@@ -14,6 +14,17 @@ test("固定 seed 的自动对局只提交合法动作并可完成结算", () =>
   expect(result.actionCount).toBeGreaterThan(0);
 });
 
+test("固定 seed 可按座位混合初级与普通机器人", () => {
+  const result = runSimulation(7, {
+    east: "normal",
+    west: "normal",
+    south: "basic",
+    north: "basic"
+  });
+
+  expect(result).toMatchObject({ ok: true, seed: 7 });
+});
+
 test("批量自动对局记录首个失败 seed，并在全部成功时保持为空", () => {
   const result = runSimulationBatch({ startSeed: 0, gameCount: 1_000 });
 

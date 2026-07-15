@@ -1,5 +1,6 @@
 import { dealFourPlayers, generateDeck, shuffleDeck } from "../../platform/deck";
 import type { Card, Seat } from "../../platform/types";
+import { chooseBasicBotAction } from "./basic-bot";
 import { chooseNormalBotAction } from "./normal-bot";
 import { createBotView } from "./bot-view";
 import { getLegalActions } from "./legal-actions";
@@ -10,6 +11,14 @@ import { applyAction, validateAction, type TurnAction, type TurnState } from "./
 const SEATS: readonly Seat[] = ["east", "south", "west", "north"];
 const INITIAL_LEVEL = "2" as const;
 const MAX_ACTIONS_PER_GAME = 1_000;
+export type BotDifficulty = "basic" | "normal";
+export type SimulationDifficulties = Readonly<Record<Seat, BotDifficulty>>;
+const NORMAL_DIFFICULTIES: SimulationDifficulties = {
+  east: "normal",
+  south: "normal",
+  west: "normal",
+  north: "normal"
+};
 
 export type SimulationFailureCode =
   "illegal_action" | "invariant_violation" | "max_actions_exceeded" | "settlement_failure";
@@ -95,32 +104,37 @@ function candidateActions(
 function botAction(
   state: TurnState,
   cardsById: ReadonlyMap<string, Card>,
-  singlePatternsByCardId: ReadonlyMap<string, readonly PatternInterpretation[]>
+  singlePatternsByCardId: ReadonlyMap<string, readonly PatternInterpretation[]>,
+  difficulties: SimulationDifficulties
 ): TurnAction | undefined {
   const legalActions = candidateActions(state, singlePatternsByCardId);
-  return chooseNormalBotAction(
-    createBotView({
-      selfSeat: state.current,
-      leader: state.leader,
-      highestSeat: state.highestSeat,
-      levelRank: INITIAL_LEVEL,
-      hand: state.hands[state.current]
-        .map((cardId) => cardsById.get(cardId))
-        .filter((card): card is Card => card !== undefined),
-      publicEvents: [],
-      remainingCardCounts: Object.fromEntries(
-        SEATS.map((seat) => [seat, state.hands[seat].length])
-      ) as Record<Seat, number>,
-      legalActions
-    })
-  )?.action;
+  const view = createBotView({
+    selfSeat: state.current,
+    leader: state.leader,
+    highestSeat: state.highestSeat,
+    levelRank: INITIAL_LEVEL,
+    hand: state.hands[state.current]
+      .map((cardId) => cardsById.get(cardId))
+      .filter((card): card is Card => card !== undefined),
+    publicEvents: [],
+    remainingCardCounts: Object.fromEntries(
+      SEATS.map((seat) => [seat, state.hands[seat].length])
+    ) as Record<Seat, number>,
+    legalActions
+  });
+  return difficulties[state.current] === "basic"
+    ? chooseBasicBotAction(view)
+    : chooseNormalBotAction(view)?.action;
 }
 
 /**
  * 使用已公开的 BotView 与统一规则入口完成一局确定性自动对局。
  * 失败结果保留 seed，调用方可用同一 seed 重放定位问题。
  */
-export function runSimulation(seed: number): SimulationResult {
+export function runSimulation(
+  seed: number,
+  difficulties: SimulationDifficulties = NORMAL_DIFFICULTIES
+): SimulationResult {
   const initial = createInitialTurnState(seed);
   const allCardIds = new Set(initial.cards.map((card) => card.id));
   const cardsById = new Map(initial.cards.map((card) => [card.id, card]));
@@ -138,7 +152,7 @@ export function runSimulation(seed: number): SimulationResult {
     if (invariantError)
       return { ok: false, seed, actionCount, code: "invariant_violation", message: invariantError };
 
-    const action = botAction(state, cardsById, singlePatternsByCardId);
+    const action = botAction(state, cardsById, singlePatternsByCardId, difficulties);
     if (!action || !validateAction(state, action).ok)
       return {
         ok: false,

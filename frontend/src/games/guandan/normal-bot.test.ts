@@ -45,3 +45,10 @@ test("对手接近出完时拦截，普通局面保留炸弹", () => {
   expect(result?.action).not.toBe(pass);
   expect(result?.reasons).toContain("拦截对手残局");
 });
+test("对手领出且有普通压制时不能无意义过牌", () => {
+  const pass = { type: "pass" as const, actor: "east" as const };
+  const result = chooseNormalBotAction(
+    view([pass, play("low", 4)], { highestSeat: "south" as const })
+  );
+  expect(result?.action).not.toBe(pass);
+});
