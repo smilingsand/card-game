@@ -181,12 +181,25 @@
 
 | ID    | 依赖         | 开发内容                                               | 测试条件                         | 验收标准                                            | 当前状态    |
 | ----- | ------------ | ------------------------------------------------------ | -------------------------------- | --------------------------------------------------- | ----------- |
-| P2-01 | P1-20        | 响应式牌桌、横屏优先布局、安全区与触摸选牌。           | Playwright 手机视口 + 真机抽测。 | Android Chrome、iPhone Safari 可完成核心回合。      | not_started |
+| P2-01 | P1-20        | 响应式牌桌、横屏优先布局、安全区与触摸选牌。           | Playwright 手机视口 + 真机抽测。 | Android Chrome、iPhone Safari 可完成核心回合。      | accepted |
 | P2-02 | P2-01        | Manifest、Service Worker、离线壳与版本升级提示。       | 离线/升级/缓存清理测试。         | 安装后可离线启动；不以旧缓存运行新规则版本。        | not_started |
 | P2-03 | P1-12        | 手牌结构、手数、主攻/助攻、公开大牌统计和置信度模型。  | 固定牌力/过牌样例。              | 推断与确定事实分层；不泄露隐藏牌。                  | not_started |
 | P2-04 | P2-03        | 普通难度评分机器人、队友协同、炸弹策略和局面阶段权重。 | 固定策略局 + 固定 seed 对局。    | 机器人选择可解释；不频繁无意义压队友。              | not_started |
 | P2-05 | P2-04        | 初级/普通机器人对测、性能预算与回归基线。              | 10,000 局、移动端性能样本。      | 普通难度对初级有稳定指标提升；不超过思考预算。      | not_started |
 | P2-06 | P2-02, P2-05 | P2 Preview/Production 发布与 PWA 验收记录。            | 全量 CI、离线 E2E、真机清单。    | Vercel Production 完成 PWA/移动验收，保留回滚版本。 | not_started |
+
+### P2-01 自测（2026-07-15）
+
+- `frontend/src/App.css` 为窄高横屏增加动态视口高度、横屏优先的四边座位缩放与安全区内边距；手牌按钮增加适于触摸的最小命中区和 `touch-action: manipulation`。现有 P1 的四边牌桌、横/竖排、手动理牌、选择高亮和统一规则提交路径均原样复用，未回退既有能力。
+- `frontend/src/App.tsx` 在触摸结束时直接切换实体牌 ID 的选中状态；桌面 click、键盘理牌和拖拽仅保留为已有增强路径，规则、存档、事件流与 BotView 未改动。`frontend/src/App.test.tsx` 新增触摸选中/取消选中回归。
+- 在 `frontend/` 已通过：`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（19 files / 99 tests）以及 `npm.cmd run build -- --configLoader runner --outDir D:\MyWorks\card-game\temp\p2-01-build`。`git diff --check` 通过。
+- 未覆盖：本机 Playwright CLI 的 `npx` 初始化历史上长期无输出，未能得到手机视口浏览器证据；当前无 Android Chrome 或 iPhone Safari 真机可供抽测。因此本任务仅提交 `ready_for_acceptance`，不得据此宣称真机验收已完成。主验收应在 Android Chrome 和 iPhone Safari 横屏下完成一轮选牌、提示、出牌与机器人响应，并检查刘海/底部手势区无遮挡。
+- 真机失败证据（2026-07-15）：用户提供的 `temp/iphone横屏.jpg` 与 `temp/iphone竖屏.jpg` 显示，原移动样式保留 `700px`/`780px` 固定桌高和绝对定位，导致横屏座位、公开牌、记分与中央信息重叠，竖屏操作区、手牌及说明越出可用视口。该证据否定了先前的真机可用性假设。
+- 修复（2026-07-15）：新增 `responsive-table` 布局边界；窄竖屏与矮横屏均改为 CSS Grid 自然流，依次安放记分、四座、桌面信息、南家公开牌和南家操作/手牌，桌高改由 `100dvh` 与内容共同决定，手牌和操作按钮可换行，安全区内边距继续保留。组件回归新增该布局边界断言；`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（19 files / 100 tests）及 `npm.cmd run build -- --configLoader runner --outDir D:\MyWorks\card-game\temp\p2-01-mobile-fix-build` 均通过。修复后仍需用户在同一 iPhone 的横屏与竖屏实际复测，确认无重叠和横向裁切后才能进入 `accepted`。
+- 第二轮真机回归（2026-07-15）：用户提供的新 iPhone 横屏截图显示同点牌的紧凑牌面外层仍占用完整按钮高度，列内出现大空白；北家 `card-count` 又被移动 Grid 的默认拉伸占满一行。修复为 `compact-card` 增加与紧凑牌面一致的短最小高度，并为所有座位计数增加 `seat-card-count` 与 `justify-self: center`/`width: fit-content`。`App.test.tsx` 新增纵叠牌和座位计数布局边界断言；`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（19 files / 101 tests）、生产构建 `D:\MyWorks\card-game\temp\p2-01-second-mobile-fix-build` 及 `git diff --check` 均通过；仍需真机横竖屏复测本轮两项。
+- 第三轮真机回归（2026-07-15）：用户提供的 iPhone 横竖屏截图显示纵叠上方 `compact` 牌仍硬编码为桌面 `3rem` 宽度，不能与移动端底牌对齐；移动缩放后的牌面继续使用桌面点数/花色字号，公开牌与手牌均出现文字重叠。`CardFace` 新增 `size-token-card` 尺寸边界，`App.css` 用继承的自定义属性统一普通牌与紧凑牌的宽高，并按竖屏、矮横屏实际卡宽同步缩放点数、花色、级/配徽章和逢人配文本。`App.test.tsx` 先新增普通/紧凑牌共享尺寸边界的失败回归，再验证通过；`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（19 files / 102 tests）、生产构建 `D:\MyWorks\card-game\temp\p2-01-card-scale-build` 和 `git diff --check` 均通过。仍需同一 iPhone 横竖屏复测：同组紧凑牌宽度必须等于底牌，点数/花色/徽章不得重叠，公开出牌与手牌均应可辨认。
+  - 第四轮真机回归（2026-07-15）：用户要求纵叠紧凑牌彼此及与底牌之间无可见缝隙。南家纵叠组新增 `joined-card-stack`，以 1px 负边距覆盖相邻牌边框；紧凑牌按钮改为块级、零最小高度和零行高，消除按钮基线或最小高度残留空白。`App.test.tsx` 新增无缝连接边界断言，先失败后通过；`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（19 files / 103 tests）、`npm.cmd run build -- --configLoader runner --outDir D:\MyWorks\card-game\temp\p2-01-stack-seam-build` 与 `git diff --check` 均通过。仍需 iPhone 横竖屏复测，确认紧凑牌之间及紧凑牌与底牌之间没有空白或双边框缝隙。
+  - 主验收（2026-07-15）：用户完成多轮 iPhone Safari 横竖屏实机反馈，确认当前视觉修订“先这样”，并明确要求继续后续 P2 子任务；主 agent 已复跑格式、typecheck、lint、103 项 Vitest、生产构建与 diff 检查，全部通过，故标记为 `accepted`。Android Chrome 真机未抽测，作为 P2 已知风险保留至 P2-06 的移动真机清单，不回退本次用户验收。
 
 ## P3：多人联网掼蛋
 

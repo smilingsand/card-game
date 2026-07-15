@@ -34,6 +34,43 @@ function memoryStorage(
 }
 
 describe("App", () => {
+  it("牌桌提供独立的响应式布局边界", async () => {
+    render(<App storage={memoryStorage()} />);
+    await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
+    expect(screen.getByLabelText("牌桌")).toHaveClass("responsive-table");
+  });
+
+  it("纵叠手牌和座位计数使用不会被网格拉伸的布局边界", async () => {
+    render(<App storage={memoryStorage()} />);
+    await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
+
+    const hand = screen.getByLabelText("你的手牌");
+    expect(hand.querySelectorAll(".compact-card").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("北家座位").querySelector(".card-count")).toHaveClass(
+      "seat-card-count"
+    );
+  });
+
+  it("普通牌与紧凑牌共享同一套响应式尺寸边界", () => {
+    const { container } = render(
+      <>
+        <CardFace card={{ id: "normal", deckIndex: 0, suit: "spades", rank: "A" }} />
+        <CardFace card={{ id: "compact", deckIndex: 0, suit: "spades", rank: "A" }} compact />
+      </>
+    );
+
+    expect(container.querySelectorAll(".size-token-card")).toHaveLength(2);
+    expect(container.querySelector(".card-face.compact")).toHaveClass("size-token-card");
+  });
+
+  it("纵叠手牌使用无缝连接边界", async () => {
+    render(<App storage={memoryStorage()} />);
+    await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
+    expect(
+      screen.getByLabelText("你的手牌").querySelectorAll(".joined-card-stack").length
+    ).toBeGreaterThan(0);
+  });
+
   it("最近一圈内同一座位的旧动作会被该座位新动作覆盖", () => {
     const firstWestPass = { type: "pass" as const, actor: "west" as const };
     const latestWestPass = { type: "pass" as const, actor: "west" as const };
@@ -293,6 +330,20 @@ describe("App", () => {
     expect(screen.getByLabelText("东家明牌").querySelectorAll(".card-face.compact")).toHaveLength(
       0
     );
+  });
+
+  it("触摸抬起可选中或取消选中手牌，不依赖桌面拖拽", async () => {
+    render(<App storage={memoryStorage()} />);
+    await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
+
+    const card = within(screen.getByLabelText("你的手牌")).getAllByRole("button", {
+      name: /^选择/
+    })[0];
+    fireEvent.touchEnd(card);
+    expect(card).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.touchEnd(card);
+    expect(card).toHaveAttribute("aria-pressed", "false");
   });
 
   it("拒绝旧规则版本存档，直到用户明确开始新局才覆盖", async () => {

@@ -2,6 +2,7 @@
   color: #10263b;
   background: #d9f3f7;
   font-family: "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
 }
 
 * {
@@ -15,7 +16,8 @@ body {
 main {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 1rem;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
 }
 
 header {
@@ -63,7 +65,7 @@ button:disabled {
 
 .table {
   position: relative;
-  min-height: 780px;
+  min-height: min(48.75rem, calc(100dvh - 8rem));
   margin: 1rem 0;
   border: 18px solid #77bfd5;
   border-radius: 2.25rem;
@@ -176,6 +178,10 @@ button:disabled {
 .card-count.urgent {
   background: #c83c37;
 }
+.seat .seat-card-count {
+  justify-self: center;
+  width: fit-content;
+}
 
 .seat-actions {
   display: grid;
@@ -213,19 +219,32 @@ button:disabled {
   gap: 0.22rem;
 }
 .card-stack {
+  --stack-seam-overlap: 1px;
   display: inline-flex;
   flex-direction: column-reverse;
   align-items: stretch;
 }
-.card-stack > * + * {
-  margin-bottom: 0;
+.joined-card-stack > * + * {
+  margin-bottom: calc(-1 * var(--stack-seam-overlap));
 }
 .card-face {
+  --card-width: 3rem;
+  --card-height: 4.15rem;
+  --compact-card-height: 1.3rem;
+  --card-padding: 0.25rem;
+  --card-rank-inset: 0.25rem;
+  --card-rank-size: 1.2rem;
+  --compact-rank-size: 0.95rem;
+  --card-suit-size: 1.35rem;
+  --compact-suit-size: 1rem;
+  --badge-size: 1rem;
+  --badge-font-size: 0.64rem;
+  --wildcard-font-size: 0.62rem;
   position: relative;
   display: block;
-  width: 3rem;
-  height: 4.15rem;
-  padding: 0.25rem;
+  width: var(--card-width);
+  height: var(--card-height);
+  padding: var(--card-padding);
   border: 1px solid #c6d0d4;
   border-radius: 0.32rem;
   color: #111;
@@ -239,8 +258,8 @@ button:disabled {
   color: #c92f35;
 }
 .card-face.compact {
-  width: 3rem;
-  height: 1.3rem;
+  width: var(--card-width);
+  height: var(--compact-card-height);
   padding: 0;
   border-bottom: 0;
   border-radius: 0.32rem 0.32rem 0 0;
@@ -248,14 +267,14 @@ button:disabled {
 }
 .card-face.compact .card-rank {
   top: 0.14rem;
-  left: 0.25rem;
-  font-size: 0.95rem;
+  left: var(--card-rank-inset);
+  font-size: var(--compact-rank-size);
 }
 .card-face.compact .card-suit {
   top: 50%;
   left: 50%;
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--compact-suit-size);
 }
 .card-face.compact .card-badge,
 .card-face.compact .wildcard-as {
@@ -263,16 +282,16 @@ button:disabled {
 }
 .card-rank {
   position: absolute;
-  top: 0.25rem;
-  left: 0.25rem;
-  font-size: 1.2rem;
+  top: var(--card-rank-inset);
+  left: var(--card-rank-inset);
+  font-size: var(--card-rank-size);
 }
 .card-suit {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 1.35rem;
+  font-size: var(--card-suit-size);
 }
 .card-badge {
   position: absolute;
@@ -280,19 +299,19 @@ button:disabled {
   top: 0.1rem;
   display: grid;
   place-items: center;
-  width: 1rem;
-  height: 1rem;
+  width: var(--badge-size);
+  height: var(--badge-size);
   border-radius: 50%;
   color: #fff;
   background: #d83845;
-  font-size: 0.64rem;
+  font-size: var(--badge-font-size);
 }
 .wildcard-as {
   position: absolute;
   right: 0.12rem;
   bottom: 0.12rem;
   color: #28735e;
-  font-size: 0.62rem;
+  font-size: var(--wildcard-font-size);
 }
 .revealed-hand {
   max-width: 9rem;
@@ -306,9 +325,20 @@ button:disabled {
 }
 
 .revealed-hand .card-face {
-  width: 1.45rem;
-  height: 2rem;
-  padding: 0.1rem;
+  --card-width: 1.45rem;
+  --card-height: 2rem;
+  --compact-card-height: 0.78rem;
+  --card-padding: 0.1rem;
+  --card-rank-inset: 0.12rem;
+  --card-rank-size: 0.52rem;
+  --compact-rank-size: 0.44rem;
+  --card-suit-size: 0.56rem;
+  --compact-suit-size: 0.46rem;
+  --badge-size: 0.56rem;
+  --badge-font-size: 0.4rem;
+  width: var(--card-width);
+  height: var(--card-height);
+  padding: var(--card-padding);
   border-radius: 0.16rem;
 }
 
@@ -321,7 +351,7 @@ button:disabled {
   font-size: 0.56rem;
 }
 .revealed-hand .card-face.compact {
-  height: 0.78rem;
+  height: var(--compact-card-height);
 }
 .revealed-hand .card-face.compact .card-rank {
   top: 0.08rem;
@@ -376,10 +406,19 @@ button:disabled {
   row-gap: 0.3rem;
 }
 .hand-card {
+  min-width: 2.75rem;
+  min-height: 3.75rem;
   padding: 0;
   border: 0;
   background: transparent;
   cursor: grab;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.hand-card.compact-card {
+  display: block;
+  min-height: 0;
+  line-height: 0;
 }
 .hand-card[aria-pressed="true"] .card-face {
   outline: 3px solid #f2bf2e;
@@ -405,18 +444,78 @@ button:disabled {
 
 @media (max-width: 720px) {
   main {
-    padding: 0.5rem;
+    padding: max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right))
+      max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
   }
-  .table {
-    min-height: 700px;
+  .responsive-table {
+    --mobile-chrome-height: 10rem;
+    display: grid;
+    grid-template-areas:
+      "score score score"
+      "north north north"
+      "west info east"
+      "south-actions south-actions south-actions"
+      "human human human";
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+    min-height: calc(100dvh - var(--mobile-chrome-height));
+    padding: 0.65rem;
     border-width: 10px;
   }
-  .card-face {
-    width: 2.35rem;
-    height: 3.35rem;
+  .responsive-table > .match-scoreboard,
+  .responsive-table > .seat,
+  .responsive-table > .table-info,
+  .responsive-table > .south-actions,
+  .responsive-table > .human-seat {
+    position: static;
+    transform: none;
   }
-  .card-stack > * + * {
-    margin-bottom: 0;
+  .responsive-table > .match-scoreboard {
+    grid-area: score;
+    justify-self: start;
+    margin-bottom: 0.25rem;
+  }
+  .responsive-table > .north {
+    grid-area: north;
+  }
+  .responsive-table > .west {
+    grid-area: west;
+  }
+  .responsive-table > .east {
+    grid-area: east;
+  }
+  .responsive-table > .table-info {
+    grid-area: info;
+    width: auto;
+    padding: 0.5rem 0.2rem;
+  }
+  .responsive-table > .south-actions {
+    grid-area: south-actions;
+    margin: 0.35rem 0;
+  }
+  .responsive-table > .human-seat {
+    grid-area: human;
+    width: 100%;
+    padding: 0.35rem 0;
+  }
+  .card-face {
+    --card-width: clamp(1.7rem, 10vw, 2.35rem);
+    --card-height: clamp(2.5rem, 14vw, 3.35rem);
+    --compact-card-height: clamp(0.82rem, 4vw, 1.1rem);
+    --card-padding: 0.16rem;
+    --card-rank-inset: 0.16rem;
+    --card-rank-size: clamp(0.72rem, 3.6vw, 0.95rem);
+    --compact-rank-size: clamp(0.56rem, 3vw, 0.78rem);
+    --card-suit-size: clamp(0.82rem, 4vw, 1.05rem);
+    --compact-suit-size: clamp(0.66rem, 3.2vw, 0.86rem);
+    --badge-size: clamp(0.64rem, 3.2vw, 0.8rem);
+    --badge-font-size: clamp(0.38rem, 1.9vw, 0.48rem);
+    --wildcard-font-size: clamp(0.4rem, 2vw, 0.52rem);
+    width: var(--card-width);
+    height: var(--card-height);
+  }
+  .joined-card-stack > * + * {
+    margin-bottom: calc(-1 * var(--stack-seam-overlap));
   }
   .north {
     top: 0.5rem;
@@ -428,12 +527,150 @@ button:disabled {
     right: 0.45rem;
   }
   .human-seat {
-    right: 0.5rem;
-    bottom: 0.5rem;
-    left: 0.5rem;
+    min-width: 0;
+  }
+  section[aria-label="操作"] {
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+  section[aria-label="操作"] button {
+    min-height: 2.75rem;
+  }
+  .human-hand {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .human-footer {
+    flex-wrap: wrap;
+  }
+  #hand-arrangement-help {
+    flex: 1 1 13rem;
   }
   .human-hand.flat .card-face {
-    width: 1.9rem;
-    height: 2.9rem;
+    width: clamp(1.7rem, 10vw, 2.15rem);
+    height: clamp(2.5rem, 14vw, 3rem);
+  }
+  .hand-card.compact-card {
+    min-height: 1rem;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 540px) {
+  main {
+    max-width: none;
+    padding: max(0.4rem, env(safe-area-inset-top)) max(0.75rem, env(safe-area-inset-right))
+      max(0.4rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+  }
+
+  header {
+    gap: 0.35rem;
+  }
+
+  header h1 {
+    font-size: 1.1rem;
+  }
+
+  header button,
+  section[aria-label="操作"] button {
+    min-height: 2.75rem;
+    padding: 0.45rem 0.8rem;
+  }
+
+  .responsive-table {
+    --mobile-chrome-height: 5rem;
+    display: grid;
+    grid-template-areas:
+      "score north north"
+      "west info east"
+      "west south-actions east"
+      "human human human";
+    grid-template-columns: minmax(5.5rem, 1fr) minmax(10rem, 2fr) minmax(5.5rem, 1fr);
+    align-items: start;
+    min-height: calc(100dvh - var(--mobile-chrome-height));
+    margin: 0.5rem 0 0;
+    padding: 0.4rem;
+    border-width: 10px;
+    border-radius: 1.2rem;
+  }
+  .responsive-table > .match-scoreboard,
+  .responsive-table > .seat,
+  .responsive-table > .table-info,
+  .responsive-table > .south-actions,
+  .responsive-table > .human-seat {
+    position: static;
+    transform: none;
+  }
+  .responsive-table > .match-scoreboard {
+    grid-area: score;
+    justify-self: start;
+    max-width: 12rem;
+    padding: 0.3rem 0.4rem;
+    font-size: 0.8rem;
+  }
+  .responsive-table > .north {
+    grid-area: north;
+  }
+  .responsive-table > .west {
+    grid-area: west;
+  }
+  .responsive-table > .east {
+    grid-area: east;
+  }
+  .responsive-table > .table-info {
+    grid-area: info;
+    width: auto;
+    padding: 0.2rem;
+  }
+  .responsive-table > .south-actions {
+    grid-area: south-actions;
+    margin: 0.2rem 0;
+  }
+  .responsive-table > .human-seat {
+    grid-area: human;
+    width: 100%;
+    min-width: 0;
+    padding: 0.2rem 0;
+  }
+  .human-hand {
+    flex-wrap: wrap;
+  }
+  section[aria-label="操作"] {
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .card-face,
+  .human-hand.flat .card-face {
+    --card-width: clamp(1.5rem, 5.5vw, 2rem);
+    --card-height: clamp(2.2rem, 8vw, 2.8rem);
+    --compact-card-height: clamp(0.76rem, 3vw, 0.95rem);
+    --card-padding: 0.13rem;
+    --card-rank-inset: 0.13rem;
+    --card-rank-size: clamp(0.62rem, 2.5vw, 0.82rem);
+    --compact-rank-size: clamp(0.5rem, 2vw, 0.68rem);
+    --card-suit-size: clamp(0.72rem, 2.8vw, 0.95rem);
+    --compact-suit-size: clamp(0.56rem, 2.2vw, 0.74rem);
+    --badge-size: clamp(0.56rem, 2.4vw, 0.7rem);
+    --badge-font-size: clamp(0.34rem, 1.4vw, 0.42rem);
+    --wildcard-font-size: clamp(0.36rem, 1.6vw, 0.46rem);
+    width: var(--card-width);
+    height: var(--card-height);
+  }
+  .card-face.compact {
+    height: var(--compact-card-height);
+  }
+  .hand-card {
+    min-width: clamp(1.5rem, 5.5vw, 2rem);
+    min-height: clamp(2.2rem, 8vw, 2.8rem);
+  }
+  .hand-card.compact-card {
+    min-height: 0.9rem;
+  }
+  .human-footer {
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  #hand-arrangement-help {
+    flex: 1 1 18rem;
+    font-size: 0.75rem;
   }
 }

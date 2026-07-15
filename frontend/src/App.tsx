@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type DragEvent, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type TouchEvent
+} from "react";
 import "./App.css";
 import type { Card, Seat } from "./platform/types";
 import { createIndexedDbStorage, type StorageBoundary } from "./platform/storage";
@@ -99,7 +106,7 @@ export function CardFace({
     card.rank === "small-joker" ? "小王" : card.rank === "big-joker" ? "大王" : card.rank;
   const badge = card.rank === levelRank ? (card.suit === "hearts" ? "配" : "级") : undefined;
   return (
-    <span className={`card-face ${card.suit}${compact ? " compact" : ""}`}>
+    <span className={`card-face size-token-card ${card.suit}${compact ? " compact" : ""}`}>
       {badge ? <span className="card-badge">{badge}</span> : null}
       <span className="card-rank">{rank}</span>
       <span className="card-suit">{suit}</span>
@@ -118,7 +125,13 @@ export function PlayerCardCount({
   const finishName = finishNames[finishIndex];
   return (
     <span
-      className={finishName ? "card-count" : handSize < 10 ? "card-count urgent" : "card-count"}
+      className={
+        finishName
+          ? "card-count seat-card-count"
+          : handSize < 10
+            ? "card-count seat-card-count urgent"
+            : "card-count seat-card-count"
+      }
     >
       {finishName ?? handSize}
     </span>
@@ -340,6 +353,11 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     );
   };
 
+  const selectCardWithTouch = (event: TouchEvent<HTMLButtonElement>, cardId: string) => {
+    event.preventDefault();
+    toggleCard(cardId);
+  };
+
   const moveCard = (movingCardId: string, targetCardId: string) => {
     const nextOrder = moveHumanDisplayCard(hand, movingCardId, targetCardId);
     if (nextOrder === hand) return;
@@ -429,7 +447,10 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
           为唯一口径；牌型与跟牌均由规则引擎判定。
         </aside>
       ) : null}
-      <section className={`table${showAllHands ? " show-all-hands" : ""}`} aria-label="牌桌">
+      <section
+        className={`table responsive-table${showAllHands ? " show-all-hands" : ""}`}
+        aria-label="牌桌"
+      >
         <section className="match-scoreboard" aria-label="赛局记分与贡牌">
           <span>我方</span>
           <span className={`match-token${activeLevelTeam === "northSouth" ? "" : " inactive"}`}>
@@ -610,16 +631,17 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
             </section>
             <div className={`card-groups human-hand ${handLayout}`}>
               {handGroups.map((group) => (
-                <span className="card-stack" key={group.key}>
+                <span className="card-stack joined-card-stack" key={group.key}>
                   {group.cardIds.map((cardId, index) => {
                     const card = game.cardsById.get(cardId);
                     if (!card) return null;
                     const selected = selectedCardIds.includes(cardId);
+                    const compact = handLayout === "stacked" && index > 0;
                     return (
                       <button
                         key={cardId}
                         type="button"
-                        className="hand-card"
+                        className={`hand-card${compact ? " compact-card" : ""}`}
                         aria-pressed={selected}
                         aria-label={`选择${formatCard(card)}`}
                         aria-describedby="hand-arrangement-help"
@@ -627,17 +649,14 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
                         disabled={!humanCanAct && !southManualChoices.includes(cardId)}
                         draggable={humanCanAct}
                         onClick={() => toggleCard(cardId)}
+                        onTouchEnd={(event) => selectCardWithTouch(event, cardId)}
                         onDragStart={(event) => dragStart(event, cardId)}
                         onDragEnd={() => setDraggingCardId(undefined)}
                         onDragOver={(event) => event.preventDefault()}
                         onDrop={(event) => dropOnCard(event, cardId)}
                         onKeyDown={(event) => reorderWithKeyboard(event, cardId)}
                       >
-                        <CardFace
-                          card={card}
-                          compact={handLayout === "stacked" && index > 0}
-                          levelRank={levelRank}
-                        />
+                        <CardFace card={card} compact={compact} levelRank={levelRank} />
                       </button>
                     );
                   })}
