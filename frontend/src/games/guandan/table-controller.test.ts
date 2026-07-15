@@ -315,3 +315,145 @@ test("机器人可以用完整炸弹压制不同牌型", () => {
     interpretation: { type: "normal-bomb", comparisonKey: [4, 3] }
   });
 });
+
+test("normal strategy uses a matching three-with-pair instead of an unnecessary bomb", () => {
+  const southCards = [
+    card("south-4a", "4", "spades"),
+    card("south-4b", "4", "hearts"),
+    card("south-4c", "4", "diamonds"),
+    card("south-3a", "3", "spades"),
+    card("south-3b", "3", "hearts")
+  ];
+  const westResponse = [
+    card("west-5a", "5", "spades"),
+    card("west-5b", "5", "hearts"),
+    card("west-5c", "5", "diamonds"),
+    card("west-3a", "3", "clubs"),
+    card("west-3b", "3", "diamonds")
+  ];
+  const westBomb = [
+    card("west-ja", "J", "spades"),
+    card("west-jb", "J", "hearts"),
+    card("west-jc", "J", "clubs"),
+    card("west-jd", "J", "diamonds")
+  ];
+  const game: TableGame = {
+    cardsById: new Map(
+      [...southCards, ...westResponse, ...westBomb].map((item) => [item.id, item])
+    ),
+    state: {
+      hands: {
+        east: ["east-other"],
+        south: southCards.map((item) => item.id),
+        west: [...westResponse, ...westBomb].map((item) => item.id),
+        north: ["north-other"]
+      },
+      current: "south",
+      leader: "south",
+      passes: 0,
+      finished: []
+    },
+    publicEvents: []
+  };
+  const lead = getSelectedPlayActions(
+    game,
+    southCards.map((item) => item.id)
+  )[0];
+  expect(lead).toMatchObject({ interpretation: { type: "three-with-pair", comparisonKey: [4] } });
+  if (!lead) return;
+  const afterLead = submitTableAction(game, lead);
+  if (!afterLead.ok) return;
+  const afterEastPass = submitTableAction(
+    { ...game, state: afterLead.state },
+    { type: "pass", actor: "east" }
+  );
+  if (!afterEastPass.ok) return;
+  const afterNorthPass = submitTableAction(
+    { ...game, state: afterEastPass.state },
+    { type: "pass", actor: "north" }
+  );
+  if (!afterNorthPass.ok) return;
+
+  expect(chooseTableBotAction({ ...game, state: afterNorthPass.state })).toMatchObject({
+    type: "play",
+    actor: "west",
+    cardIds: expect.arrayContaining(westResponse.map((item) => item.id)),
+    interpretation: { type: "three-with-pair", comparisonKey: [5] }
+  });
+});
+
+test("normal strategy keeps a small-joker pair by using big joker over a single ace", () => {
+  const eastAce = card("east-a", "A");
+  const bigJoker = card("north-big", "big-joker", "joker");
+  const smallJokerOne = card("north-small-1", "small-joker", "joker");
+  const smallJokerTwo = card("north-small-2", "small-joker", "joker");
+  const game: TableGame = {
+    cardsById: new Map(
+      [eastAce, bigJoker, smallJokerOne, smallJokerTwo].map((item) => [item.id, item])
+    ),
+    state: {
+      hands: {
+        east: [eastAce.id],
+        south: ["south-other"],
+        west: ["west-other"],
+        north: [bigJoker.id, smallJokerOne.id, smallJokerTwo.id]
+      },
+      current: "east",
+      leader: "east",
+      passes: 0,
+      finished: []
+    },
+    publicEvents: []
+  };
+  const lead = getSelectedPlayActions(game, [eastAce.id])[0];
+  if (!lead) return;
+  const afterLead = submitTableAction(game, lead);
+  if (!afterLead.ok) return;
+  expect(chooseTableBotAction({ ...game, state: afterLead.state })).toMatchObject({
+    type: "play",
+    actor: "north",
+    cardIds: [bigJoker.id],
+    interpretation: { type: "single", comparisonKey: [17] }
+  });
+});
+
+test("normal strategy uses the lowest joker before breaking a natural straight for a small single", () => {
+  const eastNine = card("east-9", "9");
+  const northStraight = [
+    card("north-10", "10"),
+    card("north-j", "J"),
+    card("north-q", "Q"),
+    card("north-k", "K"),
+    card("north-a", "A")
+  ];
+  const smallJoker = card("north-small", "small-joker", "joker");
+  const bigJoker = card("north-big", "big-joker", "joker");
+  const game: TableGame = {
+    cardsById: new Map(
+      [eastNine, ...northStraight, smallJoker, bigJoker].map((item) => [item.id, item])
+    ),
+    state: {
+      hands: {
+        east: [eastNine.id],
+        south: ["south-other"],
+        west: ["west-other"],
+        north: [...northStraight, smallJoker, bigJoker].map((item) => item.id)
+      },
+      current: "east",
+      leader: "east",
+      passes: 0,
+      finished: []
+    },
+    publicEvents: []
+  };
+  const lead = getSelectedPlayActions(game, [eastNine.id])[0];
+  if (!lead) return;
+  const afterLead = submitTableAction(game, lead);
+  if (!afterLead.ok) return;
+  expect(chooseTableBotAction({ ...game, state: afterLead.state })).toMatchObject({
+    type: "play",
+    actor: "north",
+    cardIds: [smallJoker.id],
+    interpretation: { type: "single", comparisonKey: [16] }
+  });
+});

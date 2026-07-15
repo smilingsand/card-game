@@ -16,7 +16,7 @@ P1-01 至 P1-20 均已验收。P1 交付浏览器内的单人本地掼蛋：南�
 | 后续级牌 | 上一局头游方升级后的等级 |
 | 行牌方向 | 南 → 东 → 北 → 西 → 南 |
 | 当前 Production | `https://card-game-wentop.vercel.app` |
-| Production 访问限制 | 项目启用了 Vercel SSO 部署保护；匿名访问会跳转登录页，未经产品明确授权不得关闭。 |
+| Production 访问限制 | P1 发布当时启用了 Vercel SSO 部署保护；P2-06 已获产品授权并于 2026-07-15 关闭。当前匿名访问和回滚信息以 `../P2/release.md` 为准。 |
 
 ## 后续开发的事实入口
 
@@ -31,4 +31,4 @@ P1-01 至 P1-20 均已验收。P1 交付浏览器内的单人本地掼蛋：南�
 
 本次完结已在 `frontend/` 依次通过 `npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run` 和 `npm.cmd run build`。Vitest 为 19 个测试文件 / 98 项通过，包含 1,000 局自动对局；生产构建通过。实际发布证据见 [release.md](release.md)。
 
-P2 尚未开始；下一任务为 P2-01（响应式牌桌、横屏优先布局、安全区与触摸选牌）。
+P2-01 至 P2-05 已验收，P2-06 已完成发布和 Chrome 验收，仍待 iPhone Safari 主屏离线启动的最终人工复测。下一开发阶段为 P3，入口见 `../P1-P3-execution-plan.md`。

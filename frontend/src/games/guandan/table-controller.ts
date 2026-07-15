@@ -1,6 +1,6 @@
 import { dealFourPlayers, generateDeck, shuffleDeck } from "../../platform/deck";
 import type { Card, Event, Rank, Seat } from "../../platform/types";
-import { chooseBasicBotAction } from "./basic-bot";
+import { chooseNormalBotAction } from "./normal-bot";
 import { createBotView } from "./bot-view";
 import { getLegalActions } from "./legal-actions";
 import { recognizePatterns, type PatternInterpretation } from "./patterns";
@@ -212,7 +212,7 @@ export function submitTableAction(game: TableGame, action: TurnAction): TurnResu
 
 function chooseTableStrategicAction(game: TableGame): TurnAction | undefined {
   const legalActions = getLegalBotActions(game);
-  return chooseBasicBotAction(
+  return chooseNormalBotAction(
     createBotView({
       selfSeat: game.state.current,
       leader: game.state.leader,
@@ -227,7 +227,7 @@ function chooseTableStrategicAction(game: TableGame): TurnAction | undefined {
       ) as Record<Seat, number>,
       legalActions
     })
-  );
+  )?.action;
 }
 
 /** 人类提示只选中建议牌，评分和机器人领出/跟牌完全一致。 */

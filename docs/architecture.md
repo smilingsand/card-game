@@ -1,19 +1,19 @@
 # 扑克牌游戏平台架构基线
 
-## 当前实现状态（P1 已完成）
+## 当前实现状态（P2 已交付，P2-06 真机收尾中）
 
 - 浏览器应用位于 `frontend/`，使用 React、TypeScript、Vite；Vercel 项目 Root Directory 为 `frontend`。
-- 当前实现为 1 名人类南家与 3 个基础机器人的本地掼蛋；规则版本为 `guandan-v4`，存档 schema 为 4。旧规则/存档不做静默迁移。
+- 当前实现为 1 名人类南家与 3 个普通策略机器人的本地掼蛋；规则版本为 `guandan-v4`，存档 schema 为 4。旧规则/存档不做静默迁移。
 - 连续多局状态（双方等级、局号、进贡阶段、贡/还贡和首出者）由 `TableSession` 的版本化事件流与快照保存；手动理牌仅为南家的显示偏好，不属于规则事实。
-- P2 之前不引入后端、账号或联网；P3 才建立权威服务端。
+- P2 不引入后端、账号或多人联网；P3 才建立权威服务端。
 
 ## 首版技术选择
 
 - `frontend/`：React + TypeScript + Vite；纯静态构建，适合单机掼蛋直接托管于 Vercel。
 - 规则与状态：纯 TypeScript 函数，不依赖 React、浏览器 API 或 DOM。
-- 测试：Vitest（单元/固定牌例/随机自动对局）；关键桌面交互由组件回归覆盖。P2 再补移动 Playwright/真机验收。
+- 测试：Vitest（单元/固定牌例/随机自动对局）；关键桌面交互、移动布局和 PWA 更新时序由组件/单元回归覆盖。P2 仍保留 iPhone Safari 主屏离线启动的最终人工验收。
 - 存储：IndexedDB，保存版本化事件流与快照；不把规则状态只放在组件 state。
-- PWA：仅在单机核心稳定后加入 Service Worker、manifest 和离线壳。
+- PWA：已提供 manifest、Service Worker 与离线壳。Service Worker 仅缓存带构建指纹的静态资源；IndexedDB 事件流、快照和牌局数据不进入 Cache Storage。更新须由用户确认后才激活新 worker，详见 ADR-0013。
 
 选择 Vite 是为了使首版保持完全静态；未来多人能力通过 `backend/` 的权威服务加入，前端不重写。
 
@@ -49,6 +49,7 @@ backend(P3) ──> games/guandan engine + platform
 - `engine/` 必须是确定性 reducer：`state + action -> nextState / validation error`。
 - 客户端仅持有自己手牌和公共投影；服务器完整状态只在 P3 引入。
 - 机器人输入是 `BotView`（自己的手牌 + 公开事件 + 合法动作），类型上不暴露对手手牌。
+- 普通机器人在领出时复用结构化基线；跟牌时保留可替代的炸弹、王对子和自然顺子，并只从 `BotView` 的己方手牌与合法动作进行评分。策略观察模型详见 ADR-0014。
 
 ## 最小领域接口
 

@@ -175,18 +175,18 @@
 
 - P1-01 至 P1-20 均为 `accepted`；规则、策略、架构、ADR、固定牌例、阶段计划与发布记录已对齐到 `guandan-v4` / 存档 schema 4。
 - `npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run`（19 files / 98 tests，含 1,000 局自动对局）和 `npm.cmd run build` 全部通过。Windows 常规权限无法写入 `node_modules/.vite-temp`，最终 Vitest/Vite 验证在受控权限下完成。
-- P1 交接入口见 `proj-info/phases/P1/phase-1-closeout.md`；P2 从 P2-01 开始。
+- P1 交接入口见 `proj-info/phases/P1/phase-1-closeout.md`；P2 阶段记录见 `proj-info/phases/P2/`，当前 P2-06 保持 `ready_for_acceptance`，不得在缺少 iPhone Safari 主屏离线启动证据时提前解锁 P3。
 
 ## P2：移动/PWA 与策略机器人
 
 | ID    | 依赖         | 开发内容                                               | 测试条件                         | 验收标准                                            | 当前状态    |
 | ----- | ------------ | ------------------------------------------------------ | -------------------------------- | --------------------------------------------------- | ----------- |
 | P2-01 | P1-20        | 响应式牌桌、横屏优先布局、安全区与触摸选牌。           | Playwright 手机视口 + 真机抽测。 | Android Chrome、iPhone Safari 可完成核心回合。      | accepted |
-| P2-02 | P2-01        | Manifest、Service Worker、离线壳与版本升级提示。       | 离线/升级/缓存清理测试。         | 安装后可离线启动；不以旧缓存运行新规则版本。        | not_started |
-| P2-03 | P1-12        | 手牌结构、手数、主攻/助攻、公开大牌统计和置信度模型。  | 固定牌力/过牌样例。              | 推断与确定事实分层；不泄露隐藏牌。                  | not_started |
-| P2-04 | P2-03        | 普通难度评分机器人、队友协同、炸弹策略和局面阶段权重。 | 固定策略局 + 固定 seed 对局。    | 机器人选择可解释；不频繁无意义压队友。              | not_started |
-| P2-05 | P2-04        | 初级/普通机器人对测、性能预算与回归基线。              | 10,000 局、移动端性能样本。      | 普通难度对初级有稳定指标提升；不超过思考预算。      | not_started |
-| P2-06 | P2-02, P2-05 | P2 Preview/Production 发布与 PWA 验收记录。            | 全量 CI、离线 E2E、真机清单。    | Vercel Production 完成 PWA/移动验收，保留回滚版本。 | not_started |
+| P2-02 | P2-01        | Manifest、Service Worker、离线壳与版本升级提示。       | 离线/升级/缓存清理测试。         | 安装后可离线启动；不以旧缓存运行新规则版本。        | accepted |
+| P2-03 | P1-12        | 手牌结构、手数、主攻/助攻、公开大牌统计和置信度模型。  | 固定牌力/过牌样例。              | 推断与确定事实分层；不泄露隐藏牌。                  | accepted |
+| P2-04 | P2-03        | 普通难度评分机器人、队友协同、炸弹策略和局面阶段权重。 | 固定策略局 + 固定 seed 对局。    | 机器人选择可解释；不频繁无意义压队友。              | accepted |
+| P2-05 | P2-04        | 初级/普通机器人对测、性能预算与回归基线。              | 10,000 局、移动端性能样本。      | 普通难度对初级有稳定指标提升；不超过思考预算。      | accepted |
+| P2-06 | P2-02, P2-05 | P2 Preview/Production 发布与 PWA 验收记录。            | 全量 CI、离线 E2E、真机清单。    | Vercel Production 完成 PWA/移动验收，保留回滚版本。 | ready_for_acceptance |
 
 ### P2-01 自测（2026-07-15）
 
@@ -200,6 +200,34 @@
 - 第三轮真机回归（2026-07-15）：用户提供的 iPhone 横竖屏截图显示纵叠上方 `compact` 牌仍硬编码为桌面 `3rem` 宽度，不能与移动端底牌对齐；移动缩放后的牌面继续使用桌面点数/花色字号，公开牌与手牌均出现文字重叠。`CardFace` 新增 `size-token-card` 尺寸边界，`App.css` 用继承的自定义属性统一普通牌与紧凑牌的宽高，并按竖屏、矮横屏实际卡宽同步缩放点数、花色、级/配徽章和逢人配文本。`App.test.tsx` 先新增普通/紧凑牌共享尺寸边界的失败回归，再验证通过；`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（19 files / 102 tests）、生产构建 `D:\MyWorks\card-game\temp\p2-01-card-scale-build` 和 `git diff --check` 均通过。仍需同一 iPhone 横竖屏复测：同组紧凑牌宽度必须等于底牌，点数/花色/徽章不得重叠，公开出牌与手牌均应可辨认。
   - 第四轮真机回归（2026-07-15）：用户要求纵叠紧凑牌彼此及与底牌之间无可见缝隙。南家纵叠组新增 `joined-card-stack`，以 1px 负边距覆盖相邻牌边框；紧凑牌按钮改为块级、零最小高度和零行高，消除按钮基线或最小高度残留空白。`App.test.tsx` 新增无缝连接边界断言，先失败后通过；`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（19 files / 103 tests）、`npm.cmd run build -- --configLoader runner --outDir D:\MyWorks\card-game\temp\p2-01-stack-seam-build` 与 `git diff --check` 均通过。仍需 iPhone 横竖屏复测，确认紧凑牌之间及紧凑牌与底牌之间没有空白或双边框缝隙。
   - 主验收（2026-07-15）：用户完成多轮 iPhone Safari 横竖屏实机反馈，确认当前视觉修订“先这样”，并明确要求继续后续 P2 子任务；主 agent 已复跑格式、typecheck、lint、103 项 Vitest、生产构建与 diff 检查，全部通过，故标记为 `accepted`。Android Chrome 真机未抽测，作为 P2 已知风险保留至 P2-06 的移动真机清单，不回退本次用户验收。
+
+### P2-02 自测（2026-07-15）
+
+- `ADR-0013-pwa-versioned-static-shell.md` 先固定缓存边界：Cache Storage 只保存当前构建的入口 HTML、带哈希 JS/CSS、manifest 和图标；缓存名同时含 `guandan-v4` 与资源清单指纹；禁止 Service Worker 读取、写入或缓存 IndexedDB、事件流、快照和任何牌局数据。
+- `frontend/vite.config.ts` 在构建阶段从实际 bundle 生成 `service-worker.js` 静态清单；`index.html` 引用 manifest，`public/` 提供 manifest 与 SVG 图标。应用启动时注册 Service Worker；若已有控制器且新 worker 在等待，才显示“更新”按钮，确认后发送 `SKIP_WAITING`，激活时清理本应用此前版本缓存并重载。无新增依赖，规则、存档、BotView 和牌局状态未改动。
+- 先新增 `src/pwa/service-worker.test.ts` 并确认因实现模块不存在而失败；实现后 3 项回归覆盖：预缓存仅含当前版本静态资源和离线导航回退、旧缓存清理、等待中的升级必须经用户确认才激活，以及无 Service Worker API 时保持 SSR-safe。全量 `npm.cmd run test:run -- --configLoader runner` 通过（20 files / 106 tests）；`npm.cmd run format:check`、`npm.cmd run lint` 与 `git diff --check` 通过。
+- 构建证据：`npx.cmd vite build --configLoader runner --outDir D:\MyWorks\card-game\temp\p2-02-build` 成功，输出 `service-worker.js`、`manifest.webmanifest`、图标和带哈希的 CSS/JS；生成的缓存名为 `card-game-shell:guandan-v4:assets-9504273f`，静态清单只包含上述离线壳资源。浏览器真实离线安装、更新按钮和 Cache Storage 清理仍需主验收在 Chromium DevTools 或真机按离线/更新清单抽测。
+- 标准 npm 门禁修复（2026-07-15）：主验收稳定复现 `structuredClone` 在 `event-store.ts` 的类型缺失，不能作为环境例外。删除依赖隐式 DOM 全局合并的调用，新增 `platform/structured-clone.ts` 显式运行时边界：通过 `Reflect.get(globalThis, "structuredClone")` 检查标准 API 是否存在，并在唯一边界以泛型签名返回原类型；不提供 polyfill，也不放宽事件流类型。`runtime-globals.test.ts` 覆盖值与嵌套对象均被真实克隆。修复后标准 `npm.cmd run typecheck`、`npm.cmd run build -- --configLoader runner --outDir D:\MyWorks\card-game\temp\p2-02-build`、`npm.cmd run test:run -- --configLoader runner`（21 files / 107 tests）、`npm.cmd run format:check`、`npm.cmd run lint` 与 `git diff --check` 均通过。
+- 更新检测补强与主验收（2026-07-15）：`registerPwaServiceWorker` 在 `updatefound` 后监听 installing worker 的 `statechange`；只有其成为 `installed`、且已有 controller 与 waiting worker 时才显示更新入口，用户点击后才发送 `SKIP_WAITING`。新增回归覆盖该真实时序。主验收通过 `npm.cmd run test:run -- --configLoader runner`（24 files / 115 tests）、`npm.cmd run typecheck`、`npm.cmd run format:check`、`npm.cmd run lint`、生产构建和 `git diff --check`。Chrome 在 `http://127.0.0.1:4173/` 生产离线壳中实际验证：更新提示出现、点击更新后新 worker 接管并重载；停止静态服务器后仍可离线重载和恢复牌桌。构建清单、缓存版本与旧缓存清理边界另由定向单测和生成的 `service-worker.js` 核对，均未包含 IndexedDB、事件流或快照。
+
+### P2-03 自测（2026-07-15）
+
+- `ADR-0014` 固定策略观察边界：仅消费 BotView；己方手牌结构、各席余牌数为确定事实；公开高位出牌只依据公开动作的比较键与张数，不反查牌库、对手手牌或 seed。主攻/助攻仅为可解释推断，不写规则状态或存档。
+  - 新增纯 `strategy-analysis.ts`：输出按点数组合、公开高位出牌张数、余牌事实，以及主攻/助攻、置信度和理由。固定样例先因模块不存在失败，后通过，覆盖对子结构、公开高位动作统计、攻击角色和同手数低置信度；`npm.cmd run typecheck` 通过。主验收应复跑全量门禁并确认输出不含 `opponentHands`。
+- 主验收（2026-07-15）：已复核 ADR-0014 的 BotView 信息边界与固定样例，并通过 `npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（22 files / 109 tests）、`npm.cmd run build -- --configLoader runner --outDir D:\MyWorks\card-game\temp\p2-03-main-acceptance-build` 和 `git diff --check`；标记为 `accepted`。
+
+### P2-05 自测（2026-07-15）
+
+- 初级与普通机器人均只接收 `BotView`；自动对局按座位注入难度，仍经由合法动作生成、`validateAction` 和 `applyAction`。普通机器人新增对手领出时的压制权重，保留已有的队友牌权、残局拦截、炸弹保留和阶段理由，固定样例覆盖该回归。
+- `benchmarkBots` 以四个独立的 2,500 局固定 seed 分片运行，避免长测试阻塞常规 Vitest 工作进程；`test:run` 明确排除该长基准，`benchmark:p2` 显式执行全部四片。每片均断言完成 2,500 局、普通队头游率大于 50%、平均决策小于 10ms。
+- 主验收（2026-07-15）：`npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run -- --configLoader runner`（24 files / 114 tests）、`npm.cmd run build -- --configLoader runner --outDir D:\MyWorks\card-game\temp\p2-05-final-build` 和 `git diff --check` 通过。主机实跑 `npm.cmd run benchmark:p2`（10,000 局）通过：完成率 100%，普通队头游率 73.17%，平均 190.98 动作/局，平均决策 0.059ms/动作；四片最大单局耗时 79.04ms。标记为 `accepted`。
+
+### P2-06 自测（2026-07-15）
+
+- Preview `https://card-game-mf2xxwu9v-wentop.vercel.app` 已由 Vercel 构建为 Ready；Chrome 实际打开 HTTPS 页面并进入牌桌。390×844 竖屏与 844×390 横屏视口均验证 `scrollWidth === clientWidth`。验收中发现公开出牌 `public-action` 在窄屏不换行会造成横向溢出，已在移动断点增加换行与最小宽度边界；修复后本地格式、typecheck、lint、24 files / 115 tests、生产构建和 diff 检查通过。
+- Production 已提升同一修复 Preview：`https://card-game-wentop.vercel.app`，部署 `dpl_GqnbABu5EoMVqacoQjgEyJwMo1k5` 状态 Ready；Chrome 访问正式入口可进入牌桌并显示 PWA 更新提示。上一 Production `https://card-game-ez2wq9nml-wentop.vercel.app` 可作为回滚目标。
+- 尚需用户在 iPhone Safari 以正式 HTTPS URL 完成“添加到主屏幕 → 关闭 Safari → 飞行模式离线启动 → 恢复网络并确认更新提示”的真机清单；完成后方可标记 `accepted` 并提交 P2-06 发布记录。
+- 回归修复（2026-07-15）：用户截图确认横排手牌的点击区域宽于牌面，现使 `.human-hand.flat .hand-card` 在桌面和移动断点均与实际牌面等宽。另发现正式牌桌错误调用初级机器人，导致跟牌时把四张炸弹误判为比三带二更低代价、拆小王对子和自然顺子；现改为接入普通策略机器人。新增三个固定牌例：同型三带二优先于无必要炸弹、单 A 时保留小王对子而走大王、面对小单张优先用小王而不拆 10-J-Q-K-A。主验收串行运行 `format:check`、`typecheck`、`lint`、`test:run -- --configLoader runner --maxWorkers=1 --minWorkers=1`（24 files / 118 tests）、生产构建 `D:\MyWorks\card-game\temp\strategy-ui-fix-build` 与 `git diff --check` 均通过。此修复尚待随下一次 Production 部署发布。
 
 ## P3：多人联网掼蛋
 

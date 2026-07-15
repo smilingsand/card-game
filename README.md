@@ -4,9 +4,9 @@
 
 ## 当前状态
 
-第一阶段 P1 已完成：浏览器内可运行 1 名人类（南家）与 3 个基础机器人的本地掼蛋，支持确定性规则、手动理牌、提示、明牌测试、连续多局、等级、进贡/还贡/抗贡，以及版本化 IndexedDB 存档。当前 Production 项目为 `wentop/card-game`；访问状态与回滚信息见 [P1 发布记录](proj-info/phases/P1/release.md)。
+P1 已完成；P2 已交付响应式牌桌、PWA 离线静态壳和普通难度策略机器人。当前 Production 项目为 `wentop/card-game`，公网入口为 <https://card-game-wentop.vercel.app>；访问状态、部署与回滚信息见 [P2 发布记录](proj-info/phases/P2/release.md)。
 
-下一阶段从 P2-01（响应式牌桌与触摸选牌）开始。任务顺序与验收条件见 [P1-P3 执行计划](proj-info/phases/P1-P3-execution-plan.md)。
+P2-01 至 P2-05 已验收。P2-06 的 Preview/Production 发布、Chrome 离线/更新复核和移动视口检查已完成；iPhone Safari 的“添加到主屏幕后离线启动”仍待最终人工复测，故 P2-06 保持 `ready_for_acceptance`。任务顺序与验收证据见 [P2 阶段记录](proj-info/phases/P2/README.md) 和 [P1-P3 执行计划](proj-info/phases/P1-P3-execution-plan.md)。下一开发阶段为 P3。
 
 ## 文档入口
 
@@ -15,6 +15,8 @@
 - [统一掼蛋规则口径](docs/resolved-rules.md)
 - [架构基线](docs/architecture.md)
 - [P1 完结交接记录](proj-info/phases/P1/phase-1-closeout.md)
+- [P2 阶段记录](proj-info/phases/P2/README.md)
+- [P2 验收矩阵](proj-info/phases/P2/test-matrix.md)
 - [平台路线图](proj-info/00-平台规划与会话记忆/platform-roadmap.md)
 - [跨会话记忆规范](proj-info/00-平台规划与会话记忆/session-memory-playbook.md)
 - [项目级开发规范](AGENTS.md)

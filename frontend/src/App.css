@@ -421,6 +421,10 @@ button:disabled {
   width: 2.2rem;
   height: 3.3rem;
 }
+.human-hand.flat .hand-card {
+  min-width: 2.2rem;
+  min-height: 3.3rem;
+}
 .human-hand.flat {
   flex-wrap: wrap;
   align-content: end;
@@ -490,6 +494,7 @@ button:disabled {
   .responsive-table > .human-seat {
     position: static;
     transform: none;
+    min-width: 0;
   }
   .responsive-table > .match-scoreboard {
     grid-area: score;
@@ -518,6 +523,15 @@ button:disabled {
     grid-area: human;
     width: 100%;
     padding: 0.35rem 0;
+  }
+  .seat-actions,
+  .public-action {
+    min-width: 0;
+  }
+  .public-action {
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: center;
   }
   .card-face {
     --card-width: clamp(1.7rem, 10vw, 2.35rem);
@@ -570,6 +584,10 @@ button:disabled {
   .human-hand.flat .card-face {
     width: clamp(1.7rem, 10vw, 2.15rem);
     height: clamp(2.5rem, 14vw, 3rem);
+  }
+  .human-hand.flat .hand-card {
+    min-width: clamp(1.7rem, 10vw, 2.15rem);
+    min-height: clamp(2.5rem, 14vw, 3rem);
   }
   .hand-card.compact-card {
     min-height: 1rem;
@@ -680,6 +698,10 @@ button:disabled {
     height: var(--compact-card-height);
   }
   .hand-card {
+    min-width: clamp(1.5rem, 5.5vw, 2rem);
+    min-height: clamp(2.2rem, 8vw, 2.8rem);
+  }
+  .human-hand.flat .hand-card {
     min-width: clamp(1.5rem, 5.5vw, 2rem);
     min-height: clamp(2.2rem, 8vw, 2.8rem);
   }

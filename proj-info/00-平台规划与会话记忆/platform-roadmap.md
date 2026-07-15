@@ -1,6 +1,6 @@
 # 平台开发与部署路线图
 
-> P1 已于 2026-07-15 完成并发布。本文件保留 P0/P1 的历史规划；当前 P1 实现状态、规则版本与发布限制以 `proj-info/phases/P1/phase-1-closeout.md`、`docs/resolved-rules.md` 和 `proj-info/phases/P1/release.md` 为准。
+> P1 已于 2026-07-15 完成并发布；P2-01 至 P2-05 已验收，P2-06 已完成 Preview/Production、PWA Chrome 验收和移动视口复核，仍待 iPhone Safari 主屏离线启动复测。本文件保留历史规划；当前状态以 `proj-info/phases/P2/`、`docs/resolved-rules.md` 和总任务表为准。
 
 ## 总体排序与理由
 
@@ -57,6 +57,8 @@
 - 验收：生产 URL 可玩、刷新可恢复、Lighthouse/手工移动基线记录、回滚路径演练一次。
 
 ## P2：移动/PWA 与策略机器人（第二次发布）
+
+实际成果：响应式四边牌桌与触摸选牌、版本化 PWA 静态壳和用户确认更新、仅基于 `BotView` 的普通策略机器人均已实现。普通机器人对初级机器人 10,000 局固定 seed 基准完成率为 100%、普通队头游率为 73.17%、平均决策为 0.059ms/动作。发布、回滚与尚未完成的 iPhone 清单见 `proj-info/phases/P2/release.md` 和 `test-matrix.md`。
 
 ### P2.1 响应式与 PWA
 
