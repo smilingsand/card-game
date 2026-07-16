@@ -11,8 +11,11 @@ import { generateHandPlans } from "./strategy/hand-plan-generator";
 import { analyzeHandStructure } from "./strategy/hand-structure-analyzer";
 import {
   createNormalBaselineDecision,
+  createDefaultStrategyProfile,
   type StrategyDecision
 } from "./strategy/decision-explanation";
+import { chooseExpertBotDecision } from "./strategy/expert-decision";
+import type { StrategyProfileId } from "./strategy/expert-strategy-knowledge-base";
 import {
   applyAction,
   validateAction,
@@ -29,6 +32,8 @@ export interface CandidateProfileConfig {
     readonly handPlanTopN: { readonly default: number; readonly max: number };
   };
 }
+
+export type TableStrategyProfile = StrategyProfileId;
 
 export interface TableGame {
   readonly cardsById: ReadonlyMap<string, Card>;
@@ -140,24 +145,44 @@ export function submitTableAction(game: TableGame, action: TurnAction): TurnResu
  * 机器人与提示共享的生产决策入口。normal 仍使用冻结的回归选牌器确定动作，
  * 随后统一进入 P2.5 的 DecisionExplanation 出口；解释不写回 TableGame。
  */
-export function chooseTableStrategicDecision(game: TableGame): StrategyDecision | undefined {
-  const legalActions = getLegalBotActions(game);
-  const normalDecision = chooseNormalBotAction(
-    createBotView({
-      selfSeat: game.state.current,
-      leader: game.state.leader,
-      highestSeat: game.state.highestSeat,
-      levelRank: game.levelRank ?? INITIAL_LEVEL_RANK,
-      hand: game.state.hands[game.state.current]
+function createTableBotView(game: TableGame, legalActions: readonly TurnAction[]) {
+  return createBotView({
+    selfSeat: game.state.current,
+    leader: game.state.leader,
+    highestSeat: game.state.highestSeat,
+    levelRank: game.levelRank ?? INITIAL_LEVEL_RANK,
+    hand: game.state.hands[game.state.current]
+      .map((cardId) => game.cardsById.get(cardId))
+      .filter((card): card is Card => card !== undefined),
+    publicEvents: game.publicEvents,
+    remainingCardCounts: Object.fromEntries(
+      SEATS.map((seat) => [seat, game.state.hands[seat].length])
+    ) as Record<Seat, number>,
+    legalActions
+  });
+}
+
+export function chooseTableStrategicDecision(
+  game: TableGame,
+  profile: TableStrategyProfile = "normal"
+): StrategyDecision | undefined {
+  if (profile !== "normal") {
+    const legalActions = getCompleteLegalCandidates({
+      state: game.state,
+      selfHand: game.state.hands[game.state.current]
         .map((cardId) => game.cardsById.get(cardId))
         .filter((card): card is Card => card !== undefined),
-      publicEvents: game.publicEvents,
-      remainingCardCounts: Object.fromEntries(
-        SEATS.map((seat) => [seat, game.state.hands[seat].length])
-      ) as Record<Seat, number>,
-      legalActions
-    })
-  );
+      levelRank: game.levelRank ?? INITIAL_LEVEL_RANK
+    });
+    if (legalActions.length === 0) return undefined;
+    return chooseExpertBotDecision({
+      view: createTableBotView(game, legalActions),
+      profile: createDefaultStrategyProfile(profile)
+    });
+  }
+
+  const legalActions = getLegalBotActions(game);
+  const normalDecision = chooseNormalBotAction(createTableBotView(game, legalActions));
   return normalDecision
     ? createNormalBaselineDecision({
         legalActions,
@@ -168,12 +193,18 @@ export function chooseTableStrategicDecision(game: TableGame): StrategyDecision 
 }
 
 /** 人类提示只选中建议牌，评分和机器人领出/跟牌完全一致。 */
-export function chooseTableHintAction(game: TableGame): TurnAction | undefined {
-  return chooseTableStrategicDecision(game)?.selectedAction;
+export function chooseTableHintAction(
+  game: TableGame,
+  profile: TableStrategyProfile = "normal"
+): TurnAction | undefined {
+  return chooseTableStrategicDecision(game, profile)?.selectedAction;
 }
 
-export function chooseTableBotAction(game: TableGame): TurnAction | undefined {
-  return chooseTableStrategicDecision(game)?.selectedAction;
+export function chooseTableBotAction(
+  game: TableGame,
+  profile: TableStrategyProfile = "normal"
+): TurnAction | undefined {
+  return chooseTableStrategicDecision(game, profile)?.selectedAction;
 }
 
 export function formatCard(card: Card): string {
