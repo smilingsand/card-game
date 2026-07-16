@@ -1,6 +1,6 @@
 # P2 发布记录
 
-状态：待 iPhone Safari 真机复测后完成 P2-06 验收。
+状态：P2-06 `accepted`（2026-07-16）。
 
 - Preview：<https://card-game-mf2xxwu9v-wentop.vercel.app>
 - Production：<https://card-game-wentop.vercel.app>
@@ -8,7 +8,9 @@
 - 部署详情：<https://vercel.com/wentop/card-game/6i79U85p4bAstRwUowj3guxaETAf>
 - 回滚目标：`https://card-game-2mzut8vby-wentop.vercel.app`
 
-Production 已通过 Chrome 页面与移动视口复核。PWA 的真机安装/离线启动/更新提示仍需按 `test-matrix.md` 完成。
+Production 已通过 Chrome 页面与移动视口复核。2026-07-16，用户已在 iPhone Safari 使用正式 HTTPS 地址完成主屏安装、关闭 Safari 后离线启动，以及恢复网络后的更新提示真机清单；P2-06 据此验收通过。
+
+验收复核：Production `dpl_6i79U85p4bAstRwUowj3guxaETAf` 为 Ready，提交为 `d8d4e2b`；正式入口、Manifest 和 Service Worker 均返回 HTTP 200，离线壳缓存版本为 `guandan-v5`。Vercel 构建耗时 7 秒，近 7 天未发现运行时错误。
 
 2026-07-15：本地已完成下一次发布内容的质量验收：横排手牌占位改为与牌面同宽；正式牌桌改接普通策略机器人，并以固定牌例防止无必要炸弹、拆小王对子和拆 10-J-Q-K-A 自然顺子。串行全量回归为 24 个测试文件 / 118 项通过，生产构建输出位于 `temp/strategy-ui-fix-build`。该变更尚未发布到上述 Production deployment。
 
