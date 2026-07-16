@@ -4,6 +4,11 @@ import { chooseNormalBotAction } from "./normal-bot";
 import { createBotView } from "./bot-view";
 import { getLegalActions } from "./legal-actions";
 import { recognizePatterns, type PatternInterpretation } from "./patterns";
+import { getLegacyNormalCandidates } from "./legacy-normal-candidates";
+import { getCompleteLegalCandidates } from "./rule-complete-legal-actions";
+import { rankExpertCandidates } from "./strategy/candidate-generator";
+import { generateHandPlans } from "./strategy/hand-plan-generator";
+import { analyzeHandStructure } from "./strategy/hand-structure-analyzer";
 import {
   applyAction,
   validateAction,
@@ -14,22 +19,12 @@ import {
 
 const SEATS: readonly Seat[] = ["east", "south", "west", "north"];
 const INITIAL_LEVEL_RANK = "2" as const;
-const STRAIGHT_RANKS: readonly Card["rank"][] = [
-  "A",
-  "2",
-  "3",
-  "4",
-  "5",
-  "6",
-  "7",
-  "8",
-  "9",
-  "10",
-  "J",
-  "Q",
-  "K",
-  "A"
-];
+export interface CandidateProfileConfig {
+  readonly version: string;
+  readonly performanceBudget: {
+    readonly handPlanTopN: { readonly default: number; readonly max: number };
+  };
+}
 
 export interface TableGame {
   readonly cardsById: ReadonlyMap<string, Card>;
@@ -68,115 +63,42 @@ export function createTableGame(
   };
 }
 
-function combinations<T>(items: readonly T[], size: number): readonly (readonly T[])[] {
-  const result: T[][] = [];
-  const visit = (start: number, selected: T[]): void => {
-    if (selected.length === size) {
-      result.push(selected);
-      return;
-    }
-    for (let index = start; index <= items.length - (size - selected.length); index += 1)
-      visit(index + 1, [...selected, items[index]]);
-  };
-  visit(0, []);
-  return result;
-}
-
-function leadingCardCandidates(hand: readonly Card[]): readonly (readonly Card[])[] {
-  const groups = [
-    ...hand
-      .reduce((byRank, card) => {
-        byRank.set(card.rank, [...(byRank.get(card.rank) ?? []), card]);
-        return byRank;
-      }, new Map<Card["rank"], Card[]>())
-      .values()
-  ];
-  const completeGroups = groups.filter((group) => group.length >= 2 && group.length <= 10);
-  const threeWithPairs = groups
-    .filter((group) => group.length === 3)
-    .flatMap((triple) =>
-      groups.filter((group) => group.length === 2).map((pair) => [...triple, ...pair])
-    );
-  const naturalStraights = Array.from({ length: STRAIGHT_RANKS.length - 4 }, (_, start) => {
-    const ranks = STRAIGHT_RANKS.slice(start, start + 5);
-    const cards = ranks.map((rank) => groups.find((group) => group[0]?.rank === rank)?.[0]);
-    return cards.every((card): card is Card => card !== undefined) ? cards : undefined;
-  }).filter((cards): cards is Card[] => cards !== undefined);
-  const candidates = [
-    ...hand.map((card) => [card]),
-    ...completeGroups,
-    ...threeWithPairs,
-    ...naturalStraights
-  ];
-  const seen = new Set<string>();
-  return candidates.filter((cards) => {
-    const key = cards
-      .map((card) => card.id)
-      .sort()
-      .join(",");
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function completeNaturalBombCandidates(hand: readonly Card[]): readonly (readonly Card[])[] {
-  return [
-    ...hand
-      .reduce((byRank, card) => {
-        if (card.suit !== "joker") byRank.set(card.rank, [...(byRank.get(card.rank) ?? []), card]);
-        return byRank;
-      }, new Map<Card["rank"], Card[]>())
-      .values()
-  ].filter((group) => group.length >= 4);
-}
-
-function uniqueCandidates(candidates: readonly (readonly Card[])[]): readonly (readonly Card[])[] {
-  const seen = new Set<string>();
-  return candidates.filter((cards) => {
-    const key = cards
-      .map((card) => card.id)
-      .sort()
-      .join(",");
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function botCardCandidates(game: TableGame): readonly (readonly Card[])[] {
+/**
+ * normal profile 的冻结回归入口。P2.5-07 不将完整候选静默接入默认机器人或提示。
+ */
+export function getLegalBotActions(game: TableGame): readonly TurnAction[] {
   const hand = game.state.hands[game.state.current]
     .map((cardId) => game.cardsById.get(cardId))
     .filter((card): card is Card => card !== undefined);
-  if (!game.state.highest) return leadingCardCandidates(hand);
-  return uniqueCandidates([
-    ...combinations(hand, game.state.highest.cardIds.length),
-    // 炸弹可压制任意非炸弹，也会按张数比较；跟炸时必须枚举完整炸弹，不能只取相同张数的子集。
-    ...completeNaturalBombCandidates(hand)
-  ]);
+  return getLegacyNormalCandidates({
+    state: game.state,
+    selfHand: hand,
+    levelRank: game.levelRank ?? INITIAL_LEVEL_RANK
+  });
 }
 
-/**
- * 机器人候选只来源于自己的手牌，并先通过规则引擎筛选。
- * 领出时枚举单张、完整同点数组及不拆组的三带二；跟牌时枚举与当前牌
- * 张数相同的组合，因而能覆盖对子、三张、三带二等非单张同牌型压制。
- */
-export function getLegalBotActions(game: TableGame): readonly TurnAction[] {
-  const plays = botCardCandidates(game).flatMap((cards) => {
-    const recognition = recognizePatterns(cards, game.levelRank ?? INITIAL_LEVEL_RANK);
-    if (!recognition.ok) return [];
-    return recognition.interpretations.map((interpretation) => ({
-      type: "play" as const,
-      actor: game.state.current,
-      cardIds: cards.map((card) => card.id),
-      interpretation
-    }));
+/** A/B 层：完整规则候选再按专家结构重排；仅供后续专家链消费，尚未接入默认策略。 */
+export function getExpertRankedBotCandidates(
+  game: TableGame,
+  profile: CandidateProfileConfig
+): readonly TurnAction[] {
+  const hand = game.state.hands[game.state.current]
+    .map((cardId) => game.cardsById.get(cardId))
+    .filter((card): card is Card => card !== undefined);
+  const structure = analyzeHandStructure(hand, game.levelRank ?? INITIAL_LEVEL_RANK);
+  const handPlans = generateHandPlans({
+    structure,
+    performanceBudget: profile.performanceBudget
   });
-  const candidates: TurnAction[] = [
-    ...plays,
-    ...(game.state.highest ? [{ type: "pass" as const, actor: game.state.current }] : [])
-  ];
-  return getLegalActions(game.state, candidates);
+  return rankExpertCandidates({
+    legalActions: getCompleteLegalCandidates({
+      state: game.state,
+      selfHand: hand,
+      levelRank: game.levelRank ?? INITIAL_LEVEL_RANK
+    }),
+    structure,
+    handPlans
+  });
 }
 
 /** @deprecated P1-15E 起机器人会枚举可跟的非单张牌型；保留旧导出供调用方平滑迁移。 */
