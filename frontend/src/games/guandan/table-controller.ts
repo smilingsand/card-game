@@ -10,6 +10,10 @@ import { rankExpertCandidates } from "./strategy/candidate-generator";
 import { generateHandPlans } from "./strategy/hand-plan-generator";
 import { analyzeHandStructure } from "./strategy/hand-structure-analyzer";
 import {
+  createNormalBaselineDecision,
+  type StrategyDecision
+} from "./strategy/decision-explanation";
+import {
   applyAction,
   validateAction,
   type TurnAction,
@@ -132,9 +136,13 @@ export function submitTableAction(game: TableGame, action: TurnAction): TurnResu
   return validation.ok ? applyAction(game.state, action) : validation;
 }
 
-function chooseTableStrategicAction(game: TableGame): TurnAction | undefined {
+/**
+ * 机器人与提示共享的生产决策入口。normal 仍使用冻结的回归选牌器确定动作，
+ * 随后统一进入 P2.5 的 DecisionExplanation 出口；解释不写回 TableGame。
+ */
+export function chooseTableStrategicDecision(game: TableGame): StrategyDecision | undefined {
   const legalActions = getLegalBotActions(game);
-  return chooseNormalBotAction(
+  const normalDecision = chooseNormalBotAction(
     createBotView({
       selfSeat: game.state.current,
       leader: game.state.leader,
@@ -149,13 +157,24 @@ function chooseTableStrategicAction(game: TableGame): TurnAction | undefined {
       ) as Record<Seat, number>,
       legalActions
     })
-  )?.action;
+  );
+  return normalDecision
+    ? createNormalBaselineDecision({
+        legalActions,
+        selectedAction: normalDecision.action,
+        reasons: normalDecision.reasons
+      })
+    : undefined;
 }
 
 /** 人类提示只选中建议牌，评分和机器人领出/跟牌完全一致。 */
-export const chooseTableHintAction = chooseTableStrategicAction;
+export function chooseTableHintAction(game: TableGame): TurnAction | undefined {
+  return chooseTableStrategicDecision(game)?.selectedAction;
+}
 
-export const chooseTableBotAction = chooseTableStrategicAction;
+export function chooseTableBotAction(game: TableGame): TurnAction | undefined {
+  return chooseTableStrategicDecision(game)?.selectedAction;
+}
 
 export function formatCard(card: Card): string {
   if (card.rank === "small-joker") return "小王";
