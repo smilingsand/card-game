@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach } from "vitest";
 import { App, CardFace, PlayerCardCount } from "./App";
 import { latestRecentActionsBySeat } from "./games/guandan/recent-actions";
 import type { StorageBoundary } from "./platform/storage";
@@ -34,6 +35,8 @@ function memoryStorage(
 }
 
 describe("App", () => {
+  afterEach(() => cleanup());
+
   it("Preview 保持 normal-v1 默认，并允许切换到 normal-vNext", () => {
     render(<App storage={memoryStorage()} />);
 
