@@ -144,7 +144,11 @@ function destroyedGroups(
 ): readonly DestroyedHandGroup[] {
   const result = structure.groups.flatMap((group) => {
     const severity = severityFor(group.kind);
-    if (!severity || !group.cardIds.some((id) => playedIds.has(id))) return [];
+    // Playing an entire already-natural group (for example a natural pair in
+    // response to a pair) consumes that group; it does not split or destroy
+    // it. Only a partial overlap is structural destruction.
+    const overlapCount = group.cardIds.filter((id) => playedIds.has(id)).length;
+    if (!severity || overlapCount === 0 || overlapCount === group.cardIds.length) return [];
     return [
       {
         kind: group.kind as DestroyableHandStructureKind,

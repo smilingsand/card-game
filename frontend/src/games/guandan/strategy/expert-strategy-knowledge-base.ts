@@ -42,6 +42,9 @@ export interface StrategySignals {
   readonly spendsControlSequence?: boolean;
   readonly hasManyLowSingles?: boolean;
   readonly preservesSameTypeRecovery?: boolean;
+  /** A same-pattern lower legal response exists in the complete A layer. */
+  readonly overbidsLowestLegalResponse?: boolean;
+  readonly opponentHasCurrentControl?: boolean;
 }
 
 export interface StrategyFeatureSnapshot extends ActionFeatureSnapshot {
@@ -361,6 +364,30 @@ const coreDefinitions: readonly RuleDefinition[] = [
     4,
     "bonus",
     and(not(action("pass")), signal("teammateUnableToControl"), (f) => f.blocksOpponent)
+  ],
+  [
+    "41",
+    "非强制阻断时优先最小同牌型合法压制，保留高牌与王作为控制资源",
+    -4,
+    "penalty",
+    and(
+      not(action("pass")),
+      signal("overbidsLowestLegalResponse"),
+      not(signal("directFinish")),
+      not(signal("endgameBlock"))
+    )
+  ],
+  [
+    "42",
+    "对手持牌权下，完整自然小牌型的低成本压制优先于机械过牌",
+    9,
+    "bonus",
+    and(
+      not(action("pass")),
+      signal("opponentHasCurrentControl"),
+      signal("preservesNaturalPattern"),
+      not((f) => f.control.spendsLastControlResource)
+    )
   ]
 ];
 

@@ -142,11 +142,28 @@ function leadState(view: BotView, handIds: readonly string[]): TurnState {
 
 function signals(input: {
   situation: ReturnType<typeof analyzeSituation>;
+  action: import("../turns").TurnAction;
   postAction: ReturnType<typeof evaluatePostActionHand>;
   control: ReturnType<typeof evaluateControlResources>;
+  lowestResponseByPattern: ReadonlyMap<string, readonly number[]>;
 }): import("./expert-strategy-knowledge-base").StrategySignals {
   const { situation, postAction, control } = input;
   const destroyed = new Set(postAction.destroyedGroups.map((group) => group.kind));
+  const overbidsLowestLegalResponse =
+    input.action.type === "play" &&
+    (() => {
+      const action = input.action;
+      const lowest = input.lowestResponseByPattern.get(action.interpretation.type);
+      if (!lowest) return false;
+      return action.interpretation.comparisonKey.some(
+        (value, index) =>
+          value !== lowest[index] &&
+          action.interpretation.comparisonKey
+            .slice(0, index)
+            .every((prefix, prefixIndex) => prefix === lowest[prefixIndex]) &&
+          value > lowest[index]
+      );
+    })();
   return {
     preservesNaturalPattern: postAction.destroyedGroups.length === 0,
     hasNaturalAlternative: false,
@@ -177,7 +194,9 @@ function signals(input: {
     teammateUnableToControl: situation.teammate.remainingCards > 6,
     spendsControlSequence: control.spentResourceCardIds.length >= 2,
     hasManyLowSingles: postAction.before.lowSingleCount >= 3,
-    preservesSameTypeRecovery: control.preservesRecoveryPoint
+    preservesSameTypeRecovery: control.preservesRecoveryPoint,
+    opponentHasCurrentControl: situation.opponentThreat.currentControlSeat !== undefined,
+    overbidsLowestLegalResponse
   };
 }
 
@@ -527,6 +546,25 @@ function chooseExpertBotDecisionInternal(
     budget: budget.followUpCandidateCount
   });
   const followUpByKey = new Map(followUpSelection.entries.map((entry) => [entry.key, entry]));
+  const lowestResponseByPattern = new Map<string, readonly number[]>();
+  if (input.view.highestSeat !== undefined)
+    for (const candidate of baseCandidates) {
+      if (candidate.action.type !== "play") continue;
+      const key = candidate.action.interpretation.type;
+      const previous = lowestResponseByPattern.get(key);
+      const comparisonKey = candidate.action.interpretation.comparisonKey;
+      const isLower =
+        previous === undefined ||
+        comparisonKey.some(
+          (value, index) =>
+            value !== previous[index] &&
+            comparisonKey
+              .slice(0, index)
+              .every((prefix, prefixIndex) => prefix === previous[prefixIndex]) &&
+            value < previous[index]
+        );
+      if (isLower) lowestResponseByPattern.set(key, comparisonKey);
+    }
   const candidates = baseCandidates.map((candidate) => {
     const key = `${candidate.physicalKey}|${candidate.semanticKey}`;
     const postActionSelectionEntry = postActionByKey.get(key);
@@ -615,7 +653,13 @@ function chooseExpertBotDecisionInternal(
         contest
       }),
       phase: situation.phase,
-      signals: signals({ situation, postAction: shared.postAction, control: shared.control })
+      signals: signals({
+        situation,
+        action: candidate.action,
+        postAction: shared.postAction,
+        control: shared.control,
+        lowestResponseByPattern
+      })
     }));
     const rules = measure("ruleEvaluation", () =>
       evaluateExpertStrategyRules({ profile: input.profile, features })

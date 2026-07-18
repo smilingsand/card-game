@@ -46,6 +46,10 @@ export interface SituationAnalysis {
   readonly opponentThreat: {
     readonly level: ThreatLevel;
     readonly immediateFinishSeats: readonly Seat[];
+    /** Public current holder, only when it is an opponent of self. */
+    readonly currentControlSeat?: Seat;
+    /** Consecutive public winning plays by the current opponent, ignoring passes. */
+    readonly consecutiveControlRounds: number;
     readonly reasons: readonly SituationEvidence[];
   };
   readonly teammate: {
@@ -253,12 +257,31 @@ export function analyzeSituation(view: BotView): SituationAnalysis {
   const phase = phaseFor(view.remainingCardCounts);
   const immediateFinishSeats = opponents.filter((seat) => view.remainingCardCounts[seat] === 1);
   const opponentMin = Math.min(...opponents.map((seat) => view.remainingCardCounts[seat]));
+  const currentControlSeat =
+    view.highestSeat !== undefined && opponents.includes(view.highestSeat)
+      ? view.highestSeat
+      : undefined;
+  const recentOpponentPlays = currentControlSeat
+    ? actions
+        .filter(
+          (action): action is Extract<PublicAction, { readonly type: "play" }> =>
+            action.type === "play"
+        )
+        .reverse()
+    : [];
+  let consecutiveControlRounds = 0;
+  for (const action of recentOpponentPlays) {
+    if (action.actor !== currentControlSeat) break;
+    consecutiveControlRounds += 1;
+  }
   const threatLevel: ThreatLevel =
     immediateFinishSeats.length > 0
       ? "critical"
-      : opponentMin <= 3
+      : opponentMin <= 3 || (consecutiveControlRounds >= 2 && opponentMin <= 8)
         ? "high"
-        : opponentMin <= 6
+        : opponentMin <= 6 ||
+            consecutiveControlRounds >= 2 ||
+            (currentControlSeat && opponentMin <= 10)
           ? "medium"
           : "low";
   const threatReasons: SituationEvidence[] = immediateFinishSeats.length
@@ -276,6 +299,18 @@ export function analyzeSituation(view: BotView): SituationAnalysis {
           reason: `对手最少剩余 ${opponentMin} 张，威胁等级来自公开余牌`
         }
       ];
+  if (currentControlSeat)
+    threatReasons.push({
+      kind: "fact",
+      confidence: 1,
+      reason: `对手 ${currentControlSeat} 当前持有公开牌权`
+    });
+  if (consecutiveControlRounds >= 2)
+    threatReasons.push({
+      kind: "fact",
+      confidence: 1,
+      reason: `对手连续 ${consecutiveControlRounds} 轮取得公开牌权，争牌压力上调`
+    });
   const teammateRemaining = view.remainingCardCounts[teammateSeat];
   const teammateReasons: SituationEvidence[] = [
     { kind: "fact", confidence: 1, reason: `队友 ${teammateSeat} 公开剩余 ${teammateRemaining} 张` }
@@ -311,7 +346,13 @@ export function analyzeSituation(view: BotView): SituationAnalysis {
     phase,
     publicCards,
     playerTendencies,
-    opponentThreat: { level: threatLevel, immediateFinishSeats, reasons: threatReasons },
+    opponentThreat: {
+      level: threatLevel,
+      immediateFinishSeats,
+      currentControlSeat,
+      consecutiveControlRounds,
+      reasons: threatReasons
+    },
     teammate: {
       seat: teammateSeat,
       remainingCards: teammateRemaining,
