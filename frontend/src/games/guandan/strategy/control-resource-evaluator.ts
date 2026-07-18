@@ -132,7 +132,12 @@ export function evaluateControlResources(
   input: EvaluateControlResourcesInput
 ): ControlResourceEvaluation {
   const before = inventory(input.structure);
-  const after = inventory(analyzeHandStructure(input.postAction.remainingHand, input.levelRank));
+  // Post-action evaluation has already derived this exact remaining-hand structure. Reusing it
+  // avoids a duplicate pure analysis without changing the control inventory.
+  const after = inventory(
+    input.postAction.afterAnalysis?.structure ??
+      analyzeHandStructure(input.postAction.remainingHand, input.levelRank)
+  );
   const playedIds =
     input.action.type === "play" ? new Set(input.action.cardIds) : new Set<string>();
   const spentResourceCardIds = before.totalUniqueCardIds.filter((id) => playedIds.has(id));

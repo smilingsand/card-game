@@ -1,16 +1,12 @@
 import type { Card, Rank } from "../../../platform/types";
 import type { TurnAction } from "../turns";
 import {
-  analyzeHandStructure,
   type HandStructureAnalysis,
   type HandStructureGroup,
   type HandStructureKind
 } from "./hand-structure-analyzer";
-import {
-  generateHandPlans,
-  type HandPlan,
-  type HandPlanPerformanceBudget
-} from "./hand-plan-generator";
+import { type HandPlan, type HandPlanPerformanceBudget } from "./hand-plan-generator";
+import { expertHandAnalysisCache } from "./hand-analysis-cache";
 
 type LevelRank = Exclude<Rank, "small-joker" | "big-joker">;
 
@@ -71,6 +67,11 @@ export interface PostActionHandEvaluation {
   readonly actionId: string;
   readonly semantics: "play_removes_exact_cards" | "pass_keeps_hand";
   readonly remainingHand: readonly Card[];
+  /** Immutable analysis already required for the post-action score; downstream planners may reuse it. */
+  readonly afterAnalysis?: {
+    readonly structure: HandStructureAnalysis;
+    readonly handPlans: readonly HandPlan[];
+  };
   readonly before: PostActionHandSnapshot;
   readonly after: PostActionHandSnapshot;
   readonly delta: HandQualityDelta;
@@ -167,7 +168,11 @@ function generatedPlans(
   structure: HandStructureAnalysis,
   budget: HandPlanPerformanceBudget
 ): readonly HandPlan[] {
-  return generateHandPlans({ structure, performanceBudget: budget });
+  return expertHandAnalysisCache.handPlans({
+    structure,
+    performanceBudget: budget,
+    rulesVersion: "guandan-v5"
+  });
 }
 
 function lowValueWildcardUse(
@@ -190,7 +195,13 @@ export function evaluatePostActionHand(
   input: EvaluatePostActionHandInput
 ): PostActionHandEvaluation {
   const requestedReplanCount = validateReplanBudget(input.performanceBudget);
-  const beforeStructure = input.structure ?? analyzeHandStructure(input.selfHand, input.levelRank);
+  const beforeStructure =
+    input.structure ??
+    expertHandAnalysisCache.structure({
+      hand: input.selfHand,
+      levelRank: input.levelRank,
+      rulesVersion: "guandan-v5"
+    });
   const beforePlans =
     input.handPlans ?? generatedPlans(beforeStructure, input.handPlanPerformanceBudget);
   const beforePlan = beforePlans[0];
@@ -202,6 +213,7 @@ export function evaluatePostActionHand(
       actionId: actionId(input.action),
       semantics: "pass_keeps_hand",
       remainingHand: [...input.selfHand],
+      afterAnalysis: { structure: beforeStructure, handPlans: beforePlans },
       before,
       after: before,
       delta: snapshotDelta(before, before),
@@ -220,7 +232,11 @@ export function evaluatePostActionHand(
     throw new Error("动作包含不属于己方手牌的实体牌");
 
   const remainingHand = input.selfHand.filter((card) => !uniqueIds.has(card.id));
-  const afterStructure = analyzeHandStructure(remainingHand, input.levelRank);
+  const afterStructure = expertHandAnalysisCache.structure({
+    hand: remainingHand,
+    levelRank: input.levelRank,
+    rulesVersion: "guandan-v5"
+  });
   const afterPlans = generatedPlans(afterStructure, input.handPlanPerformanceBudget).slice(
     0,
     requestedReplanCount
@@ -238,6 +254,7 @@ export function evaluatePostActionHand(
     actionId: actionId(input.action),
     semantics: "play_removes_exact_cards",
     remainingHand,
+    afterAnalysis: { structure: afterStructure, handPlans: afterPlans },
     before,
     after,
     delta: snapshotDelta(before, after),

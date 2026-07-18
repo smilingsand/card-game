@@ -61,6 +61,11 @@ test("S39：仅从规则引擎已验证的领出候选中稳定选择顺子路�
   });
   expect(result.estimatedTurnsDelta).toBeLessThanOrEqual(0);
   expect(legalLeadActions).toContainEqual(result.nextLeadAction);
+  expect(result.candidateSelection.boundProven).toBe(true);
+  expect(result.candidateSelection.evaluatedCandidateCount).toBe(result.evaluatedCandidateCount);
+  expect(result.candidateSelection.eligibleCandidateCount).toBeGreaterThanOrEqual(
+    result.evaluatedCandidateCount
+  );
   expect(result).toEqual(
     planFollowUp({
       action: {
@@ -77,6 +82,114 @@ test("S39：仅从规则引擎已验证的领出候选中稳定选择顺子路�
       performanceBudget: followUpBudget
     })
   );
+});
+
+test("FollowUp 仅在精确排序边界证明后省略 Top-N 之外的后继分析", () => {
+  const value = fixture("S39");
+  const legalLeadActions = getCompleteLegalCandidates({
+    state: leadState(value.selfHand.map((card) => card.id)),
+    selfHand: value.selfHand,
+    levelRank: value.levelRank
+  });
+  const result = planFollowUp({
+    action: { type: "pass", actor: "east" },
+    postAction: { remainingHand: value.selfHand } as never,
+    situation,
+    legalLeadActions,
+    levelRank: value.levelRank,
+    handPlanPerformanceBudget: planBudget,
+    performanceBudget: { followUpCandidateCount: { default: 1, max: 16 } }
+  });
+
+  expect(result.candidateSelection).toMatchObject({
+    boundProven: true,
+    reason: "exact_top_n_boundary",
+    evaluatedCandidateCount: 1,
+    skippedCandidateCount: expect.any(Number),
+    cutoffActionKey: expect.any(String),
+    strongestSkippedActionKey: expect.any(String),
+    selectedLowerBound: expect.any(Array),
+    skippedUpperBound: expect.any(Array)
+  });
+  expect(result.candidateSelection.skippedCandidateCount).toBeGreaterThan(0);
+});
+
+test("same normalized successor hand reuses exact internal FollowUp analysis", () => {
+  const value = fixture("S39");
+  const remainingHand = value.selfHand.slice(1);
+  const legalLeadActions = getCompleteLegalCandidates({
+    state: leadState(remainingHand.map((card) => card.id)),
+    selfHand: remainingHand,
+    levelRank: value.levelRank
+  });
+  const values = new Map<string, never>();
+  let hits = 0;
+  let writes = 0;
+  const successorAnalysisCache = {
+    get(key: string) {
+      const cached = values.get(key);
+      if (cached) hits += 1;
+      return cached;
+    },
+    set(key: string, cached: never) {
+      writes += 1;
+      values.set(key, cached);
+    }
+  };
+  const input = {
+    action: { type: "pass", actor: "east" } as const,
+    postAction: { remainingHand } as never,
+    situation,
+    legalLeadActions,
+    levelRank: value.levelRank,
+    handPlanPerformanceBudget: planBudget,
+    performanceBudget: followUpBudget,
+    successorAnalysisCache
+  };
+  const cold = planFollowUp(input);
+  const warm = planFollowUp(input);
+
+  expect(warm).toEqual(cold);
+  expect(writes).toBeGreaterThan(0);
+  expect(hits).toBeGreaterThan(0);
+});
+
+test("公开局面变化不复用完整 FollowUp 结果；缓存只复用纯后继手牌分析", () => {
+  const value = fixture("S39");
+  const remainingHand = value.selfHand.slice(1);
+  const legalLeadActions = getCompleteLegalCandidates({
+    state: leadState(remainingHand.map((card) => card.id)),
+    selfHand: remainingHand,
+    levelRank: value.levelRank
+  });
+  const values = new Map<string, never>();
+  let hits = 0;
+  const successorAnalysisCache = {
+    get(key: string) {
+      const cached = values.get(key);
+      if (cached) hits += 1;
+      return cached;
+    },
+    set(key: string, cached: never) {
+      values.set(key, cached);
+    }
+  };
+  const common = {
+    action: { type: "pass", actor: "east" } as const,
+    postAction: { remainingHand } as never,
+    legalLeadActions,
+    levelRank: value.levelRank,
+    handPlanPerformanceBudget: planBudget,
+    performanceBudget: followUpBudget,
+    successorAnalysisCache
+  };
+  const middle = planFollowUp({ ...common, situation });
+  const endgame = planFollowUp({ ...common, situation: { phase: "endgame" } as SituationAnalysis });
+
+  expect(hits).toBeGreaterThan(0);
+  expect(middle.phase).toBe("middle");
+  expect(endgame.phase).toBe("endgame");
+  expect(endgame).not.toEqual(middle);
 });
 
 test("S42：没有可用合法领出时明确降级为 noUsefulFollowUp；pass 或未验证动作不会被用作下一手", () => {

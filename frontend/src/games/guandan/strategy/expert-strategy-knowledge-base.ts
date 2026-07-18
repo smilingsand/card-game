@@ -422,7 +422,9 @@ function assertRuleMayLoad(rule: ExpertStrategyRule, profile: StrategyProfileSna
 export function evaluateExpertStrategyRules(
   input: EvaluateExpertStrategyRulesInput
 ): ExpertStrategyEvaluation {
-  const registry = registerExpertStrategyRules(input.registry ?? STRATEGY_RULES);
+  // STRATEGY_RULES is registered, sorted and immutable at module initialization. Re-registering
+  // it for every candidate is observationally redundant; custom registries retain validation.
+  const registry = input.registry ? registerExpertStrategyRules(input.registry) : STRATEGY_RULES;
   const enabled = new Set(input.profile.enabledRuleIds);
   if (input.profile.id === "normal" && enabled.size > 0)
     throw new Error("normal profile 不得启用专家策略规则");

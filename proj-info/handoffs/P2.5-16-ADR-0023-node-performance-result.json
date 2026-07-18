@@ -1,0 +1,1129 @@
+{
+  "contract": "ADR-0023",
+  "processCount": 5,
+  "steadyStateColdSampleCount": 170,
+  "processColdStarts": [
+    {
+      "actionIndex": 30,
+      "elapsedMilliseconds": 56.28139999999985,
+      "selectedAction": {
+        "type": "play",
+        "actor": "west",
+        "cardIds": [
+          "deck-2-diamonds-K"
+        ],
+        "interpretation": {
+          "type": "single",
+          "cardIds": [
+            "deck-2-diamonds-K"
+          ],
+          "wildcardAs": {},
+          "comparisonKey": [
+            13
+          ]
+        }
+      },
+      "candidateCount": 10,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.2824000000000524,
+        "handPlan": 0.2871999999988475,
+        "situation": 0.021600000000034925,
+        "semanticCanonicalization": 0.06919999999990978,
+        "candidateRanking": 0.034300000001167064,
+        "contestContext": 0.0030000000006111804,
+        "followUpLeadCatalogue": 1.0344999999997526,
+        "lightBaseScore": 0.04299999999784632,
+        "deadHandRiskProxy": 0.08749999999781721,
+        "postAction": 4.746900000000096,
+        "control": 0.2797999999984313,
+        "followUp": 48.194799999999304,
+        "contest": 0.06620000000111759,
+        "featureExtraction": 0.05649999999877764,
+        "ruleEvaluation": 0.2819999999992433,
+        "scoring": 0.06099999999969441
+      }
+    },
+    {
+      "actionIndex": 30,
+      "elapsedMilliseconds": 53.14309999999932,
+      "selectedAction": {
+        "type": "play",
+        "actor": "west",
+        "cardIds": [
+          "deck-2-diamonds-K"
+        ],
+        "interpretation": {
+          "type": "single",
+          "cardIds": [
+            "deck-2-diamonds-K"
+          ],
+          "wildcardAs": {},
+          "comparisonKey": [
+            13
+          ]
+        }
+      },
+      "candidateCount": 10,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.2887000000000626,
+        "handPlan": 0.27000000000043656,
+        "situation": 0.021000000000640284,
+        "semanticCanonicalization": 0.06040000000029977,
+        "candidateRanking": 0.03440000000045984,
+        "contestContext": 0.002899999999499414,
+        "followUpLeadCatalogue": 0.9945999999999913,
+        "lightBaseScore": 0.03330000000096334,
+        "deadHandRiskProxy": 0.09910000000127184,
+        "postAction": 4.619199999998273,
+        "control": 0.24899999999888678,
+        "followUp": 45.31049999999959,
+        "contest": 0.06239999999979773,
+        "featureExtraction": 0.051900000001296576,
+        "ruleEvaluation": 0.2731000000003405,
+        "scoring": 0.06069999999999709
+      }
+    },
+    {
+      "actionIndex": 30,
+      "elapsedMilliseconds": 61.15769999999975,
+      "selectedAction": {
+        "type": "play",
+        "actor": "west",
+        "cardIds": [
+          "deck-2-diamonds-K"
+        ],
+        "interpretation": {
+          "type": "single",
+          "cardIds": [
+            "deck-2-diamonds-K"
+          ],
+          "wildcardAs": {},
+          "comparisonKey": [
+            13
+          ]
+        }
+      },
+      "candidateCount": 10,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.30310000000008586,
+        "handPlan": 0.38850000000002183,
+        "situation": 0.04689999999936845,
+        "semanticCanonicalization": 0.1257000000005064,
+        "candidateRanking": 0.04519999999956781,
+        "contestContext": 0.005000000000109139,
+        "followUpLeadCatalogue": 1.146299999999428,
+        "lightBaseScore": 0.03780000000006112,
+        "deadHandRiskProxy": 0.09430000000065775,
+        "postAction": 6.239999999998872,
+        "control": 0.2823000000007596,
+        "followUp": 50.914199999998345,
+        "contest": 0.0937999999978274,
+        "featureExtraction": 0.07239999999910651,
+        "ruleEvaluation": 0.32819999999628635,
+        "scoring": 0.07989999999790598
+      }
+    },
+    {
+      "actionIndex": 30,
+      "elapsedMilliseconds": 55.68199999999979,
+      "selectedAction": {
+        "type": "play",
+        "actor": "west",
+        "cardIds": [
+          "deck-2-diamonds-K"
+        ],
+        "interpretation": {
+          "type": "single",
+          "cardIds": [
+            "deck-2-diamonds-K"
+          ],
+          "wildcardAs": {},
+          "comparisonKey": [
+            13
+          ]
+        }
+      },
+      "candidateCount": 10,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.8361999999997352,
+        "handPlan": 0.5331999999998516,
+        "situation": 0.023400000000037835,
+        "semanticCanonicalization": 0.08410000000003492,
+        "candidateRanking": 0.03809999999975844,
+        "contestContext": 0.0037000000002080924,
+        "followUpLeadCatalogue": 1.0756000000001222,
+        "lightBaseScore": 0.03759999999874708,
+        "deadHandRiskProxy": 0.11239999999907013,
+        "postAction": 4.881900000000314,
+        "control": 0.27449999999862484,
+        "followUp": 46.318199999999706,
+        "contest": 0.06200000000080763,
+        "featureExtraction": 0.053300000001399894,
+        "ruleEvaluation": 0.2824000000018714,
+        "scoring": 0.06020000000080472
+      }
+    },
+    {
+      "actionIndex": 30,
+      "elapsedMilliseconds": 51.47049999999945,
+      "selectedAction": {
+        "type": "play",
+        "actor": "west",
+        "cardIds": [
+          "deck-2-diamonds-K"
+        ],
+        "interpretation": {
+          "type": "single",
+          "cardIds": [
+            "deck-2-diamonds-K"
+          ],
+          "wildcardAs": {},
+          "comparisonKey": [
+            13
+          ]
+        }
+      },
+      "candidateCount": 10,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.2763999999997395,
+        "handPlan": 0.26630000000022847,
+        "situation": 0.0216999999993277,
+        "semanticCanonicalization": 0.05929999999989377,
+        "candidateRanking": 0.03390000000035798,
+        "contestContext": 0.0029999999997016857,
+        "followUpLeadCatalogue": 0.9853000000002794,
+        "lightBaseScore": 0.04219999999986612,
+        "deadHandRiskProxy": 0.11719999999877473,
+        "postAction": 4.368899999999485,
+        "control": 0.2672999999995227,
+        "followUp": 43.863899999999376,
+        "contest": 0.06569999999919673,
+        "featureExtraction": 0.054200000000491855,
+        "ruleEvaluation": 0.27890000000024884,
+        "scoring": 0.06469999999808351
+      }
+    }
+  ],
+  "perProcessSteadyStateColdAverageMilliseconds": [
+    161.56905000000012,
+    168.64579411764703,
+    162.9480000000001,
+    158.2714852941176,
+    168.7822676470588
+  ],
+  "medianProcessSteadyStateColdAverageMilliseconds": 162.9480000000001,
+  "pooledSteadyStateColdP95Milliseconds": 1037.9330999999993,
+  "globalSteadyStateSlowestMilliseconds": 1910.7271,
+  "warmP95Milliseconds": 4.521700000001147,
+  "gates": {
+    "coldAverage": true,
+    "coldP95": true,
+    "coldSlowest": true,
+    "warmP95": true
+  },
+  "passed": true,
+  "steadyStateColdSlowest": [
+    {
+      "actionIndex": 0,
+      "elapsedMilliseconds": 1910.7271,
+      "selectedAction": {
+        "type": "play",
+        "actor": "east",
+        "cardIds": [
+          "deck-1-hearts-4"
+        ],
+        "interpretation": {
+          "type": "single",
+          "cardIds": [
+            "deck-1-hearts-4"
+          ],
+          "wildcardAs": {},
+          "comparisonKey": [
+            4
+          ]
+        }
+      },
+      "candidateCount": 3864,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 9.749700000000303,
+        "handPlan": 4.800199999999677,
+        "situation": 0.07679999999982101,
+        "semanticCanonicalization": 47.74829999999929,
+        "candidateRanking": 14.986300000000483,
+        "contestContext": 0.009900000000016007,
+        "followUpLeadCatalogue": 0.00120000000060827,
+        "lightBaseScore": 5.440999999978885,
+        "deadHandRiskProxy": 53.53090000001794,
+        "postAction": 138.1955999999991,
+        "control": 4.133999999999105,
+        "followUp": 1099.3424000000023,
+        "contest": 0.4651999999978216,
+        "featureExtraction": 0.28250000000025466,
+        "ruleEvaluation": 1.3707999999969616,
+        "scoring": 0.11099999999987631
+      }
+    },
+    {
+      "actionIndex": 0,
+      "elapsedMilliseconds": 1894.8461000000007,
+      "selectedAction": {
+        "type": "play",
+        "actor": "east",
+        "cardIds": [
+          "deck-1-hearts-4"
+        ],
+        "interpretation": {
+          "type": "single",
+          "cardIds": [
+            "deck-1-hearts-4"
+          ],
+          "wildcardAs": {},
+          "comparisonKey": [
+            4
+          ]
+        }
+      },
+      "candidateCount": 3864,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 9.83680000000004,
+        "handPlan": 4.550600000000486,
+        "situation": 0.053599999999278225,
+        "semanticCanonicalization": 49.744300000000294,
+        "candidateRanking": 15.51929999999993,
+        "contestContext": 0.010299999999915599,
+        "followUpLeadCatalogue": 0.0007999999997991836,
+        "lightBaseScore": 5.44440000004488,
+        "deadHandRiskProxy": 51.17210000003888,
+        "postAction": 140.70370000000094,
+        "control": 3.8611000000000786,
+        "followUp": 1034.0303999999987,
+        "contest": 0.46640000000024884,
+        "featureExtraction": 0.2618000000011307,
+        "ruleEvaluation": 1.1702999999988606,
+        "scoring": 0.10879999999633583
+      }
+    },
+    {
+      "actionIndex": 0,
+      "elapsedMilliseconds": 1875.5108999999993,
+      "selectedAction": {
+        "type": "play",
+        "actor": "east",
+        "cardIds": [
+          "deck-1-hearts-4"
+        ],
+        "interpretation": {
+          "type": "single",
+          "cardIds": [
+            "deck-1-hearts-4"
+          ],
+          "wildcardAs": {},
+          "comparisonKey": [
+            4
+          ]
+        }
+      },
+      "candidateCount": 3864,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 8.682199999999284,
+        "handPlan": 4.883199999998396,
+        "situation": 0.04830000000038126,
+        "semanticCanonicalization": 45.390699999999924,
+        "candidateRanking": 14.406600000000253,
+        "contestContext": 0.008200000000215368,
+        "followUpLeadCatalogue": 0.0007000000005064066,
+        "lightBaseScore": 4.177899999956935,
+        "deadHandRiskProxy": 43.13720000000103,
+        "postAction": 134.6176000000014,
+        "control": 4.8607000000047265,
+        "followUp": 1116.6732999999986,
+        "contest": 0.42999999999665306,
+        "featureExtraction": 0.27289999999993597,
+        "ruleEvaluation": 1.2649000000019441,
+        "scoring": 0.11289999999280553
+      }
+    },
+    {
+      "actionIndex": 0,
+      "elapsedMilliseconds": 1837.7659000000003,
+      "selectedAction": {
+        "type": "play",
+        "actor": "east",
+        "cardIds": [
+          "deck-1-hearts-4"
+        ],
+        "interpretation": {
+          "type": "single",
+          "cardIds": [
+            "deck-1-hearts-4"
+          ],
+          "wildcardAs": {},
+          "comparisonKey": [
+            4
+          ]
+        }
+      },
+      "candidateCount": 3864,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 11.093600000000151,
+        "handPlan": 4.674300000000585,
+        "situation": 0.07019999999920401,
+        "semanticCanonicalization": 52.498899999999594,
+        "candidateRanking": 15.028999999999542,
+        "contestContext": 0.009900000000016007,
+        "followUpLeadCatalogue": 0.0015000000003055902,
+        "lightBaseScore": 4.101700000022902,
+        "deadHandRiskProxy": 44.258400000007896,
+        "postAction": 138.54659999999876,
+        "control": 3.7416999999977634,
+        "followUp": 1082.639200000005,
+        "contest": 0.45679999999629217,
+        "featureExtraction": 0.27550000000064756,
+        "ruleEvaluation": 1.2948000000023967,
+        "scoring": 0.15509999999903812
+      }
+    },
+    {
+      "actionIndex": 0,
+      "elapsedMilliseconds": 1804.2084000000004,
+      "selectedAction": {
+        "type": "play",
+        "actor": "east",
+        "cardIds": [
+          "deck-1-hearts-4"
+        ],
+        "interpretation": {
+          "type": "single",
+          "cardIds": [
+            "deck-1-hearts-4"
+          ],
+          "wildcardAs": {},
+          "comparisonKey": [
+            4
+          ]
+        }
+      },
+      "candidateCount": 3864,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 11.999300000000403,
+        "handPlan": 8.620600000000195,
+        "situation": 0.08249999999952706,
+        "semanticCanonicalization": 54.278700000000754,
+        "candidateRanking": 20.49210000000039,
+        "contestContext": 0.012499999999818101,
+        "followUpLeadCatalogue": 0.0014000000001033186,
+        "lightBaseScore": 8.20920000001297,
+        "deadHandRiskProxy": 41.613200000008874,
+        "postAction": 128.83179999999993,
+        "control": 3.7450999999991836,
+        "followUp": 1033.7542000000003,
+        "contest": 0.4184999999988577,
+        "featureExtraction": 0.26050000000032014,
+        "ruleEvaluation": 1.2794999999996435,
+        "scoring": 0.11080000000129075
+      }
+    },
+    {
+      "actionIndex": 2,
+      "elapsedMilliseconds": 1305.0405999999994,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "west"
+      },
+      "candidateCount": 28,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 2.0963000000001557,
+        "handPlan": 5.7979999999997744,
+        "situation": 0.06099999999969441,
+        "semanticCanonicalization": 0.4412000000002081,
+        "candidateRanking": 0.4558999999999287,
+        "contestContext": 0.013100000000122236,
+        "followUpLeadCatalogue": 77.95319999999992,
+        "lightBaseScore": 0.029199999999036663,
+        "deadHandRiskProxy": 0.3208999999988009,
+        "postAction": 80.96960000000036,
+        "control": 2.182200000002922,
+        "followUp": 1128.4359999999997,
+        "contest": 0.3940999999995256,
+        "featureExtraction": 0.23430000000007567,
+        "ruleEvaluation": 1.1156000000009954,
+        "scoring": 0.11610000000109721
+      }
+    },
+    {
+      "actionIndex": 2,
+      "elapsedMilliseconds": 1212.3481000000002,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "west"
+      },
+      "candidateCount": 28,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 1.6782000000002881,
+        "handPlan": 2.3119000000006054,
+        "situation": 0.03139999999984866,
+        "semanticCanonicalization": 0.1239000000005035,
+        "candidateRanking": 0.13470000000052096,
+        "contestContext": 0.0039999999999054126,
+        "followUpLeadCatalogue": 50.36590000000069,
+        "lightBaseScore": 0.05510000000049331,
+        "deadHandRiskProxy": 0.558100000002014,
+        "postAction": 72.97390000000269,
+        "control": 2.3377999999993335,
+        "followUp": 1077.1708999999973,
+        "contest": 0.2782999999963067,
+        "featureExtraction": 0.19400000000132422,
+        "ruleEvaluation": 1.0344999999997526,
+        "scoring": 0.10990000000310829
+      }
+    },
+    {
+      "actionIndex": 2,
+      "elapsedMilliseconds": 1124.7830000000004,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "west"
+      },
+      "candidateCount": 28,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 2.0536000000001877,
+        "handPlan": 2.716699999999946,
+        "situation": 0.03489999999965221,
+        "semanticCanonicalization": 0.12950000000000728,
+        "candidateRanking": 0.14330000000063592,
+        "contestContext": 0.004399999999805004,
+        "followUpLeadCatalogue": 38.77989999999954,
+        "lightBaseScore": 0.028700000001663284,
+        "deadHandRiskProxy": 0.31410000000050786,
+        "postAction": 69.14099999999962,
+        "control": 2.0042000000012195,
+        "followUp": 1004.9437999999973,
+        "contest": 0.3349999999991269,
+        "featureExtraction": 0.21739999999954307,
+        "ruleEvaluation": 1.1059999999979482,
+        "scoring": 0.1044000000001688
+      }
+    },
+    {
+      "actionIndex": 2,
+      "elapsedMilliseconds": 1037.9330999999993,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "west"
+      },
+      "candidateCount": 28,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 1.7614999999996144,
+        "handPlan": 2.4013999999997395,
+        "situation": 0.031899999999950523,
+        "semanticCanonicalization": 0.12590000000000146,
+        "candidateRanking": 0.13370000000031723,
+        "contestContext": 0.0037999999995008693,
+        "followUpLeadCatalogue": 39.1916999999994,
+        "lightBaseScore": 0.024999999997817213,
+        "deadHandRiskProxy": 0.2760999999964042,
+        "postAction": 66.78810000000522,
+        "control": 1.8330999999998312,
+        "followUp": 921.1365000000023,
+        "contest": 0.29359999999542197,
+        "featureExtraction": 0.19910000000345462,
+        "ruleEvaluation": 1.0852999999988242,
+        "scoring": 0.12299999999777356
+      }
+    },
+    {
+      "actionIndex": 2,
+      "elapsedMilliseconds": 1005.9272999999994,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "west"
+      },
+      "candidateCount": 28,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 1.6239999999997963,
+        "handPlan": 2.1585999999988417,
+        "situation": 0.025900000000547152,
+        "semanticCanonicalization": 0.1029000000016822,
+        "candidateRanking": 0.24279999999998836,
+        "contestContext": 0.0037999999985913746,
+        "followUpLeadCatalogue": 35.89749999999913,
+        "lightBaseScore": 0.029100000010657823,
+        "deadHandRiskProxy": 0.3382000000165135,
+        "postAction": 61.57069999999658,
+        "control": 1.797500000007858,
+        "followUp": 898.2199000000073,
+        "contest": 0.3073000000003958,
+        "featureExtraction": 0.1965000000091095,
+        "ruleEvaluation": 0.9794000000110827,
+        "scoring": 0.10509999999339925
+      }
+    },
+    {
+      "actionIndex": 4,
+      "elapsedMilliseconds": 604.5499,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "east"
+      },
+      "candidateCount": 6,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.03229999999894062,
+        "handPlan": 0.08630000000084692,
+        "situation": 0.029399999999441206,
+        "semanticCanonicalization": 0.04010000000016589,
+        "candidateRanking": 0.10719999999855645,
+        "contestContext": 0.004299999998693238,
+        "followUpLeadCatalogue": 424.9477000000006,
+        "lightBaseScore": 0.01870000000053551,
+        "deadHandRiskProxy": 0.09430000000065775,
+        "postAction": 11.338500000001659,
+        "control": 0.7018999999982043,
+        "followUp": 163.24609999999848,
+        "contest": 0.08480000000236032,
+        "featureExtraction": 0.05830000000241853,
+        "ruleEvaluation": 0.2665999999990163,
+        "scoring": 0.023300000000745058
+      }
+    },
+    {
+      "actionIndex": 4,
+      "elapsedMilliseconds": 597.9669000000013,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "east"
+      },
+      "candidateCount": 6,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.029700000000957516,
+        "handPlan": 0.07179999999971187,
+        "situation": 0.05639999999948486,
+        "semanticCanonicalization": 0.03839999999945576,
+        "candidateRanking": 0.10539999999855354,
+        "contestContext": 0.004600000000209548,
+        "followUpLeadCatalogue": 400.01140000000123,
+        "lightBaseScore": 0.02470000000175787,
+        "deadHandRiskProxy": 0.10870000000068103,
+        "postAction": 16.357600000003004,
+        "control": 0.7807000000011612,
+        "followUp": 175.0558000000001,
+        "contest": 0.09789999999884458,
+        "featureExtraction": 0.0787000000000262,
+        "ruleEvaluation": 0.2897000000011758,
+        "scoring": 0.025600000000849832
+      }
+    },
+    {
+      "actionIndex": 4,
+      "elapsedMilliseconds": 559.7759999999998,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "east"
+      },
+      "candidateCount": 6,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.02510000000074797,
+        "handPlan": 0.06339999999909196,
+        "situation": 0.02509999999892898,
+        "semanticCanonicalization": 0.03190000000176951,
+        "candidateRanking": 0.09400000000096043,
+        "contestContext": 0.003999999998995918,
+        "followUpLeadCatalogue": 406.2399999999998,
+        "lightBaseScore": 0.013699999997697887,
+        "deadHandRiskProxy": 0.06010000000242144,
+        "postAction": 10.884800000001633,
+        "control": 0.561600000000908,
+        "followUp": 138.98250000000007,
+        "contest": 0.08339999999952852,
+        "featureExtraction": 0.05619999999908032,
+        "ruleEvaluation": 0.24600000000100408,
+        "scoring": 0.023600000000442378
+      }
+    },
+    {
+      "actionIndex": 8,
+      "elapsedMilliseconds": 541.8748999999989,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "east"
+      },
+      "candidateCount": 63,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.03570000000036089,
+        "handPlan": 0.07529999999860593,
+        "situation": 0.03559999999924912,
+        "semanticCanonicalization": 0.5926999999992404,
+        "candidateRanking": 0.24399999999877764,
+        "contestContext": 0.008299999999508145,
+        "followUpLeadCatalogue": 0.1389999999992142,
+        "lightBaseScore": 0.06649999998808198,
+        "deadHandRiskProxy": 0.5326000000004569,
+        "postAction": 35.89799999999741,
+        "control": 2.467000000007829,
+        "followUp": 491.4815999999919,
+        "contest": 0.32079999999587017,
+        "featureExtraction": 0.21770000000287837,
+        "ruleEvaluation": 1.2108999999945809,
+        "scoring": 0.10550000000330328
+      }
+    },
+    {
+      "actionIndex": 4,
+      "elapsedMilliseconds": 534.6055000000015,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "east"
+      },
+      "candidateCount": 6,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.027399999999033753,
+        "handPlan": 0.06799999999930151,
+        "situation": 0.027999999998428393,
+        "semanticCanonicalization": 0.03389999999853899,
+        "candidateRanking": 0.09279999999853317,
+        "contestContext": 0.005299999997077975,
+        "followUpLeadCatalogue": 379.91170000000056,
+        "lightBaseScore": 0.011600000001635635,
+        "deadHandRiskProxy": 0.059300000004441245,
+        "postAction": 11.48410000000149,
+        "control": 0.5839000000014494,
+        "followUp": 139.40030000000115,
+        "contest": 0.10749999999825377,
+        "featureExtraction": 0.07049999999799184,
+        "ruleEvaluation": 0.31430000000909786,
+        "scoring": 0.03139999999621068
+      }
+    },
+    {
+      "actionIndex": 8,
+      "elapsedMilliseconds": 508.90149999999994,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "east"
+      },
+      "candidateCount": 63,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.03709999999955471,
+        "handPlan": 0.07380000000011933,
+        "situation": 0.03719999999884749,
+        "semanticCanonicalization": 0.5733000000000175,
+        "candidateRanking": 0.22670000000107393,
+        "contestContext": 0.005100000000311411,
+        "followUpLeadCatalogue": 0.12430000000131258,
+        "lightBaseScore": 0.06240000000070722,
+        "deadHandRiskProxy": 0.5741999999954714,
+        "postAction": 36.181399999999485,
+        "control": 2.497399999998379,
+        "followUp": 454.32560000000376,
+        "contest": 0.32550000000446744,
+        "featureExtraction": 0.22739999999430438,
+        "ruleEvaluation": 1.1428999999989173,
+        "scoring": 0.10759999999936554
+      }
+    },
+    {
+      "actionIndex": 8,
+      "elapsedMilliseconds": 495.34490000000005,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "east"
+      },
+      "candidateCount": 63,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.03470000000015716,
+        "handPlan": 0.08060000000114087,
+        "situation": 0.03350000000136788,
+        "semanticCanonicalization": 0.550600000000486,
+        "candidateRanking": 0.2301000000006752,
+        "contestContext": 0.004500000000916771,
+        "followUpLeadCatalogue": 0.13440000000082364,
+        "lightBaseScore": 0.06030000000464497,
+        "deadHandRiskProxy": 0.5385000000042055,
+        "postAction": 34.346999999997934,
+        "control": 2.4169999999976426,
+        "followUp": 447.1274000000012,
+        "contest": 0.28320000000167056,
+        "featureExtraction": 0.2158999999937805,
+        "ruleEvaluation": 1.0957999999955064,
+        "scoring": 0.09239999999954307
+      }
+    },
+    {
+      "actionIndex": 4,
+      "elapsedMilliseconds": 493.0131000000001,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "east"
+      },
+      "candidateCount": 6,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.02630000000135624,
+        "handPlan": 0.07140000000072177,
+        "situation": 0.03770000000076834,
+        "semanticCanonicalization": 0.03889999999955762,
+        "candidateRanking": 0.1000000000003638,
+        "contestContext": 0.004199999999400461,
+        "followUpLeadCatalogue": 352.26560000000063,
+        "lightBaseScore": 0.014000000004671165,
+        "deadHandRiskProxy": 0.06030000000100699,
+        "postAction": 9.082400000002963,
+        "control": 0.49059999999917636,
+        "followUp": 128.31879999999728,
+        "contest": 0.08480000000054133,
+        "featureExtraction": 0.050900000002002344,
+        "ruleEvaluation": 0.21649999999681313,
+        "scoring": 0.023499999999330612
+      }
+    },
+    {
+      "actionIndex": 8,
+      "elapsedMilliseconds": 491.438900000001,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "east"
+      },
+      "candidateCount": 63,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.0371000000013737,
+        "handPlan": 0.07760000000052969,
+        "situation": 0.03770000000076834,
+        "semanticCanonicalization": 0.5878999999986263,
+        "candidateRanking": 0.24250000000029104,
+        "contestContext": 0.0054000000018277206,
+        "followUpLeadCatalogue": 0.12789999999949941,
+        "lightBaseScore": 0.056300000000192085,
+        "deadHandRiskProxy": 0.5526999999892723,
+        "postAction": 37.29690000000846,
+        "control": 2.610100000001694,
+        "followUp": 439.741200000004,
+        "contest": 0.3130999999921187,
+        "featureExtraction": 0.22349999999278225,
+        "ruleEvaluation": 1.0698000000047614,
+        "scoring": 0.0997999999926833
+      }
+    },
+    {
+      "actionIndex": 8,
+      "elapsedMilliseconds": 479.59100000000035,
+      "selectedAction": {
+        "type": "pass",
+        "actor": "east"
+      },
+      "candidateCount": 63,
+      "moduleElapsedMilliseconds": {
+        "handStructure": 0.025499999999738066,
+        "handPlan": 0.0628999999989901,
+        "situation": 0.02540000000044529,
+        "semanticCanonicalization": 0.5910000000003492,
+        "candidateRanking": 0.2525999999998021,
+        "contestContext": 0.0042000000012194505,
+        "followUpLeadCatalogue": 0.10850000000027649,
+        "lightBaseScore": 0.04319999999461288,
+        "deadHandRiskProxy": 0.47220000000197615,
+        "postAction": 36.72769999999946,
+        "control": 2.281699999999546,
+        "followUp": 430.5196000000087,
+        "contest": 0.32089999999698193,
+        "featureExtraction": 0.2055000000018481,
+        "ruleEvaluation": 1.0092999999997119,
+        "scoring": 0.09430000000247674
+      }
+    }
+  ],
+  "moduleElapsedMilliseconds": {
+    "handStructure": 66.13409999998748,
+    "handPlan": 48.169000000026244,
+    "situation": 4.819900000002235,
+    "semanticCanonicalization": 266.09989999999925,
+    "candidateRanking": 93.76339999998709,
+    "contestContext": 0.627899999989495,
+    "followUpLeadCatalogue": 3185.0855000000147,
+    "lightBaseScore": 29.82000000003609,
+    "deadHandRiskProxy": 250.63250000004246,
+    "postAction": 1452.0965000000415,
+    "control": 91.11889999997857,
+    "followUp": 19544.9908,
+    "contest": 14.666099999952166,
+    "featureExtraction": 10.60579999998572,
+    "ruleEvaluation": 54.92430000003969,
+    "scoring": 5.163799999984803
+  },
+  "peakMemory": [
+    {
+      "rss": 326623232,
+      "heapUsed": 142405272,
+      "heapTotal": 253956096
+    },
+    {
+      "rss": 332746752,
+      "heapUsed": 150562928,
+      "heapTotal": 258412544
+    },
+    {
+      "rss": 340963328,
+      "heapUsed": 166133144,
+      "heapTotal": 267472896
+    },
+    {
+      "rss": 335585280,
+      "heapUsed": 136073136,
+      "heapTotal": 261558272
+    },
+    {
+      "rss": 335220736,
+      "heapUsed": 151668448,
+      "heapTotal": 260509696
+    }
+  ],
+  "cache": [
+    {
+      "afterCold": {
+        "hits": 0,
+        "misses": 109,
+        "evictions": 0,
+        "invalidations": 71,
+        "size": 38
+      },
+      "afterWarm": {
+        "hits": 34,
+        "misses": 109,
+        "evictions": 0,
+        "invalidations": 71,
+        "size": 38
+      },
+      "handAnalysisAfterCold": {
+        "capacity": 8192,
+        "structure": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        },
+        "handPlan": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        }
+      },
+      "handAnalysisAfterWarm": {
+        "capacity": 8192,
+        "structure": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        },
+        "handPlan": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        }
+      }
+    },
+    {
+      "afterCold": {
+        "hits": 0,
+        "misses": 109,
+        "evictions": 0,
+        "invalidations": 71,
+        "size": 38
+      },
+      "afterWarm": {
+        "hits": 34,
+        "misses": 109,
+        "evictions": 0,
+        "invalidations": 71,
+        "size": 38
+      },
+      "handAnalysisAfterCold": {
+        "capacity": 8192,
+        "structure": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        },
+        "handPlan": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        }
+      },
+      "handAnalysisAfterWarm": {
+        "capacity": 8192,
+        "structure": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        },
+        "handPlan": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        }
+      }
+    },
+    {
+      "afterCold": {
+        "hits": 0,
+        "misses": 109,
+        "evictions": 0,
+        "invalidations": 71,
+        "size": 38
+      },
+      "afterWarm": {
+        "hits": 34,
+        "misses": 109,
+        "evictions": 0,
+        "invalidations": 71,
+        "size": 38
+      },
+      "handAnalysisAfterCold": {
+        "capacity": 8192,
+        "structure": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        },
+        "handPlan": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        }
+      },
+      "handAnalysisAfterWarm": {
+        "capacity": 8192,
+        "structure": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        },
+        "handPlan": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        }
+      }
+    },
+    {
+      "afterCold": {
+        "hits": 0,
+        "misses": 109,
+        "evictions": 0,
+        "invalidations": 71,
+        "size": 38
+      },
+      "afterWarm": {
+        "hits": 34,
+        "misses": 109,
+        "evictions": 0,
+        "invalidations": 71,
+        "size": 38
+      },
+      "handAnalysisAfterCold": {
+        "capacity": 8192,
+        "structure": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        },
+        "handPlan": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        }
+      },
+      "handAnalysisAfterWarm": {
+        "capacity": 8192,
+        "structure": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        },
+        "handPlan": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        }
+      }
+    },
+    {
+      "afterCold": {
+        "hits": 0,
+        "misses": 109,
+        "evictions": 0,
+        "invalidations": 71,
+        "size": 38
+      },
+      "afterWarm": {
+        "hits": 34,
+        "misses": 109,
+        "evictions": 0,
+        "invalidations": 71,
+        "size": 38
+      },
+      "handAnalysisAfterCold": {
+        "capacity": 8192,
+        "structure": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        },
+        "handPlan": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        }
+      },
+      "handAnalysisAfterWarm": {
+        "capacity": 8192,
+        "structure": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        },
+        "handPlan": {
+          "hits": 2778,
+          "misses": 4170,
+          "evictions": 0,
+          "invalidations": 1245,
+          "size": 2925
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "contract": "ADR-0022",
+  "sample": "ADR-0020 frozen seed=0 fixed BotViews",
+  "totalCaseCount": 34,
+  "actionDifferenceCount": 0,
+  "actionDifferenceRate": 0,
+  "metrics": {
+    "unnecessary_natural_bomb_split": {
+      "expert": 0,
+      "experimentalFull": 0,
+      "delta": 0
+    },
+    "low_value_wildcard_use": {
+      "expert": 0,
+      "experimentalFull": 0,
+      "delta": 0
+    },
+    "smaller_bomb_when_natural_exists": {
+      "expert": 0,
+      "experimentalFull": 0,
+      "delta": 0
+    },
+    "control_exhaustion_with_many_cards": {
+      "expert": 0,
+      "experimentalFull": 0,
+      "delta": 0
+    },
+    "low_singles_increase_after_action": {
+      "expert": 0,
+      "experimentalFull": 0,
+      "delta": 0
+    },
+    "meaningless_high_cost_contest": {
+      "expert": 0,
+      "experimentalFull": 0,
+      "delta": 0
+    },
+    "dead_hand_risk_created": {
+      "expert": 1,
+      "experimentalFull": 1,
+      "delta": 0
+    },
+    "meaningless_takeover_while_teammate_holds": {
+      "expert": 1,
+      "experimentalFull": 1,
+      "delta": 0
+    },
+    "endgame_block_success": {
+      "expert": 0,
+      "experimentalFull": 0,
+      "delta": 0
+    }
+  },
+  "differingActionIndexes": [],
+  "endgameOrPartnerRegressionActionIndexes": [],
+  "coverage": {
+    "opening": [
+      0,
+      2,
+      4,
+      6,
+      8,
+      10,
+      12,
+      14,
+      16,
+      18,
+      20,
+      22,
+      24,
+      26,
+      28,
+      32,
+      36
+    ],
+    "middle": [
+      40,
+      44,
+      61,
+      64,
+      76
+    ],
+    "endgame": [
+      103,
+      105,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116
+    ],
+    "top_20_slow": [
+      0,
+      2,
+      4,
+      6,
+      8,
+      10,
+      12,
+      14,
+      16,
+      18,
+      20,
+      22,
+      24,
+      26,
+      28,
+      32,
+      36,
+      40,
+      44,
+      76
+    ],
+    "bomb": [
+      0,
+      2,
+      4,
+      6,
+      8,
+      10,
+      12,
+      14,
+      16,
+      18
+    ],
+    "wildcard": [
+      0,
+      4,
+      8,
+      12
+    ],
+    "partner_cooperation": [
+      61,
+      103,
+      105,
+      107,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116
+    ],
+    "opponent_near_finish": [
+      64,
+      76,
+      103,
+      105,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116
+    ],
+    "mandatory": [
+      103,
+      105,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116
+    ]
+  }
+}
