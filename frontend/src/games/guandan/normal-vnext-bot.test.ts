@@ -1,5 +1,9 @@
 import { expect, test } from "vitest";
-import { analyzeNormalVNextHand, chooseNormalVNextBotAction } from "./normal-vnext-bot";
+import {
+  analyzeNormalVNextHand,
+  chooseNormalVNextBotAction,
+  describeNormalVNextAction
+} from "./normal-vnext-bot";
 import type { Card } from "../../platform/types";
 import type { TurnAction } from "./turns";
 
@@ -367,4 +371,20 @@ test("B：轻量手牌分析只从 BotView 统计结构与控制资源", () => {
     wildcardCount: 1,
     controlCards: 3
   });
+});
+
+test("C1：responseCost 合同保持 A/B 权重与稳定 tie-break", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const seven = single("seven", 7);
+  const eight = single("eight", 8);
+  const view = baseView({
+    selfHand: [card("seven", "7"), card("eight", "8")],
+    legalActions: [pass, eight, seven]
+  });
+  const cost = describeNormalVNextAction(seven, view);
+  expect(cost).toMatchObject({ rankCost: 7, structureDamageCost: 0, controlResourceCost: 0, wildcardOpportunityCost: 0, responseCost: 7 });
+  const first = chooseNormalVNextBotAction(view);
+  const second = chooseNormalVNextBotAction(view);
+  expect(first?.action).toBe(seven);
+  expect(second).toEqual(first);
 });

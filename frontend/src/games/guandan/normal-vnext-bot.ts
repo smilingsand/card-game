@@ -20,6 +20,14 @@ const BREAK_BOMB_COST = 100_000;
 
 type PlayAction = Extract<TurnAction, { readonly type: "play" }>;
 
+export interface NormalVNextCostBreakdown {
+  readonly rankCost: number;
+  readonly structureDamageCost: number;
+  readonly controlResourceCost: number;
+  readonly wildcardOpportunityCost: number;
+  readonly responseCost: number;
+}
+
 export interface NormalVNextHandAnalysis {
   readonly singles: number;
   readonly pairs: number;
@@ -202,6 +210,25 @@ function responseCost(action: PlayAction, view: BotView): number {
     wildcardOpportunityCost(action, view) +
     attachmentCost(action, view)
   );
+}
+
+/** Read-only C diagnostic. It shares the production response-cost calculation exactly. */
+export function describeNormalVNextAction(
+  action: TurnAction,
+  view: BotView
+): NormalVNextCostBreakdown | undefined {
+  if (!isPlay(action)) return undefined;
+  const rank = actionRankCost(action, view);
+  const structure = structureDamageCost(action, view);
+  const control = controlResourceCost(action, view);
+  const wildcard = wildcardOpportunityCost(action, view);
+  return {
+    rankCost: rank,
+    structureDamageCost: structure,
+    controlResourceCost: control,
+    wildcardOpportunityCost: wildcard,
+    responseCost: rank + structure + control + wildcard + attachmentCost(action, view)
+  };
 }
 
 function directFinish(action: TurnAction, view: BotView): boolean {
