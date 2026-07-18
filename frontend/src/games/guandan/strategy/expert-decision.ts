@@ -110,6 +110,41 @@ function actionSummary(action: import("../turns").TurnAction): Record<string, un
     : { actor: action.actor, type: action.type };
 }
 
+function rankValue(
+  rank: import("../../../platform/types").Rank,
+  levelRank: import("../../../platform/types").Rank
+): number {
+  if (rank === "big-joker") return 17;
+  if (rank === "small-joker") return 16;
+  if (rank === levelRank) return 15;
+  return ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"].indexOf(rank) + 2;
+}
+
+/**
+ * Three-with-pair compares only its main triple in the rule layer, but the
+ * attachment remains a real resource choice.  This extracts an exact,
+ * light-stage attachment value from own cards and the already-public action
+ * interpretation; it never recognises a successor hand.
+ */
+function threeWithPairAttachmentValue(input: {
+  readonly action: import("../turns").TurnAction;
+  readonly selfHand: readonly import("../../../platform/types").Card[];
+  readonly levelRank: import("../../../platform/types").Rank;
+}): number | undefined {
+  if (input.action.type !== "play" || input.action.interpretation.type !== "three-with-pair")
+    return undefined;
+  const cardsById = new Map(input.selfHand.map((card) => [card.id, card]));
+  const counts = new Map<number, number>();
+  for (const cardId of input.action.cardIds) {
+    const card = cardsById.get(cardId);
+    if (!card) return undefined;
+    const projected = input.action.interpretation.wildcardAs[cardId]?.rank ?? card.rank;
+    const value = rankValue(projected, input.levelRank);
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts.entries()].find(([, count]) => count === 2)?.[0];
+}
+
 function fingerprintFor(input: ChooseExpertBotDecisionInput, budget: ExpertDecisionBudget): string {
   const lastEvent = input.view.publicEvents.at(-1);
   return createDecisionFingerprint({
@@ -146,6 +181,9 @@ function signals(input: {
   postAction: ReturnType<typeof evaluatePostActionHand>;
   control: ReturnType<typeof evaluateControlResources>;
   lowestResponseByPattern: ReadonlyMap<string, readonly number[]>;
+  lowestThreeWithPairAttachmentByMain: ReadonlyMap<number, number>;
+  selfHand: readonly import("../../../platform/types").Card[];
+  levelRank: import("../../../platform/types").Rank;
 }): import("./expert-strategy-knowledge-base").StrategySignals {
   const { situation, postAction, control } = input;
   const destroyed = new Set(postAction.destroyedGroups.map((group) => group.kind));
@@ -164,6 +202,20 @@ function signals(input: {
           value > lowest[index]
       );
     })();
+  const attachmentValue = threeWithPairAttachmentValue({
+    action: input.action,
+    selfHand: input.selfHand,
+    levelRank: input.levelRank
+  });
+  const mainTriple =
+    input.action.type === "play" && input.action.interpretation.type === "three-with-pair"
+      ? input.action.interpretation.comparisonKey[0]
+      : undefined;
+  const overbidsLowestThreeWithPairAttachment =
+    mainTriple !== undefined &&
+    attachmentValue !== undefined &&
+    attachmentValue >
+      (input.lowestThreeWithPairAttachmentByMain.get(mainTriple) ?? attachmentValue);
   return {
     preservesNaturalPattern: postAction.destroyedGroups.length === 0,
     hasNaturalAlternative: false,
@@ -196,7 +248,9 @@ function signals(input: {
     hasManyLowSingles: postAction.before.lowSingleCount >= 3,
     preservesSameTypeRecovery: control.preservesRecoveryPoint,
     opponentHasCurrentControl: situation.opponentThreat.currentControlSeat !== undefined,
-    overbidsLowestLegalResponse
+    overbidsLowestLegalResponse,
+    overbidsLowestThreeWithPairAttachment,
+    takesOverTeammateControl: input.action.type === "play" && situation.teammate.isHolding
   };
 }
 
@@ -547,6 +601,7 @@ function chooseExpertBotDecisionInternal(
   });
   const followUpByKey = new Map(followUpSelection.entries.map((entry) => [entry.key, entry]));
   const lowestResponseByPattern = new Map<string, readonly number[]>();
+  const lowestThreeWithPairAttachmentByMain = new Map<number, number>();
   if (input.view.highestSeat !== undefined)
     for (const candidate of baseCandidates) {
       if (candidate.action.type !== "play") continue;
@@ -564,6 +619,20 @@ function chooseExpertBotDecisionInternal(
             value < previous[index]
         );
       if (isLower) lowestResponseByPattern.set(key, comparisonKey);
+      const attachmentValue = threeWithPairAttachmentValue({
+        action: candidate.action,
+        selfHand: input.view.selfHand,
+        levelRank: input.view.levelRank
+      });
+      if (
+        candidate.action.interpretation.type === "three-with-pair" &&
+        attachmentValue !== undefined
+      ) {
+        const mainTriple = candidate.action.interpretation.comparisonKey[0];
+        const previous = lowestThreeWithPairAttachmentByMain.get(mainTriple);
+        if (previous === undefined || attachmentValue < previous)
+          lowestThreeWithPairAttachmentByMain.set(mainTriple, attachmentValue);
+      }
     }
   const candidates = baseCandidates.map((candidate) => {
     const key = `${candidate.physicalKey}|${candidate.semanticKey}`;
@@ -658,7 +727,10 @@ function chooseExpertBotDecisionInternal(
         action: candidate.action,
         postAction: shared.postAction,
         control: shared.control,
-        lowestResponseByPattern
+        lowestResponseByPattern,
+        lowestThreeWithPairAttachmentByMain,
+        selfHand: input.view.selfHand,
+        levelRank: input.view.levelRank
       })
     }));
     const rules = measure("ruleEvaluation", () =>

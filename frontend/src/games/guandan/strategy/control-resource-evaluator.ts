@@ -156,6 +156,20 @@ export function evaluateControlResources(
     remainingReserveCount === 0;
   const preservesRecoveryPoint = after.recoveryPointCount > 0;
   const reasons: string[] = [];
+  // A control card need not be the *last* one to carry an opportunity cost.
+  // In particular, using a joker, level card or AA/high pair as an attachment
+  // can be materially worse than spending an otherwise equivalent low pair.
+  // These are exact facts from the bot's own hand only; they do not infer an
+  // opponent holding or invoke any successor analysis.
+  const spent = new Set(spentResourceCardIds);
+  const spentJoker = before.jokers.cardIds.some((id) => spent.has(id));
+  const spentLevel = before.levelCards.cardIds.some((id) => spent.has(id));
+  const spentAceOrHighPair =
+    before.aces.cardIds.some((id) => spent.has(id)) ||
+    before.highPairs.cardIds.some((id) => spent.has(id));
+  if (!exception && spentJoker) reasons.push("spends_joker_control");
+  if (!exception && spentLevel) reasons.push("spends_level_control");
+  if (!exception && spentAceOrHighPair) reasons.push("spends_ace_or_high_pair_control");
   if (!exception && spendsLastControlResource) reasons.push("spends_last_control_resource");
   if (!exception && lowSinglesRemain && !preservesRecoveryPoint)
     reasons.push("leaves_low_singles_without_recovery");

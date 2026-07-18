@@ -44,7 +44,11 @@ export interface StrategySignals {
   readonly preservesSameTypeRecovery?: boolean;
   /** A same-pattern lower legal response exists in the complete A layer. */
   readonly overbidsLowestLegalResponse?: boolean;
+  /** With the same three-card main rank, a cheaper legal attachment pair exists. */
+  readonly overbidsLowestThreeWithPairAttachment?: boolean;
   readonly opponentHasCurrentControl?: boolean;
+  /** The current public winning play belongs to the teammate. */
+  readonly takesOverTeammateControl?: boolean;
 }
 
 export interface StrategyFeatureSnapshot extends ActionFeatureSnapshot {
@@ -211,7 +215,13 @@ const coreDefinitions: readonly RuleDefinition[] = [
   ["12", "优先减少无法回收的弱散单", 3, "bonus", signal("reducesUnrecoverableLowSingles")],
   ["13", "避免产生孤立三张", -3, "penalty", signal("createsIsolatedTriple")],
   ["14", "避免产生大量弱对子", -3, "penalty", signal("createsWeakPairs")],
-  ["15", "组牌方案保留回收点", 3, "bonus", signal("preservesRecoveryPoint")],
+  [
+    "15",
+    "组牌方案保留回收点",
+    3,
+    "bonus",
+    and(not(action("pass")), signal("preservesRecoveryPoint"))
+  ],
   [
     "16",
     "主攻方案优先减少总手数",
@@ -246,14 +256,14 @@ const coreDefinitions: readonly RuleDefinition[] = [
     "手牌较多时保留高单回收点",
     4,
     "bonus",
-    and((f) => f.phase !== "endgame", signal("preservesRecoveryPoint"))
+    and(not(action("pass")), (f) => f.phase !== "endgame", signal("preservesRecoveryPoint"))
   ],
   [
     "22",
     "手牌较多时保留高对子回收点",
     3,
     "bonus",
-    and((f) => f.phase !== "endgame", signal("preservesSameTypeRecovery"))
+    and(not(action("pass")), (f) => f.phase !== "endgame", signal("preservesSameTypeRecovery"))
   ],
   [
     "23",
@@ -278,7 +288,13 @@ const coreDefinitions: readonly RuleDefinition[] = [
     and(signal("breaksNaturalBomb"), not(signal("endgameBlock")), not(signal("directFinish")))
   ],
   ["27", "取得牌权但无后续则降权", -4, "penalty", (f) => !f.isPass && f.followUp.noUsefulFollowUp],
-  ["28", "保留同型大牌回收弱路", 3, "bonus", signal("preservesSameTypeRecovery")],
+  [
+    "28",
+    "保留同型大牌回收弱路",
+    3,
+    "bonus",
+    and(not(action("pass")), signal("preservesSameTypeRecovery"))
+  ],
   [
     "29",
     "尾局阻断提高控制牌使用意愿",
@@ -387,6 +403,30 @@ const coreDefinitions: readonly RuleDefinition[] = [
       signal("opponentHasCurrentControl"),
       signal("preservesNaturalPattern"),
       not((f) => f.control.spendsLastControlResource)
+    )
+  ],
+  [
+    "43",
+    "队友已公开压住时不得为普通争牌接管牌权；仅直接出完、明确阻断或连续走牌例外",
+    -1000,
+    "hard_exclusion",
+    and(
+      not(action("pass")),
+      signal("takesOverTeammateControl"),
+      not(signal("directFinish")),
+      not(signal("endgameBlock"))
+    )
+  ],
+  [
+    "44",
+    "同一三带二主三张下优先使用最低价值合法附带对子，保留 AA、级牌对子和高对子控制资源",
+    -5,
+    "penalty",
+    and(
+      not(action("pass")),
+      signal("overbidsLowestThreeWithPairAttachment"),
+      not(signal("directFinish")),
+      not(signal("endgameBlock"))
     )
   ]
 ];
