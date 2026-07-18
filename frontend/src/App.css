@@ -29,6 +29,33 @@ header {
 header h1 {
   margin: 0 auto 0 0;
 }
+.preview-profile {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid #4d7890;
+  border-radius: 0.5rem;
+  color: #163f56;
+  font-size: 0.82rem;
+}
+.preview-profile legend {
+  padding: 0 0.2rem;
+  font-weight: 700;
+}
+.preview-profile label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  white-space: nowrap;
+}
+.decision-timing {
+  color: #163f56;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .pwa-update {
   display: flex;
   align-items: center;
@@ -181,6 +208,12 @@ button:disabled {
 .table-status {
   margin-top: 0.5rem !important;
   font-size: 0.85rem;
+}
+.bot-thinking {
+  margin: 0 !important;
+  color: #7d3314;
+  font-size: 0.85rem;
+  font-weight: 800;
 }
 
 .card-count {
