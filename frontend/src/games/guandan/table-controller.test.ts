@@ -63,6 +63,11 @@ test("东家领出后，北家有可压制单张时会接牌", () => {
   const response = chooseTableBotAction(responseGame);
   expect(response).toMatchObject({ type: "play", actor: "north", cardIds: [north.id] });
   expect(chooseTableHintAction(responseGame)).toEqual(response);
+  expect(chooseTableBotAction(responseGame, "normal-vNext")).toMatchObject({
+    type: "play",
+    actor: "north",
+    cardIds: [north.id]
+  });
 });
 
 test("机器人从合法动作中枚举并压制三带二", () => {

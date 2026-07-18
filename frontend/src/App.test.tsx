@@ -34,10 +34,23 @@ function memoryStorage(
 }
 
 describe("App", () => {
+  it("Preview 保持 normal-v1 默认，并允许切换到 normal-vNext", () => {
+    render(<App storage={memoryStorage()} />);
+
+    const v1 = screen.getByRole("radio", { name: "普通 normal-v1（默认）" });
+    const vNext = screen.getByRole("radio", { name: "普通 normal-vNext（Preview）" });
+    expect(v1).toBeChecked();
+    expect(vNext).not.toBeChecked();
+
+    fireEvent.click(vNext);
+    expect(vNext).toBeChecked();
+    expect(v1).not.toBeChecked();
+  });
+
   it("Preview 默认保持 normal，并允许显式切换到 expert-24 后展示决策诊断", async () => {
     render(<App storage={memoryStorage()} />);
 
-    const normal = screen.getByRole("radio", { name: "普通（默认）" });
+    const normal = screen.getByRole("radio", { name: "普通 normal-v1（默认）" });
     const expert = screen.getByRole("radio", { name: "专家-24（Preview）" });
     expect(normal).toBeChecked();
     expect(expert).not.toBeChecked();

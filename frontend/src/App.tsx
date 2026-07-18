@@ -432,7 +432,16 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
               checked={botProfile === "normal"}
               onChange={() => setBotProfile("normal")}
             />
-            普通（默认）
+            普通 normal-v1（默认）
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="bot-profile"
+              checked={botProfile === "normal-vNext"}
+              onChange={() => setBotProfile("normal-vNext")}
+            />
+            普通 normal-vNext（Preview）
           </label>
           <label>
             <input
@@ -589,7 +598,11 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
           </p>
           {botThinking ? (
             <p className="bot-thinking" role="status">
-              {botProfile === "expert" ? "专家-24 正在思考…" : "机器人正在思考…"}
+              {botProfile === "expert"
+                ? "专家-24 正在思考…"
+                : botProfile === "normal-vNext"
+                  ? "normal-vNext 正在思考…"
+                  : "机器人正在思考…"}
             </p>
           ) : null}
         </section>

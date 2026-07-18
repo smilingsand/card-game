@@ -1,6 +1,7 @@
 import { dealFourPlayers, generateDeck, shuffleDeck } from "../../platform/deck";
 import type { Card, Event, Rank, Seat } from "../../platform/types";
 import { chooseNormalBotAction } from "./normal-bot";
+import { chooseNormalVNextBotAction } from "./normal-vnext-bot";
 import { createBotView } from "./bot-view";
 import { getLegalActions } from "./legal-actions";
 import { recognizePatterns, type PatternInterpretation } from "./patterns";
@@ -33,7 +34,8 @@ export interface CandidateProfileConfig {
   };
 }
 
-export type TableStrategyProfile = StrategyProfileId;
+/** `normal` is the frozen normal-v1 baseline; normal-vNext is Preview-only. */
+export type TableStrategyProfile = StrategyProfileId | "normal-vNext";
 
 export interface TableGame {
   readonly cardsById: ReadonlyMap<string, Card>;
@@ -166,7 +168,7 @@ export function chooseTableStrategicDecision(
   game: TableGame,
   profile: TableStrategyProfile = "normal"
 ): StrategyDecision | undefined {
-  if (profile !== "normal") {
+  if (profile === "expert" || profile === "experimental") {
     const legalActions = getCompleteLegalCandidates({
       state: game.state,
       selfHand: game.state.hands[game.state.current]
@@ -181,13 +183,29 @@ export function chooseTableStrategicDecision(
     });
   }
 
-  const legalActions = getLegalBotActions(game);
-  const normalDecision = chooseNormalBotAction(createTableBotView(game, legalActions));
+  const legalActions =
+    profile === "normal-vNext"
+      ? getCompleteLegalCandidates({
+          state: game.state,
+          selfHand: game.state.hands[game.state.current]
+            .map((cardId) => game.cardsById.get(cardId))
+            .filter((card): card is Card => card !== undefined),
+          levelRank: game.levelRank ?? INITIAL_LEVEL_RANK
+        })
+      : getLegalBotActions(game);
+  const botView = createTableBotView(game, legalActions);
+  const normalDecision =
+    profile === "normal-vNext"
+      ? chooseNormalVNextBotAction(botView)
+      : chooseNormalBotAction(botView);
   return normalDecision
     ? createNormalBaselineDecision({
         legalActions,
         selectedAction: normalDecision.action,
-        reasons: normalDecision.reasons
+        reasons:
+          profile === "normal-vNext"
+            ? ["normal-vNext Preview（未替换默认 normal-v1）", ...normalDecision.reasons]
+            : normalDecision.reasons
       })
     : undefined;
 }
