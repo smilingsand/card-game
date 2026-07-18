@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { chooseNormalVNextBotAction } from "./normal-vnext-bot";
+import { analyzeNormalVNextHand, chooseNormalVNextBotAction } from "./normal-vnext-bot";
 import type { Card } from "../../platform/types";
 import type { TurnAction } from "./turns";
 
@@ -323,4 +323,48 @@ test("A：普通中局不拆炸弹、钢板或完整连对来接小单", () => {
       })
     )?.action
   ).toBe(pass);
+});
+
+test("B：对手剩余 5 张时，三张拆分的有限成本可用于争牌", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const splitTriple = single("seven-1", 7);
+
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        selfHand: [card("seven-1", "7"), card("seven-2", "7"), card("seven-3", "7")],
+        legalActions: [pass, splitTriple],
+        remainingCardCounts: { east: 3, south: 5, west: 8, north: 8 }
+      })
+    )?.action
+  ).toBe(splitTriple);
+});
+
+test("B：轻量手牌分析只从 BotView 统计结构与控制资源", () => {
+  const analysis = analyzeNormalVNextHand(
+    baseView({
+      selfHand: [
+        card("3a", "3"),
+        card("3b", "3"),
+        card("4a", "4"),
+        card("4b", "4"),
+        card("4c", "4"),
+        card("5a", "5"),
+        card("5b", "5"),
+        card("5c", "5"),
+        card("5d", "5"),
+        { ...card("wild", "2"), suit: "hearts" },
+        card("ace", "A"),
+        card("joker", "small-joker")
+      ]
+    })
+  );
+
+  expect(analysis).toMatchObject({
+    pairs: 1,
+    triples: 1,
+    bombs: 1,
+    wildcardCount: 1,
+    controlCards: 3
+  });
 });

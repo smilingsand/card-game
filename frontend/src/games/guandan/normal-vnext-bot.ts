@@ -20,6 +20,19 @@ const BREAK_BOMB_COST = 100_000;
 
 type PlayAction = Extract<TurnAction, { readonly type: "play" }>;
 
+export interface NormalVNextHandAnalysis {
+  readonly singles: number;
+  readonly pairs: number;
+  readonly triples: number;
+  readonly threeWithPairPotential: number;
+  readonly straights: number;
+  readonly consecutivePairs: number;
+  readonly steelPlates: number;
+  readonly bombs: number;
+  readonly wildcardCount: number;
+  readonly controlCards: number;
+}
+
 function isPlay(action: TurnAction): action is PlayAction {
   return action.type === "play";
 }
@@ -69,6 +82,39 @@ function sequences(length: number): readonly (readonly Card["rank"][])[] {
     normalRanks.slice(start, start + length)
   );
   return length === 5 ? [...standard, ["A", "2", "3", "4", "5"]] : standard;
+}
+
+/** Lightweight, deterministic hand summary. It is advisory only and never creates actions. */
+export function analyzeNormalVNextHand(view: BotView): NormalVNextHandAnalysis {
+  const groups = naturalGroups(view);
+  const counts = [...groups.values()].map((group) => group.length);
+  const hasPattern = (copies: number, length: number) =>
+    sequences(length).filter((sequence) =>
+      sequence.every((rank) => (groups.get(rank)?.length ?? 0) >= copies)
+    ).length;
+  const wildcardCount = view.selfHand.filter(
+    (card) => card.suit === "hearts" && card.rank === view.levelRank
+  ).length;
+  const controlCards = view.selfHand.filter(
+    (card) =>
+      card.rank === "A" ||
+      card.rank === view.levelRank ||
+      card.rank === "small-joker" ||
+      card.rank === "big-joker"
+  ).length;
+  const triples = counts.filter((count) => count === 3).length;
+  return {
+    singles: counts.filter((count) => count === 1).length,
+    pairs: counts.filter((count) => count === 2).length,
+    triples,
+    threeWithPairPotential: Math.min(triples, counts.filter((count) => count >= 2).length),
+    straights: hasPattern(1, 5),
+    consecutivePairs: hasPattern(2, 3),
+    steelPlates: hasPattern(3, 2),
+    bombs: counts.filter((count) => count >= 4).length,
+    wildcardCount,
+    controlCards
+  };
 }
 
 function belongsToNaturalSequence(
@@ -169,6 +215,23 @@ function opponentThreat(view: BotView, maximum: number): boolean {
   );
 }
 
+function opponentContestStreak(view: BotView): number {
+  let streak = 0;
+  for (const event of [...view.publicEvents].reverse()) {
+    if (event.actorId === view.selfSeat || event.actorId === teammate[view.selfSeat]) break;
+    if (event.type !== "guandan.turn_action") break;
+    streak += 1;
+  }
+  return streak;
+}
+
+function allowedStructureDamage(view: BotView): number {
+  if (opponentThreat(view, 2)) return BREAK_BOMB_COST;
+  if (opponentThreat(view, 3)) return BREAK_STEEL_PLATE_COST;
+  if (opponentThreat(view, 5) || opponentContestStreak(view) >= 2) return BREAK_TRIPLE_COST;
+  return BREAK_PAIR_COST - 1;
+}
+
 function rankResponseCandidates(view: BotView): readonly PlayAction[] {
   const plays = view.legalActions.filter(isPlay);
   const hasNonBomb = plays.some((action) => !bombs.has(action.interpretation.type));
@@ -204,12 +267,9 @@ export function chooseNormalVNextBotAction(view: BotView): NormalBotDecision | u
   if (view.highestSeat === teammate[view.selfSeat] && pass && !finish)
     return { action: pass, score: 0, reasons: ["normal-vNext：队友持权，默认不接管"] };
 
-  const canSpendHighDamage = opponentThreat(view, 2);
+  const damageLimit = allowedStructureDamage(view);
   const safeCandidates = candidates.filter(
-    (action) =>
-      directFinish(action, view) ||
-      canSpendHighDamage ||
-      structureDamageCost(action, view) < BREAK_TRIPLE_COST
+    (action) => directFinish(action, view) || structureDamageCost(action, view) <= damageLimit
   );
   const selected: TurnAction | undefined =
     finish ?? safeCandidates.at(0) ?? pass ?? candidates.at(0);
