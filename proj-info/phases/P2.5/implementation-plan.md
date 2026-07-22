@@ -2,7 +2,7 @@
 
 > 历史归档，已于 2026-07-22 撤销。本文仅保留原始计划证据，不是可执行计划。
 
-> 状态：用户已于 2026-07-16 确认修订计划；P2.5A 实施尚未开始，所有生产任务仍为 `not_started`。
+> 历史归档：2026-07-22 已撤销。本文件保留原设计，不是可启动计划；现行状态见 `tasks.md`。
 >
 > 设计依据：[`docs/Guandan_Expert_Bot_Design_Specification_v1.0.md`](../../../docs/Guandan_Expert_Bot_Design_Specification_v1.0.md) 是 P2.5 最高级设计依据；本计划负责把其长期目标拆成可交付、可测试、可回滚的小阶段。现有规则引擎边界、`BotView` 信息公平、可注册策略库、可解释评分和确定性设计继续有效。
 
@@ -315,7 +315,7 @@ flowchart LR
 
 ## 9. 固定牌例与自动对局专项指标
 
-P2.5A 固定专家牌例门槛为 50 个，目录见 [expert-scenario-catalog.md](expert-scenario-catalog.md)。每例包含完整己方手牌、公开局面、合法候选、推荐/拒绝动作、允许备选、期望分析特征和解释断言。30—40 条规则只是规模门槛，不能替代覆盖门槛：天然对子优先、天然炸弹保护、逢人配机会成本、不无意义拆炸、控制牌保留、DeadHandRisk、合理过牌、后续路线和尾局例外必须全部进入阻断发布的固定牌例。
+P2.5A 固定专家牌例门槛原为 50 个；对应目录已随撤销从工作树移除，仅能在 Git 历史中追溯。每例原本包含完整己方手牌、公开局面、合法候选、推荐/拒绝动作、允许备选、期望分析特征和解释断言。30—40 条规则只是规模门槛，不能替代覆盖门槛：天然对子优先、天然炸弹保护、逢人配机会成本、不无意义拆炸、控制牌保留、DeadHandRisk、合理过牌、后续路线和尾局例外必须全部进入阻断发布的固定牌例。
 
 自动对局除胜率和合法性外，至少统计：
 
@@ -367,7 +367,7 @@ P2.5A 固定专家牌例门槛为 50 个，目录见 [expert-scenario-catalog.md
 - `proj-info/phases/P2.5/tasks.md`
 - `proj-info/phases/P2.5/test-matrix.md`
 - `proj-info/phases/P2.5/README.md`
-- `proj-info/phases/P2.5/expert-scenario-catalog.md`（新增）
+- 专家牌例目录已随撤销从工作树移除，仅保留 Git 历史。
 - `proj-info/phases/P2.5/release.md`
 - `proj-info/phases/P1-P3-execution-plan.md`
 - `docs/基础机器人策略说明_V2.md`
@@ -380,7 +380,7 @@ P2.5A 固定专家牌例门槛为 50 个，目录见 [expert-scenario-catalog.md
 - `frontend/src/games/guandan/bot-benchmark.ts`
 - 对应的 analyzer、候选、评分、牌例、模拟器和组件测试文件
 
-本计划已经用户确认，但不自动启动生产改造。P2-06 已于 2026-07-16 变为 `accepted`；只有 P2.5-01 正式标记 `in_progress` 后，才按任务顺序开始实施。
+本计划曾经获得用户确认，但已于 2026-07-22 撤销；不得再将 P2.5-01 标记为 `in_progress`。
 
 ## 12. 已确认的设计决策
 
@@ -391,4 +391,4 @@ P2.5A 固定专家牌例门槛为 50 个，目录见 [expert-scenario-catalog.md
 5. 机器人能力采用 Bot-AI 2.0—5.0 独立编号，不占用项目既有 P3 及后续产品阶段编号。
 6. `needs_expert_validation` 可进入默认专家 profile，但必须通过全部默认资格门禁；`experimental` 是独立成熟度状态，只能进入实验 profile。
 
-以上决策已经冻结为 P2.5-02 ADR 的输入。P2.5-01—17 及 P2.5B/C 当前仍保持 `not_started`；本次确认不等于授权跳过依赖或直接大规模修改生产代码。
+以上决策是 P2.5 历史 ADR 的输入。P2.5-01—17 及 P2.5B/C 均为 `revoked`；恢复必须先经过新的 ADR 和独立验收。

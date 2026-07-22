@@ -2,7 +2,7 @@
 
 ## 使用规则
 
-- 状态仅可按 `not_started → in_progress → ready_for_acceptance → accepted` 前进；`blocked` 必须写明阻塞原因和下一步。
+- 活动任务状态仅可按 `not_started → in_progress → ready_for_acceptance → accepted` 前进；`blocked` 必须写明阻塞原因和下一步。`revoked` 仅用于已归档且不可执行的历史任务。
 - 只启动依赖全部为 `accepted` 的最小任务；一个 session 默认只推进一个任务。
 - “测试条件”是最低门槛，“验收标准”必须有命令输出、固定 seed、截图或发布记录可追溯。
 - P0 未关闭 `docs/resolved-rules.md` 中所有待确认项前，P1-01 不得开始。
@@ -237,29 +237,30 @@
 > 下表保留为历史计划，不得据此启动任务。恢复 P2.5 必须先新增 ADR、重新评审并
 > 通过人工 Preview 验收。详见 `proj-info/phases/P2.5/tasks.md` 与 ADR-0024。
 
-> `docs/Guandan_Expert_Bot_Design_Specification_v1.0.md` 是 P2.5 最高级设计依据。用户已于 2026-07-16 确认“整手组牌方案 + 动作后余牌质量 + 控制资源预算 + 争夺价值 + 至少一手后续路线”以及 P2.5A/B/C 分期。实施入口见 `proj-info/phases/P2.5/`。P2.5 不改规则引擎，不读取隐藏手牌，不引入大模型、强化学习或蒙特卡洛模拟；P2-06 门禁已满足，实现仍须从 P2.5-01 按依赖启动。
+> 下表是撤销时的历史任务清单，所有条目均为 `revoked`，不构成实施授权。
 
 | 任务    | 依赖                                                 | 工作内容                             | 核心验证                                                            | 状态        |
 | ------- | ---------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------- | ----------- |
-| P2.5-01 | P2-06                                                | 决策流、候选生成与模拟器审计基线。   | 七类试玩失误、候选缺口、空公开事件和性能基线。                      | not_started |
-| P2.5-02 | P2.5-01                                              | 架构/数据契约/性能 ADR。             | analyzer、hand plan、缓存、9 项指标、profile、确定性与分档预算。    | not_started |
-| P2.5-03 | P2.5-01                                              | 50 个专家牌例目录与 fixture schema。 | 推荐/拒绝/备选、结构/动作后/资源/争夺/路线断言。                    | not_started |
-| P2.5-04 | P2.5-02, P2.5-03                                     | HandStructureAnalyzer。              | 三种来源、四王炸、天然/逢人配组合、散牌和控制/回收牌。              | not_started |
-| P2.5-05 | P2.5-04                                              | HandPlanGenerator。                  | 确定性 Top-N 四类整手方案、预计手数、roleFit、finishability、风险。 | not_started |
-| P2.5-06 | P2.5-02, P2.5-03                                     | SituationAnalyzer。                  | 公开事件、威胁、队友状态、攻助角色和置信度。                        | not_started |
-| P2.5-07 | P2.5-04, P2.5-05                                     | 候选生成 2.0。                       | 三连对、钢板、合理逢人配、同花顺、四王炸和 hand-plan 候选。         | not_started |
-| P2.5-08 | P2.5-04, P2.5-05, P2.5-07                            | PostActionHandEvaluator。            | 每候选动作后重新组牌并比较余牌质量。                                | not_started |
-| P2.5-09 | P2.5-04, P2.5-06, P2.5-08                            | ControlResourceEvaluator。           | 王/级牌/逢人配/A/高对子/炸弹预算和例外。                            | not_started |
-| P2.5-10 | P2.5-05, P2.5-06, P2.5-07, P2.5-08, P2.5-09          | FollowUpPlanner。                    | 至少前看自己的下一手和连续出完路线。                                | not_started |
-| P2.5-11 | P2.5-06, P2.5-08, P2.5-09, P2.5-10                   | ContestEvaluator。                   | 删除机械争夺，综合威胁、收益、成本和后续路线。                      | not_started |
-| P2.5-12 | P2.5-08, P2.5-09, P2.5-10, P2.5-11                   | ActionFeatureExtractor。             | 统一引用动作后、控制、争夺和路线特征。                              | not_started |
-| P2.5-13 | P2.5-02, P2.5-03, P2.5-06, P2.5-08, P2.5-09, P2.5-11 | ExpertStrategyKnowledgeBase v1。     | 30–40 条且覆盖九类错误；evidence/maturity、测试、牌例、开关和解释。 | not_started |
-| P2.5-14 | P2.5-12, P2.5-13                                     | ActionScorer/ActionSelector。        | 整手规划驱动评分、稳定 tie-break、无机械极值。                      | not_started |
-| P2.5-15 | P2.5-14                                              | DecisionExplanation/Profile。        | expert/normal/experimental；机器人/提示共用入口；证据解释不入存档。 | not_started |
-| P2.5-16 | P2.5-07, P2.5-14, P2.5-15                            | 模拟器、九项专项指标与分档性能。     | 完整候选、累计公开事件、10,000 局、头游/双上与平均/P95。            | not_started |
-| P2.5-17 | P2.5-03, P2.5-16                                     | 校准、全量验收与发布。               | 50 例及九类错误通过后，机器人/提示默认 expert；normal 对照及回滚。  | not_started |
+| P2.5-01 | P2-06                                                | 决策流、候选生成与模拟器审计基线。   | 七类试玩失误、候选缺口、空公开事件和性能基线。                      | revoked |
+| P2.5-02 | P2.5-01                                              | 架构/数据契约/性能 ADR。             | analyzer、hand plan、缓存、9 项指标、profile、确定性与分档预算。    | revoked |
+| P2.5-03 | P2.5-01                                              | 50 个专家牌例目录与 fixture schema。 | 推荐/拒绝/备选、结构/动作后/资源/争夺/路线断言。                    | revoked |
+| P2.5-04 | P2.5-02, P2.5-03                                     | HandStructureAnalyzer。              | 三种来源、四王炸、天然/逢人配组合、散牌和控制/回收牌。              | revoked |
+| P2.5-05 | P2.5-04                                              | HandPlanGenerator。                  | 确定性 Top-N 四类整手方案、预计手数、roleFit、finishability、风险。 | revoked |
+| P2.5-06 | P2.5-02, P2.5-03                                     | SituationAnalyzer。                  | 公开事件、威胁、队友状态、攻助角色和置信度。                        | revoked |
+| P2.5-07 | P2.5-04, P2.5-05                                     | 候选生成 2.0。                       | 三连对、钢板、合理逢人配、同花顺、四王炸和 hand-plan 候选。         | revoked |
+| P2.5-08 | P2.5-04, P2.5-05, P2.5-07                            | PostActionHandEvaluator。            | 每候选动作后重新组牌并比较余牌质量。                                | revoked |
+| P2.5-09 | P2.5-04, P2.5-06, P2.5-08                            | ControlResourceEvaluator。           | 王/级牌/逢人配/A/高对子/炸弹预算和例外。                            | revoked |
+| P2.5-10 | P2.5-05, P2.5-06, P2.5-07, P2.5-08, P2.5-09          | FollowUpPlanner。                    | 至少前看自己的下一手和连续出完路线。                                | revoked |
+| P2.5-11 | P2.5-06, P2.5-08, P2.5-09, P2.5-10                   | ContestEvaluator。                   | 删除机械争夺，综合威胁、收益、成本和后续路线。                      | revoked |
+| P2.5-12 | P2.5-08, P2.5-09, P2.5-10, P2.5-11                   | ActionFeatureExtractor。             | 统一引用动作后、控制、争夺和路线特征。                              | revoked |
+| P2.5-13 | P2.5-02, P2.5-03, P2.5-06, P2.5-08, P2.5-09, P2.5-11 | ExpertStrategyKnowledgeBase v1。     | 30–40 条且覆盖九类错误；evidence/maturity、测试、牌例、开关和解释。 | revoked |
+| P2.5-14 | P2.5-12, P2.5-13                                     | ActionScorer/ActionSelector。        | 整手规划驱动评分、稳定 tie-break、无机械极值。                      | revoked |
+| P2.5-15 | P2.5-14                                              | DecisionExplanation/Profile。        | expert/normal/experimental；机器人/提示共用入口；证据解释不入存档。 | revoked |
+| P2.5-16 | P2.5-07, P2.5-14, P2.5-15                            | 模拟器、九项专项指标与分档性能。     | 完整候选、累计公开事件、10,000 局、头游/双上与平均/P95。            | revoked |
+| P2.5-17 | P2.5-03, P2.5-16                                     | 校准、全量验收与发布。               | 50 例及九类错误通过后，机器人/提示默认 expert；normal 对照及回滚。  | revoked |
 
-P2.5A 完成 P2.5-01—17 后可独立发布 Bot-AI 2.0；P2.5B 追加组牌/控制规则与 S51—S75，P2.5C 追加 Bot-AI 2.1 增强记牌、Bot-AI 2.2 队友意图及 S76—S100。Bot-AI 3.0—5.0 是独立未来研究编号，不占用既有 P3 多人服务端阶段。详细增量任务和回滚边界只在 `proj-info/phases/P2.5/tasks.md` 维护。
+P2.5A/B/C 和 Bot-AI 2.x 的原始规划仅作历史追溯。未来机器人改进应以
+normal-vNext 的独立任务和 ADR 重新规划，不占用 P3 多人服务端阶段编号。
 
 ## P3：多人联网掼蛋
 

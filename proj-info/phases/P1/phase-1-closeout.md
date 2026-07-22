@@ -31,4 +31,6 @@ P1-01 至 P1-20 均已验收。P1 交付浏览器内的单人本地掼蛋：南�
 
 本次完结已在 `frontend/` 依次通过 `npm.cmd run format:check`、`npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run test:run` 和 `npm.cmd run build`。Vitest 为 19 个测试文件 / 98 项通过，包含 1,000 局自动对局；生产构建通过。实际发布证据见 [release.md](release.md)。
 
-P2-01 至 P2-05 已验收，P2-06 已完成发布和 Chrome 验收，仍待 iPhone Safari 主屏离线启动的最终人工复测。下一开发阶段为 P3，入口见 `../P1-P3-execution-plan.md`。
+P2-01 至 P2-06 均已验收；P2-06 的 iPhone Safari 主屏离线启动与更新提示复测已于
+2026-07-16 完成。P2.5 expert 路线已于 2026-07-22 撤销，normal-vNext 为唯一产品
+机器人。下一可启动产品阶段为 P3，入口见 `../P1-P3-execution-plan.md`。

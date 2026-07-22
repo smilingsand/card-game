@@ -2,6 +2,10 @@
 
 状态：P2-06 `accepted`（2026-07-16）。
 
+> 注意：本记录中的 Production deployment 仅对应 P2-06。当 main 在 2026-07-22 收敛为
+> normal-vNext 唯一产品策略后，尚未在本文件记录新的 Preview 或 Production 验收；不得把
+> 下述旧部署视为当前策略版本的发布证据。
+
 - Preview：<https://card-game-mf2xxwu9v-wentop.vercel.app>
 - Production：<https://card-game-wentop.vercel.app>
 - 当前 Production deployment：`dpl_6i79U85p4bAstRwUowj3guxaETAf`（Ready，`guandan-v5`）

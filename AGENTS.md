@@ -7,7 +7,7 @@
 - 产品：可扩展的双副牌扑克游戏平台；第一款完整游戏是单人本地掼蛋。
 - 当前阶段：P0 规则冻结完成前，禁止实现正式规则、UI、机器人或联网功能。
 - P1 范围：浏览器内的 1 名人类 + 3 个基础机器人、确定性规则、本地 IndexedDB 存档；无账号、后端、数据库、联网、排行榜或付费功能。
-- P2 范围：同一前端的移动/PWA 和策略机器人；不得改变已冻结规则。
+- P2 范围：同一前端的移动/PWA 和策略机器人；不得改变已冻结规则。当前唯一产品机器人为 normal-vNext；normal-v1 只作离线历史对照，P2.5 expert 路线已撤销，恢复必须先新增 ADR。
 - P3 范围：权威服务端、多玩家房间、重连和托管；客户端不得裁决规则或持有他人手牌。
 
 ## 2. 事实来源与规则优先级
@@ -15,7 +15,7 @@
 1. 当前用户明确要求；
 2. `docs/resolved-rules.md`（规则实现唯一产品口径，须先关闭其中的待确认项）；
 3. `docs/architecture.md`；
-4. `proj-info/phases/P1-P3-execution-plan.md`（任务状态和验收门槛）；
+4. `proj-info/phases/P1-P3-execution-plan.md`（活动任务状态和验收门槛；P2.5 为历史归档）；
 5. 原始规则 PDF 和初步需求文档（仅作追溯资料，不可在运行时解释规则）。
 
 任何规则、事件 schema、存档 schema、随机数、多人协议或第三方服务的不可逆选择，先写 ADR，再实现。
@@ -46,7 +46,7 @@ temp/       可删除的中间产物，永不提交
 
 ## 5. 执行、测试与发布
 
-1. 从 `proj-info/phases/P1-P3-execution-plan.md` 选择唯一一个依赖已满足的 `not_started` 任务，并将其标记为 `in_progress`。
+1. 从 `proj-info/phases/P1-P3-execution-plan.md` 选择唯一一个依赖已满足且非 `revoked` 的 `not_started` 任务，并将其标记为 `in_progress`。
 2. 先写/更新固定牌例或失败测试，再写最小实现；不在同一任务中顺带扩展其他阶段。
 3. 任务完成后依次运行：格式化 → typecheck → lint → 单元/固定牌例 → 自动对局（适用时）→ E2E 冒烟（适用时）。
 4. 只有所有测试条件通过、验收标准有证据、阶段文档更新后，才将任务标记为 `accepted`。
@@ -56,6 +56,6 @@ temp/       可删除的中间产物，永不提交
 
 ## 6. 上下文管理
 
-- 开始 session：阅读本文件、活动阶段计划、最新 ADR、`docs/resolved-rules.md`、最近的 `release.md` 和 `git status --short`。
+- 开始 session：阅读本文件、[阶段入口](proj-info/phases/README.md)、活动阶段计划、最新 ADR、`docs/resolved-rules.md`、最近的 `release.md` 和 `git status --short`。
 - 结束或交接：更新任务状态、实际验证命令/结果、已知风险；未完成工作写入 `proj-info/handoffs/`。
 - 聊天记录不是项目事实来源；长期结论必须写入 `proj-info/` 或 `docs/`。

@@ -4,23 +4,25 @@
 
 ## 当前状态
 
-P1 已完成；P2 已交付响应式牌桌、PWA 离线静态壳和普通难度策略机器人。当前 Production 项目为 `wentop/card-game`，公网入口为 <https://card-game-wentop.vercel.app>；访问状态、部署与回滚信息见 [P2 发布记录](proj-info/phases/P2/release.md)。
+P1、P2 已完成。当前本地 `main` 使用 normal-vNext 作为唯一产品机器人策略；机器人和提示只消费 BotView 与规则层提供的合法动作。P2.5 expert-24 路线已撤销并作为可恢复历史归档，详见 [ADR-0024](proj-info/adr/ADR-0024-normal-vnext-strategy-replacement.md)。
 
-P2-01 至 P2-05 已验收。P2-06 的 Preview/Production 发布、Chrome 离线/更新复核和移动视口检查已完成；iPhone Safari 的“添加到主屏幕后离线启动”仍待最终人工复测，故 P2-06 保持 `ready_for_acceptance`。任务顺序与验收证据见 [P2 阶段记录](proj-info/phases/P2/README.md) 和 [P1-P3 执行计划](proj-info/phases/P1-P3-execution-plan.md)。下一开发阶段为 P3。
+P2-01 至 P2-06 均已验收，包含 PWA、Production 与 iPhone Safari 离线复测。当前线上部署记录仍对应 P2-06；normal-vNext 收敛后的下一次发布须重新完成 Preview/Production 验收。任务顺序与验收证据见 [阶段入口](proj-info/phases/README.md) 和 [P1-P3 执行计划](proj-info/phases/P1-P3-execution-plan.md)。下一可启动产品阶段为 P3。
 
 ## 文档入口
 
 - [已采用的掼蛋规则](docs/掼蛋规则(被采用)_V1.md)
-- [基础机器人策略](docs/基础机器人策略说明_V1.md)
+- [当前机器人策略说明](docs/基础机器人策略说明_V2.md)
 - [统一掼蛋规则口径](docs/resolved-rules.md)
 - [架构基线](docs/architecture.md)
 - [P1 完结交接记录](proj-info/phases/P1/phase-1-closeout.md)
 - [P2 阶段记录](proj-info/phases/P2/README.md)
 - [P2 验收矩阵](proj-info/phases/P2/test-matrix.md)
+- [策略收敛 ADR](proj-info/adr/ADR-0024-normal-vnext-strategy-replacement.md)
+- [阶段文档入口](proj-info/phases/README.md)
 - [平台路线图](proj-info/00-平台规划与会话记忆/platform-roadmap.md)
 - [跨会话记忆规范](proj-info/00-平台规划与会话记忆/session-memory-playbook.md)
 - [项目级开发规范](AGENTS.md)
 
 ## 目录
 
-`docs/` 保存规则和使用说明；`proj-info/` 保存计划、ADR、验收与发布记录；`frontend/` 和 `backend/` 分别在 P1/P3 创建；`tools/` 仅存可复用工具；`temp/` 存可删除临时文件且不提交。
+`docs/` 保存规则和使用说明；`proj-info/` 保存计划、ADR、验收与发布记录；`frontend/` 保存浏览器应用；`backend/` 预留给 P3；`tools/` 仅存可复用工具；`temp/` 存可删除临时文件且不提交。
