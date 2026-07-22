@@ -11,7 +11,8 @@
 - Vercel Production：`dpl_EdpHsAKzhmCUyjHUTPuHBXJjxnYQ`，2026-07-23 由 `wentop/card-game` 远端构建完成；构建执行 `npm run build`、TypeScript 检查和 Vite 构建均通过。
 - 部署详情：[Vercel Inspect](https://vercel.com/wentop/card-game/EdpHsAKzhmCUyjHUTPuHBXJjxnYQ)；不可变部署地址：`https://card-game-r30w56pj1-wentop.vercel.app`。
 - 正式入口：`https://card-game-wentop.vercel.app/`，已重新绑定到上述部署，并以匿名 HTTPS 请求确认 HTTP 200 与应用根节点存在。
-- 发布状态：**Production 已完成并公开可访问。** 尚未单独创建 P2.7 Preview；移动端/PWA 人工复测按后续实际发布风险执行，不得以 P2-06 的历史真机证据替代 P2.7 的新人工证据。
+- 人工验收：2026-07-23，用户已在正式入口完成试玩并明确确认验收；本版在此收口。
+- 发布状态：**Production 已完成、公开可访问且人工验收通过。** 未单独创建 P2.7 Preview；未来如产生移动端/PWA 风险变更，仍须补充相应人工证据，不得以 P2-06 的历史真机证据替代新变更的验收。
 
 ## P2-06 历史 Production 记录
 

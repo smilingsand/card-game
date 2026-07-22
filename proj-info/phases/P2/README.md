@@ -15,4 +15,4 @@
 - 明牌时后出牌覆盖先出牌的桌面层级；
 - 只读 BotView、完整规则层 legalActions 与统一规则校验。
 
-本地回归已通过；P2.7 已于 2026-07-23 部署到 Vercel Production，正式入口为 `https://card-game-wentop.vercel.app/`。尚未单独创建 P2.7 Preview；详情见 `tasks.md`、`test-matrix.md` 和 `release.md`。
+本地回归与 Production 人工试玩已通过；P2.7 已于 2026-07-23 部署到 Vercel Production，正式入口为 `https://card-game-wentop.vercel.app/`。本版已收口；详情见 `tasks.md`、`test-matrix.md` 和 `release.md`。

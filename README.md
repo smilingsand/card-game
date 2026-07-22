@@ -10,7 +10,7 @@
 - normal-v1 仅作离线历史对照；P2.5 expert-24 已撤销为可恢复 Git 历史，详见 [ADR-0024](proj-info/adr/ADR-0024-normal-vnext-strategy-replacement.md)。
 - normal-vNext 只消费 BotView 和规则层 `legalActions`，不读取隐藏手牌。
 - 本地版本已包含：尾局下家阻断、合法动作兜底、自然中小结构争牌、控制资源保护，以及明牌时按出牌先后显示覆盖关系。
-- P2.7 已部署到 Vercel Production；正式入口为 `https://card-game-wentop.vercel.app/`。P2.7 尚未单独创建 Preview，移动端/PWA 人工复测按后续风险执行。
+- P2.7 已部署到 Vercel Production 并完成用户人工试玩验收；正式入口为 `https://card-game-wentop.vercel.app/`。未来的移动端/PWA 风险变更按需单独复测。
 
 下一项产品阶段任务为 P3-01。任务顺序和验收门槛以 [P1-P3 执行计划](proj-info/phases/P1-P3-execution-plan.md) 为准。
 
