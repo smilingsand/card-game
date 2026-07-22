@@ -230,6 +230,12 @@
 - 回归修复（2026-07-15）：用户截图确认横排手牌的点击区域宽于牌面，现使 `.human-hand.flat .hand-card` 在桌面和移动断点均与实际牌面等宽。另发现正式牌桌错误调用初级机器人，导致跟牌时把四张炸弹误判为比三带二更低代价、拆小王对子和自然顺子；现改为接入普通策略机器人。新增三个固定牌例：同型三带二优先于无必要炸弹、单 A 时保留小王对子而走大王、面对小单张优先用小王而不拆 10-J-Q-K-A。主验收串行运行 `format:check`、`typecheck`、`lint`、`test:run -- --configLoader runner --maxWorkers=1 --minWorkers=1`（24 files / 118 tests）、生产构建 `D:\MyWorks\card-game\temp\strategy-ui-fix-build` 与 `git diff --check` 均通过。此修复尚待随下一次 Production 部署发布。
 - 规则与布局回归（2026-07-15）：修复级牌连续牌比较错误并通过 ADR-0015 将规则版本升级为 `guandan-v5`；连续牌型中级牌按普通点数，`A2345` 的 A 为最小端。固定牌例覆盖打 5 时 `334455` 不可压 `778899`、`444555` 与 `A2345` 的普通比较键。南家“不要”改为与公开牌相同高度的动作容器内底部对齐，消除其与出牌牌面下缘不齐造成的空档。主验收通过 `format:check`、`typecheck`、`lint`、串行 `test:run`（24 files / 119 tests）、生产构建与 `git diff --check`；提交 `d8d4e2b` 已推送 GitHub，并部署到 Production `dpl_6i79U85p4bAstRwUowj3guxaETAf`，正式 URL 匿名 HTTP 200 且公开 bundle 含 `guandan-v5`。
 
+### P2.7 本地策略稳定化（2026-07-22）
+
+这不是新的 P2 子任务，也不改变 P3-01 的依赖状态。产品唯一机器人已收敛为 normal-vNext；P2.7 固化了下家尾局阻断、合法动作兜底、自然中小结构争牌、控制资源保护和明牌后出牌覆盖先出牌的显示层级。
+
+验证证据：`typecheck`、`lint`、normal-vNext 固定牌例 41 项、策略指标 1 项、table-controller 11 项和 App 19 项均通过。策略仅消费 BotView 和规则层完整 legalActions；规则引擎、normal-v1、P2.5 expert 与默认 profile 均未改变。P2.7 为本地/GitHub 版本，新的 Preview/Production 验收仍待完成，发布记录见 `P2/release.md`。
+
 ## P2.5：整手规划驱动的专家策略与评分系统
 
 > **已撤销（2026-07-22）。** P2.5-01 至 P2.5-16 的实现与 expert-24 Preview

@@ -1,23 +1,15 @@
 # P2 发布记录
 
-状态：P2-06 `accepted`（2026-07-16）。
+## P2.7 - normal-vNext 策略稳定化（本地版本）
 
-> 注意：本记录中的 Production deployment 仅对应 P2-06。当 main 在 2026-07-22 收敛为
-> normal-vNext 唯一产品策略后，尚未在本文件记录新的 Preview 或 Production 验收；不得把
-> 下述旧部署视为当前策略版本的发布证据。
+- 日期：2026-07-22
+- 本地 Git 标签：`P2.7-local`（指向本次文档与版本提交）
+- npm 包版本：`2.7.0`
+- 范围：normal-vNext 尾局阻断、合法动作兜底、中小自然结构争牌、控制资源保护、明牌出牌叠层。
+- 本地验证：`typecheck`、`lint`、normal-vNext 41 项、策略指标 1 项、table-controller 11 项、App 19 项通过。
+- 发布状态：**仅本地/GitHub；尚未创建新的 Vercel Preview 或 Production 部署。**
+- 后续发布要求：新的 Preview 人工试玩、Production 部署、公开入口检查，以及 PWA/移动端按需复测；完成后补充 deployment URL、提交 SHA 与人工验收证据。
 
-- Preview：<https://card-game-mf2xxwu9v-wentop.vercel.app>
-- Production：<https://card-game-wentop.vercel.app>
-- 当前 Production deployment：`dpl_6i79U85p4bAstRwUowj3guxaETAf`（Ready，`guandan-v5`）
-- 部署详情：<https://vercel.com/wentop/card-game/6i79U85p4bAstRwUowj3guxaETAf>
-- 回滚目标：`https://card-game-2mzut8vby-wentop.vercel.app`
+## P2-06 历史 Production 记录
 
-Production 已通过 Chrome 页面与移动视口复核。2026-07-16，用户已在 iPhone Safari 使用正式 HTTPS 地址完成主屏安装、关闭 Safari 后离线启动，以及恢复网络后的更新提示真机清单；P2-06 据此验收通过。
-
-验收复核：Production `dpl_6i79U85p4bAstRwUowj3guxaETAf` 为 Ready，提交为 `d8d4e2b`；正式入口、Manifest 和 Service Worker 均返回 HTTP 200，离线壳缓存版本为 `guandan-v5`。Vercel 构建耗时 7 秒，近 7 天未发现运行时错误。
-
-2026-07-15：本地已完成下一次发布内容的质量验收：横排手牌占位改为与牌面同宽；正式牌桌改接普通策略机器人，并以固定牌例防止无必要炸弹、拆小王对子和拆 10-J-Q-K-A 自然顺子。串行全量回归为 24 个测试文件 / 118 项通过，生产构建输出位于 `temp/strategy-ui-fix-build`。该变更尚未发布到上述 Production deployment。
-
-2026-07-15：已发布规则修复：连续牌中的级牌恢复为普通点数语义，规则版本升级为 `guandan-v5`；同时修正南家“不要”与公开牌下缘的对齐。`d8d4e2b` 的全量串行回归为 24 个测试文件 / 119 项通过；Production `dpl_6i79U85p4bAstRwUowj3guxaETAf` 已 Ready，正式 URL 匿名 HTTP 200 且公开 bundle 已核对包含 `guandan-v5`。
-
-2026-07-15：已按产品授权关闭 `wentop/card-game` 的 Vercel SSO Deployment Protection；无登录态请求 `https://card-game-wentop.vercel.app/` 返回 HTTP 200，不再重定向至 `vercel.com/sso-api`。
+P2-06 于 2026-07-16 验收，Production 为 `dpl_6i79U85p4bAstRwUowj3guxaETAf`，规则版本 `guandan-v5`。该记录只证明 P2-06，不证明 P2.7；历史 URL 与真机证据保留在 Git 历史和阶段执行计划中。

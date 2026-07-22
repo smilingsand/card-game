@@ -1,28 +1,31 @@
 # 双副牌扑克游戏平台
 
-一个可扩展的网页扑克游戏平台。首个游戏是单人本地掼蛋，后续将增加移动/PWA、多人掼蛋与拖拉机 80 分。
+可扩展的网页扑克游戏平台；当前可玩的产品是单人本地掼蛋（1 名人类南家 + 3 个机器人）。
 
-## 当前状态
+## 当前版本
 
-P1、P2 已完成。当前本地 `main` 使用 normal-vNext 作为唯一产品机器人策略；机器人和提示只消费 BotView 与规则层提供的合法动作。P2.5 expert-24 路线已撤销并作为可恢复历史归档，详见 [ADR-0024](proj-info/adr/ADR-0024-normal-vnext-strategy-replacement.md)。
+**P2.7 - normal-vNext 策略稳定化（本地版本，2026-07-22）**
 
-P2-01 至 P2-06 均已验收，包含 PWA、Production 与 iPhone Safari 离线复测。当前线上部署记录仍对应 P2-06；normal-vNext 收敛后的下一次发布须重新完成 Preview/Production 验收。任务顺序与验收证据见 [阶段入口](proj-info/phases/README.md) 和 [P1-P3 执行计划](proj-info/phases/P1-P3-execution-plan.md)。下一可启动产品阶段为 P3。
+- 唯一产品机器人和“提示”策略：普通 normal-vNext。
+- normal-v1 仅作离线历史对照；P2.5 expert-24 已撤销为可恢复 Git 历史，详见 [ADR-0024](proj-info/adr/ADR-0024-normal-vnext-strategy-replacement.md)。
+- normal-vNext 只消费 BotView 和规则层 `legalActions`，不读取隐藏手牌。
+- 本地版本已包含：尾局下家阻断、合法动作兜底、自然中小结构争牌、控制资源保护，以及明牌时按出牌先后显示覆盖关系。
+- P2.7 尚未完成新的 Vercel Preview/Production 验收；当前线上发布记录仍是 P2-06。
+
+下一项产品阶段任务为 P3-01。任务顺序和验收门槛以 [P1-P3 执行计划](proj-info/phases/P1-P3-execution-plan.md) 为准。
 
 ## 文档入口
 
-- [已采用的掼蛋规则](docs/掼蛋规则(被采用)_V1.md)
 - [当前机器人策略说明](docs/基础机器人策略说明_V2.md)
-- [统一掼蛋规则口径](docs/resolved-rules.md)
+- [已采用的掼蛋规则](docs/掼蛋规则(被采用)_V1.md)
+- [统一规则口径](docs/resolved-rules.md)
 - [架构基线](docs/architecture.md)
-- [P1 完结交接记录](proj-info/phases/P1/phase-1-closeout.md)
-- [P2 阶段记录](proj-info/phases/P2/README.md)
-- [P2 验收矩阵](proj-info/phases/P2/test-matrix.md)
+- [P2.7 本地发布记录](proj-info/phases/P2/release.md)
+- [阶段入口](proj-info/phases/README.md)
 - [策略收敛 ADR](proj-info/adr/ADR-0024-normal-vnext-strategy-replacement.md)
-- [阶段文档入口](proj-info/phases/README.md)
-- [平台路线图](proj-info/00-长期路线图与历史工作日志/platform-roadmap.md)
-- [新 session 读取规范](proj-info/00-长期路线图与历史工作日志/session-memory-playbook.md)
-- [项目级开发规范](AGENTS.md)
+- [最新交接说明](proj-info/handoffs/HANDOFF-2026-07-22-P2.7-normal-vnext-stabilization.md)
+- [项目开发合同](AGENTS.md)
 
 ## 目录
 
-`docs/` 保存规则和使用说明；`proj-info/` 保存计划、ADR、验收与发布记录；`frontend/` 保存浏览器应用；`backend/` 预留给 P3；`tools/` 仅存可复用工具；`temp/` 存可删除临时文件且不提交。
+`docs/` 保存稳定规则和产品说明；`proj-info/` 保存计划、ADR、验收、发布与交接记录；`frontend/` 保存浏览器应用；`backend/` 预留给 P3；`tools/` 仅保存可复用工具；`temp/` 保存可删除中间产物且永不提交。

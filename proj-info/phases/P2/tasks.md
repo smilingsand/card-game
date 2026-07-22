@@ -1,10 +1,13 @@
 # P2 任务状态
 
-| 任务                 | 状态     | 本地提交                                                                                                                |
-| -------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------- |
-| P2-01 响应式牌桌     | accepted | `f1ef0c4`                                                                                                               |
-| P2-02 PWA 离线壳     | accepted | `525d8d8`                                                                                                               |
-| P2-03 策略观察模型   | accepted | `3d5cb5a`                                                                                                               |
-| P2-04 普通难度机器人 | accepted | `dcc3be1`                                                                                                               |
-| P2-05 对测与性能基准 | accepted | `22ac764`                                                                                                               |
-| P2-06 发布与真机验收 | accepted | Production `dpl_6i79U85p4bAstRwUowj3guxaETAf` Ready；2026-07-16 用户完成 iPhone Safari 主屏安装、离线启动与更新提示复测 |
+| 任务 | 状态 | 说明 |
+| --- | --- | --- |
+| P2-01 响应式牌桌 | accepted | 历史完成。 |
+| P2-02 PWA 离线壳 | accepted | 历史完成。 |
+| P2-03 策略观察模型 | accepted | BotView 信息边界已冻结。 |
+| P2-04 普通难度机器人 | accepted | 已被 normal-vNext 产品策略替代。 |
+| P2-05 对测与性能基准 | accepted | 历史基线；不恢复 P2.5 性能门禁。 |
+| P2-06 发布与真机验收 | accepted | 线上记录对应此版本。 |
+| P2.7 - normal-vNext 策略稳定化 | local_released | 非新的阶段子任务；本地版本，待新的 Preview/Production 验收。 |
+
+P2.5 任务全为 `revoked` 历史，不得作为执行入口。下一可启动任务为 P3-01。
