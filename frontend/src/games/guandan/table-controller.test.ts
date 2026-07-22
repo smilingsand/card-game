@@ -387,7 +387,7 @@ test("normal strategy uses a matching three-with-pair instead of an unnecessary 
   });
 });
 
-test("normal-vNext uses the lowest legal joker over a single ace", () => {
+test("normal-vNext blocks the next seat with the largest joker when it has one card", () => {
   const eastAce = card("east-a", "A");
   const bigJoker = card("north-big", "big-joker", "joker");
   const smallJokerOne = card("north-small-1", "small-joker", "joker");
@@ -417,12 +417,12 @@ test("normal-vNext uses the lowest legal joker over a single ace", () => {
   expect(chooseTableBotAction({ ...game, state: afterLead.state })).toMatchObject({
     type: "play",
     actor: "north",
-    cardIds: [smallJokerOne.id],
-    interpretation: { type: "single", comparisonKey: [16] }
+    cardIds: [bigJoker.id],
+    interpretation: { type: "single", comparisonKey: [17] }
   });
 });
 
-test("normal strategy uses the lowest joker before breaking a natural straight for a small single", () => {
+test("normal-vNext blocks the next seat with the largest joker before preserving a straight", () => {
   const eastNine = card("east-9", "9");
   const northStraight = [
     card("north-10", "10"),
@@ -458,7 +458,7 @@ test("normal strategy uses the lowest joker before breaking a natural straight f
   expect(chooseTableBotAction({ ...game, state: afterLead.state })).toMatchObject({
     type: "play",
     actor: "north",
-    cardIds: [smallJoker.id],
-    interpretation: { type: "single", comparisonKey: [16] }
+    cardIds: [bigJoker.id],
+    interpretation: { type: "single", comparisonKey: [17] }
   });
 });

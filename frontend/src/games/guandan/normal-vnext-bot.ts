@@ -9,6 +9,12 @@ const teammate: Record<BotView["selfSeat"], BotView["selfSeat"]> = {
   south: "north",
   north: "south"
 };
+const nextSeat: Record<BotView["selfSeat"], BotView["selfSeat"]> = {
+  south: "east",
+  east: "north",
+  north: "west",
+  west: "south"
+};
 const bombs = new Set(["normal-bomb", "straight-flush", "four-jokers"]);
 const normalRanks = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A"] as const;
 const BREAK_PAIR_COST = 240;
@@ -19,6 +25,14 @@ const BREAK_STEEL_PLATE_COST = 1_000;
 const BREAK_BOMB_COST = 100_000;
 
 type PlayAction = Extract<TurnAction, { readonly type: "play" }>;
+type PatternType = PlayAction["interpretation"]["type"];
+
+export interface NextSeatEndgameThreat {
+  readonly seat: BotView["selfSeat"];
+  readonly remainingCards: number;
+  readonly mode: "caution" | "forced" | "none";
+  readonly likelyPatternTypes: readonly PatternType[];
+}
 
 export interface NormalVNextCostBreakdown {
   readonly rankCost: number;
@@ -235,6 +249,57 @@ function directFinish(action: TurnAction, view: BotView): boolean {
   return isPlay(action) && action.cardIds.length === view.selfHand.length;
 }
 
+/** Public-information-only estimate for the player immediately after us. */
+export function analyzeNextSeatEndgameThreat(view: BotView): NextSeatEndgameThreat {
+  const seat = nextSeat[view.selfSeat];
+  const remainingCards = view.remainingCardCounts[seat];
+  const likelyByCount: Partial<Record<number, readonly PatternType[]>> = {
+    1: ["single"],
+    2: ["single", "pair"],
+    3: ["single", "pair", "triple"],
+    4: ["single", "pair", "triple", "normal-bomb"],
+    5: ["single", "pair", "triple", "three-with-pair", "straight", "normal-bomb"],
+    6: ["single", "pair", "triple", "three-with-pair", "normal-bomb"]
+  };
+  const likelyPatternTypes = likelyByCount[remainingCards] ?? [];
+  return {
+    seat,
+    remainingCards,
+    mode: remainingCards >= 1 && remainingCards <= 3 ? "forced" : remainingCards >= 1 && remainingCards <= 6 ? "caution" : "none",
+    likelyPatternTypes
+  };
+}
+
+function compareDescending(left: PlayAction, right: PlayAction, view: BotView): number {
+  const comparisonDelta = compareNumberLists(comparisonCost(right), comparisonCost(left));
+  if (comparisonDelta !== 0) return comparisonDelta;
+  const rankDelta = actionRankCost(right, view) - actionRankCost(left, view);
+  if (rankDelta !== 0) return rankDelta;
+  return JSON.stringify(left).localeCompare(JSON.stringify(right));
+}
+
+function rankThreatLeadCandidates(view: BotView, threat: NextSeatEndgameThreat): readonly PlayAction[] {
+  const plays = view.legalActions.filter(isPlay);
+  const likely = new Set(threat.likelyPatternTypes);
+  const hasNonBomb = plays.some((action) => !bombs.has(action.interpretation.type));
+  return [...plays].sort((left, right) => {
+    // Bombs remain backloaded when leading; the threat mode is not permission to burn one early.
+    const bombDelta =
+      Number(hasNonBomb && bombs.has(left.interpretation.type)) -
+      Number(hasNonBomb && bombs.has(right.interpretation.type));
+    if (bombDelta !== 0) return bombDelta;
+    const likelyDelta = Number(likely.has(left.interpretation.type)) - Number(likely.has(right.interpretation.type));
+    if (likelyDelta !== 0) return likelyDelta;
+    return compareDescending(left, right, view);
+  });
+}
+
+function rankForcedBlockCandidates(view: BotView): readonly PlayAction[] {
+  const plays = view.legalActions.filter(isPlay);
+  const nonBombs = plays.filter((action) => !bombs.has(action.interpretation.type));
+  return (nonBombs.length > 0 ? nonBombs : plays).sort((left, right) => compareDescending(left, right, view));
+}
+
 function opponentThreat(view: BotView, maximum: number): boolean {
   return Object.entries(view.remainingCardCounts).some(
     ([seat, count]) =>
@@ -286,7 +351,20 @@ function rankResponseCandidates(view: BotView): readonly PlayAction[] {
 
 /** Preview-only deterministic normal evolution; it reads only BotView and legal actions. */
 export function chooseNormalVNextBotAction(view: BotView): NormalBotDecision | undefined {
-  if (view.highestSeat === undefined) return chooseNormalBotAction(view);
+  const nextSeatThreat = analyzeNextSeatEndgameThreat(view);
+  if (view.highestSeat === undefined) {
+    if (nextSeatThreat.mode === "none") return chooseNormalBotAction(view);
+    const selected = rankThreatLeadCandidates(view, nextSeatThreat).at(0);
+    if (!selected) return undefined;
+    return {
+      action: selected,
+      score: 0,
+      reasons: [
+        `下家尾局威胁：${nextSeatThreat.remainingCards} 张，避免顺出其可能牌型`,
+        "阻断领牌：在相同风险下由大到小出牌"
+      ]
+    };
+  }
 
   const pass = view.legalActions.find((action) => action.type === "pass");
   const candidates = rankResponseCandidates(view);
@@ -294,12 +372,16 @@ export function chooseNormalVNextBotAction(view: BotView): NormalBotDecision | u
   if (view.highestSeat === teammate[view.selfSeat] && pass && !finish)
     return { action: pass, score: 0, reasons: ["normal-vNext：队友持权，默认不接管"] };
 
+  const forcedBlock = nextSeatThreat.mode === "forced";
   const damageLimit = allowedStructureDamage(view);
   const safeCandidates = candidates.filter(
     (action) => directFinish(action, view) || structureDamageCost(action, view) <= damageLimit
   );
   const selected: TurnAction | undefined =
-    finish ?? safeCandidates.at(0) ?? pass ?? candidates.at(0);
+    finish ??
+    (forcedBlock
+      ? rankForcedBlockCandidates(view).at(0)
+      : safeCandidates.at(0) ?? pass ?? candidates.at(0));
   if (!selected) return undefined;
 
   const reasons = [
@@ -312,6 +394,8 @@ export function chooseNormalVNextBotAction(view: BotView): NormalBotDecision | u
   if (selected.type === "play" && selected.interpretation.type === "three-with-pair")
     reasons.push("最小主三张后选择最低资源成本对子");
   if (opponentThreat(view, 3) && selected.type === "play") reasons.push("阻断对手 1～3 张残局");
+  if (forcedBlock && selected.type === "play")
+    reasons.push(`next-seat forced block: ${nextSeatThreat.remainingCards} cards`);
   if (selected.type === "play" && structureDamageCost(selected, view) > 0)
     reasons.push("已计入结构损伤成本");
   if (finish) reasons.push("直接出完例外");

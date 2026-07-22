@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import {
+  analyzeNextSeatEndgameThreat,
   analyzeNormalVNextHand,
   chooseNormalVNextBotAction,
   describeNormalVNextAction
@@ -31,6 +32,20 @@ const threeWithPair = (ids: readonly string[], mainKey: number): TurnAction => (
     cardIds: [...ids],
     wildcardAs: {}
   }
+});
+
+const pair = (ids: readonly string[], key: number): TurnAction => ({
+  type: "play",
+  actor: "east",
+  cardIds: [...ids],
+  interpretation: { type: "pair", comparisonKey: [key], cardIds: [...ids], wildcardAs: {} }
+});
+
+const normalBomb = (ids: readonly string[], key: number): TurnAction => ({
+  type: "play",
+  actor: "east",
+  cardIds: [...ids],
+  interpretation: { type: "normal-bomb", comparisonKey: [key], cardIds: [...ids], wildcardAs: {} }
 });
 
 const baseView = (overrides: Record<string, unknown> = {}) => ({
@@ -387,4 +402,109 @@ test("C1：responseCost 合同保持 A/B 权重与稳定 tie-break", () => {
   const second = chooseNormalVNextBotAction(view);
   expect(first?.action).toBe(seven);
   expect(second).toEqual(first);
+});
+
+test("下家剩 1 张时，领出不以小单张给其顺牌", () => {
+  const low = single("four", 4);
+  const high = single("ace", 14);
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      highestSeat: undefined,
+      selfHand: [card("four", "4"), card("ace", "A")],
+      legalActions: [low, high],
+      remainingCardCounts: { east: 2, south: 8, west: 8, north: 1 }
+    })
+  );
+
+  expect(decision?.action).toBe(high);
+});
+
+test("下家剩 2 张且可能成对时，领出对子选择更大牌点", () => {
+  const low = pair(["four-a", "four-b"], 4);
+  const high = pair(["king-a", "king-b"], 13);
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        highestSeat: undefined,
+        selfHand: [card("four-a", "4"), card("four-b", "4"), card("king-a", "K"), card("king-b", "K")],
+        legalActions: [low, high],
+        remainingCardCounts: { east: 4, south: 8, west: 8, north: 2 }
+      })
+    )?.action
+  ).toBe(high);
+});
+
+test("下家剩 4、5 张时公开推测包含炸弹与三带二风险", () => {
+  const four = analyzeNextSeatEndgameThreat(
+    baseView({ remainingCardCounts: { east: 3, south: 8, west: 8, north: 4 } })
+  );
+  const five = analyzeNextSeatEndgameThreat(
+    baseView({ remainingCardCounts: { east: 3, south: 8, west: 8, north: 5 } })
+  );
+  expect(four.likelyPatternTypes).toContain("normal-bomb");
+  expect(five.likelyPatternTypes).toEqual(expect.arrayContaining(["normal-bomb", "three-with-pair"]));
+});
+
+test("下家剩 4 张疑似炸弹时，不以弱单张开路", () => {
+  const low = single("four", 4);
+  const high = single("king", 13);
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        highestSeat: undefined,
+        selfHand: [card("four", "4"), card("king", "K")],
+        legalActions: [low, high],
+        remainingCardCounts: { east: 2, south: 8, west: 8, north: 4 }
+      })
+    )?.action
+  ).toBe(high);
+});
+
+test("下家剩 5 张时，三带二风险下优先出较大主三张", () => {
+  const low = threeWithPair(["five-a", "five-b", "five-c", "three-a", "three-b"], 5);
+  const high = threeWithPair(["ten-a", "ten-b", "ten-c", "four-a", "four-b"], 10);
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        highestSeat: undefined,
+        selfHand: [
+          card("five-a", "5"), card("five-b", "5"), card("five-c", "5"), card("three-a", "3"), card("three-b", "3"),
+          card("ten-a", "10"), card("ten-b", "10"), card("ten-c", "10"), card("four-a", "4"), card("four-b", "4")
+        ],
+        legalActions: [low, high],
+        remainingCardCounts: { east: 10, south: 8, west: 8, north: 5 }
+      })
+    )?.action
+  ).toBe(high);
+});
+
+test("下家剩 3 张时可拆自己的炸弹夺回牌权", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const bomb = normalBomb(["seven-a", "seven-b", "seven-c", "seven-d"], 7);
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      selfHand: [
+        card("seven-a", "7"), card("seven-b", "7"), card("seven-c", "7"), card("seven-d", "7"), card("other", "4")
+      ],
+      legalActions: [pass, bomb],
+      remainingCardCounts: { east: 5, south: 8, west: 8, north: 3 }
+    })
+  );
+  expect(decision?.action).toBe(bomb);
+  expect(decision?.reasons).toContain("next-seat forced block: 3 cards");
+});
+
+test("普通中局不会错误触发下家尾局领牌策略", () => {
+  const low = single("four", 4);
+  const high = single("ace", 14);
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        highestSeat: undefined,
+        selfHand: [card("four", "4"), card("ace", "A")],
+        legalActions: [low, high],
+        remainingCardCounts: { east: 2, south: 8, west: 8, north: 7 }
+      })
+    )?.action
+  ).toBe(low);
 });
