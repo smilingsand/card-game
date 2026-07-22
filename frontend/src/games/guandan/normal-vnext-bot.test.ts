@@ -3,6 +3,7 @@ import {
   analyzeNextSeatEndgameThreat,
   analyzeNormalVNextHand,
   chooseNormalVNextBotAction,
+  describeNormalVNextContest,
   describeNormalVNextAction
 } from "./normal-vnext-bot";
 import type { Card } from "../../platform/types";
@@ -39,6 +40,13 @@ const pair = (ids: readonly string[], key: number): TurnAction => ({
   actor: "east",
   cardIds: [...ids],
   interpretation: { type: "pair", comparisonKey: [key], cardIds: [...ids], wildcardAs: {} }
+});
+
+const triple = (ids: readonly string[], key: number): TurnAction => ({
+  type: "play",
+  actor: "east",
+  cardIds: [...ids],
+  interpretation: { type: "triple", comparisonKey: [key], cardIds: [...ids], wildcardAs: {} }
 });
 
 const normalBomb = (ids: readonly string[], key: number): TurnAction => ({
@@ -545,4 +553,101 @@ test("尾局领牌没有理想阻断牌时，仍选择规则层提供的合法�
       })
     )?.action
   ).toBe(onlyPlay);
+});
+
+test("开中局：22 对自然 66 的争牌收益高于 pass", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const sixes = pair(["six-a", "six-b"], 6);
+  const view = baseView({
+    selfHand: [card("six-a", "6"), card("six-b", "6"), card("other", "4")],
+    legalActions: [pass, sixes]
+  });
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(sixes);
+  expect(describeNormalVNextContest(sixes, view)).toMatchObject({
+    structureDamageCost: 0,
+    controlResourceCost: 0,
+    handSheddingBenefit: 120,
+    contestBenefit: 120,
+    passBias: 160,
+    actionScore: 234,
+    recommended: "contest"
+  });
+});
+
+test("开中局：444 对自然 888 的争牌收益高于 pass", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const eights = triple(["eight-a", "eight-b", "eight-c"], 8);
+  const view = baseView({
+    selfHand: [card("eight-a", "8"), card("eight-b", "8"), card("eight-c", "8"), card("other", "4")],
+    legalActions: [pass, eights]
+  });
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(eights);
+  expect(describeNormalVNextContest(eights, view)).toMatchObject({
+    handSheddingBenefit: 180,
+    contestBenefit: 120,
+    actionScore: 292,
+    recommended: "contest"
+  });
+});
+
+test("开中局：44422 对自然 88866 的争牌收益高于 pass", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const eightsWithSixes = threeWithPair(["eight-a", "eight-b", "eight-c", "six-a", "six-b"], 8);
+  const view = baseView({
+    selfHand: [card("eight-a", "8"), card("eight-b", "8"), card("eight-c", "8"), card("six-a", "6"), card("six-b", "6"), card("other", "4")],
+    legalActions: [pass, eightsWithSixes]
+  });
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(eightsWithSixes);
+  expect(describeNormalVNextContest(eightsWithSixes, view)).toMatchObject({
+    handSheddingBenefit: 300,
+    contestBenefit: 120,
+    actionScore: 406,
+    recommended: "contest"
+  });
+});
+
+test("开中局：44422 对 AAAKK 的高控制资源组合倾向 pass", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const high = threeWithPair(["ace-a", "ace-b", "ace-c", "king-a", "king-b"], 14);
+  const view = baseView({
+    selfHand: [card("ace-a", "A"), card("ace-b", "A"), card("ace-c", "A"), card("king-a", "K"), card("king-b", "K"), card("other", "4")],
+    legalActions: [pass, high]
+  });
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(pass);
+  expect(describeNormalVNextContest(high, view)).toMatchObject({
+    controlResourceCost: 120,
+    highValuePenalty: 320,
+    actionScore: -467,
+    recommended: "pass"
+  });
+});
+
+test("开中局：44422 对含级牌的 222AA 倾向 pass", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const high = threeWithPair(["level-a", "level-b", "level-c", "ace-a", "ace-b"], 15);
+  const view = baseView({
+    selfHand: [card("level-a", "2"), card("level-b", "2"), card("level-c", "2"), card("ace-a", "A"), card("ace-b", "A"), card("other", "4")],
+    legalActions: [pass, high]
+  });
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(pass);
+  expect(describeNormalVNextContest(high, view)).toMatchObject({
+    controlResourceCost: 240,
+    highValuePenalty: 320,
+    actionScore: -589,
+    recommended: "pass"
+  });
+});
+
+test("队友持权时，自然 66 仍不无故抢牌", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const sixes = pair(["six-a", "six-b"], 6);
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        highestSeat: "west",
+        selfHand: [card("six-a", "6"), card("six-b", "6"), card("other", "4")],
+        legalActions: [pass, sixes]
+      })
+    )?.action
+  ).toBe(pass);
 });

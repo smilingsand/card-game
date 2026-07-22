@@ -42,6 +42,18 @@ export interface NormalVNextCostBreakdown {
   readonly responseCost: number;
 }
 
+export interface NormalVNextContestBreakdown {
+  readonly structureDamageCost: number;
+  readonly controlResourceCost: number;
+  readonly handSheddingBenefit: number;
+  readonly contestBenefit: number;
+  readonly passBias: number;
+  readonly highValuePenalty: number;
+  readonly actionScore: number;
+  readonly passScore: number;
+  readonly recommended: "contest" | "pass";
+}
+
 export interface NormalVNextHandAnalysis {
   readonly singles: number;
   readonly pairs: number;
@@ -245,6 +257,64 @@ export function describeNormalVNextAction(
   };
 }
 
+function isNaturalMiddleStructure(action: PlayAction, view: BotView): boolean {
+  if (!(["pair", "triple", "three-with-pair"] as readonly PatternType[]).includes(action.interpretation.type))
+    return false;
+  if (structureDamageCost(action, view) !== 0 || controlResourceCost(action, view) !== 0 || wildcardOpportunityCost(action, view) !== 0)
+    return false;
+  const groups = naturalGroups(view);
+  const selectedByRank = selectedCards(action, view).reduce<Map<Card["rank"], number>>(
+    (counts, card) => counts.set(card.rank, (counts.get(card.rank) ?? 0) + 1),
+    new Map()
+  );
+  return [...selectedByRank].every(([rank, count]) => count === (groups.get(rank)?.length ?? 0));
+}
+
+/** Read-only contest diagnostic used by the normal-vNext selector and fixed cases. */
+export function describeNormalVNextContest(
+  action: TurnAction,
+  view: BotView
+): NormalVNextContestBreakdown | undefined {
+  if (!isPlay(action)) return undefined;
+  const structure = structureDamageCost(action, view);
+  const control = controlResourceCost(action, view);
+  const naturalMiddle = isNaturalMiddleStructure(action, view);
+  const selected = selectedCards(action, view);
+  const selectedByRank = selected.reduce<Map<Card["rank"], readonly Card[]>>(
+    (groups, card) => groups.set(card.rank, [...(groups.get(card.rank) ?? []), card]),
+    new Map()
+  );
+  const primaryCards =
+    action.interpretation.type === "three-with-pair"
+      ? [...selectedByRank.values()].find((cards) => cards.length >= 3) ?? selected
+      : selected;
+  const hasHighControl = primaryCards.some(
+    (card) =>
+      card.rank === "A" ||
+      card.rank === view.levelRank ||
+      card.rank === "small-joker" ||
+      card.rank === "big-joker" ||
+      rankCost(card, view.levelRank) >= 13
+  );
+  const handSheddingBenefit = naturalMiddle ? action.cardIds.length * 60 : 0;
+  const contestBenefit = naturalMiddle ? 120 : 0;
+  const passBias = 160;
+  const highValuePenalty = hasHighControl ? 320 : 0;
+  const actionScore =
+    handSheddingBenefit + contestBenefit - responseCost(action, view) - highValuePenalty;
+  return {
+    structureDamageCost: structure,
+    controlResourceCost: control,
+    handSheddingBenefit,
+    contestBenefit,
+    passBias,
+    highValuePenalty,
+    actionScore,
+    passScore: passBias,
+    recommended: actionScore > passBias ? "contest" : "pass"
+  };
+}
+
 function directFinish(action: TurnAction, view: BotView): boolean {
   return isPlay(action) && action.cardIds.length === view.selfHand.length;
 }
@@ -354,6 +424,10 @@ function rankResponseCandidates(view: BotView): readonly PlayAction[] {
   });
 }
 
+function isContestRelevantPattern(action: PlayAction): boolean {
+  return action.interpretation.type === "pair" || action.interpretation.type === "triple" || action.interpretation.type === "three-with-pair";
+}
+
 /** Preview-only deterministic normal evolution; it reads only BotView and legal actions. */
 export function chooseNormalVNextBotAction(view: BotView): NormalBotDecision | undefined {
   const nextSeatThreat = analyzeNextSeatEndgameThreat(view);
@@ -387,11 +461,18 @@ export function chooseNormalVNextBotAction(view: BotView): NormalBotDecision | u
   const safeCandidates = candidates.filter(
     (action) => directFinish(action, view) || structureDamageCost(action, view) <= damageLimit
   );
+  const onlyHighCostStructureResponses =
+    candidates.length > 0 &&
+    candidates.every(
+      (action) =>
+        isContestRelevantPattern(action) &&
+        (describeNormalVNextContest(action, view)?.highValuePenalty ?? 0) > 0
+    );
   const selected: TurnAction | undefined =
     finish ??
     (forcedBlock
       ? rankForcedBlockCandidates(view).at(0) ?? pass ?? candidates.at(0)
-      : safeCandidates.at(0) ?? pass ?? candidates.at(0));
+      : onlyHighCostStructureResponses ? pass : safeCandidates.at(0) ?? pass ?? candidates.at(0));
   const selectedWithFallback = selected ?? legalActionFallback(view);
   if (!selectedWithFallback) return undefined;
 
