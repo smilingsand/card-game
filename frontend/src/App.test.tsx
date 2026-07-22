@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { App, CardFace, PlayerCardCount } from "./App";
-import { latestRecentActionsBySeat } from "./games/guandan/recent-actions";
+import { latestRecentActionLayerBySeat, latestRecentActionsBySeat } from "./games/guandan/recent-actions";
 import type { StorageBoundary } from "./platform/storage";
 import {
   applyTableSessionAction,
@@ -130,6 +130,9 @@ describe("App", () => {
 
     expect(latest).toHaveLength(3);
     expect(latest.filter((action) => action.actor === "west")).toEqual([latestWestPass]);
+    const layers = latestRecentActionLayerBySeat(events);
+    expect(layers.get("north")).toBeGreaterThan(layers.get("east") ?? 0);
+    expect(layers.get("north")).toBeGreaterThan(layers.get("west") ?? 0);
   });
 
   it("首局由南家行动，牌桌按四边座位显示并高亮可选牌", async () => {

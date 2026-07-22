@@ -40,7 +40,11 @@ import {
   sortPlayedCards
 } from "./games/guandan/display-order";
 import type { TurnAction } from "./games/guandan/turns";
-import { actionFromPublicEvent, latestRecentActionsBySeat } from "./games/guandan/recent-actions";
+import {
+  actionFromPublicEvent,
+  latestRecentActionLayerBySeat,
+  latestRecentActionsBySeat
+} from "./games/guandan/recent-actions";
 import { botThinkDelayMs } from "./games/guandan/bot-timing";
 import { registerPwaServiceWorker } from "./pwa/service-worker";
 
@@ -253,6 +257,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     groupHumanDisplayCards(game.state.hands[seat], game.cardsById, levelRank);
   const publicPlay = (seat: Seat) => (highestPlay?.actor === seat ? highestPlay : undefined);
   const recentActions = latestRecentActionsBySeat(game.publicEvents);
+  const recentActionLayers = latestRecentActionLayerBySeat(game.publicEvents);
   const recentActionsFor = (seat: Seat) => recentActions.filter((action) => action.actor === seat);
 
   const renderAction = (action: TurnAction, current: boolean) => (
@@ -488,7 +493,11 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
             </span>
           ))}
         </section>
-        <section className="seat north" aria-label="北家座位">
+        <section
+          className="seat north"
+          aria-label="北家座位"
+          style={{ zIndex: recentActionLayers.get("north") ?? 0 }}
+        >
           <strong>{seatName.north}</strong>
           <PlayerCardCount
             handSize={game.state.hands.north.length}
@@ -519,7 +528,11 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
             )}
           </span>
         </section>
-        <section className="seat east" aria-label="东家座位">
+        <section
+          className="seat east"
+          aria-label="东家座位"
+          style={{ zIndex: recentActionLayers.get("east") ?? 0 }}
+        >
           <strong>{seatName.east}</strong>
           <PlayerCardCount
             handSize={game.state.hands.east.length}
@@ -566,7 +579,11 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
             </p>
           ) : null}
         </section>
-        <section className="seat west" aria-label="西家座位">
+        <section
+          className="seat west"
+          aria-label="西家座位"
+          style={{ zIndex: recentActionLayers.get("west") ?? 0 }}
+        >
           <strong>{seatName.west}</strong>
           <PlayerCardCount
             handSize={game.state.hands.west.length}
@@ -597,7 +614,10 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
             )}
           </span>
         </section>
-        <span className="seat-actions south-actions">
+        <span
+          className="seat-actions south-actions"
+          style={{ zIndex: recentActionLayers.get(HUMAN_SEAT) ?? 0 }}
+        >
           {recentActionsFor(HUMAN_SEAT).map((action) =>
             renderAction(action, action === publicPlay(HUMAN_SEAT))
           )}

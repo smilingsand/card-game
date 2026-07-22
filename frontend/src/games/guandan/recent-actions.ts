@@ -23,3 +23,14 @@ export function latestRecentActionsBySeat(events: readonly Event[]): readonly Tu
   for (const action of currentTrickActions(events)) latestBySeat.set(action.actor, action);
   return [...latestBySeat.values()];
 }
+
+/** Chronological layers for the visible actions in the current trick. Higher means later. */
+export function latestRecentActionLayerBySeat(events: readonly Event[]): ReadonlyMap<Seat, number> {
+  const visible = new Set(latestRecentActionsBySeat(events));
+  const layers = new Map<Seat, number>();
+  events.forEach((event, index) => {
+    const action = actionFromPublicEvent(event);
+    if (action && visible.has(action)) layers.set(action.actor, index + 1);
+  });
+  return layers;
+}
