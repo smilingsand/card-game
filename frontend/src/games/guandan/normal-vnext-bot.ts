@@ -300,6 +300,11 @@ function rankForcedBlockCandidates(view: BotView): readonly PlayAction[] {
   return (nonBombs.length > 0 ? nonBombs : plays).sort((left, right) => compareDescending(left, right, view));
 }
 
+/** Final bot safety net: strategy may rank actions, but never removes rule-engine actions. */
+function legalActionFallback(view: BotView): TurnAction | undefined {
+  return view.legalActions.find(isPlay) ?? view.legalActions.find((action) => action.type === "pass");
+}
+
 function opponentThreat(view: BotView, maximum: number): boolean {
   return Object.entries(view.remainingCardCounts).some(
     ([seat, count]) =>
@@ -353,8 +358,13 @@ function rankResponseCandidates(view: BotView): readonly PlayAction[] {
 export function chooseNormalVNextBotAction(view: BotView): NormalBotDecision | undefined {
   const nextSeatThreat = analyzeNextSeatEndgameThreat(view);
   if (view.highestSeat === undefined) {
-    if (nextSeatThreat.mode === "none") return chooseNormalBotAction(view);
-    const selected = rankThreatLeadCandidates(view, nextSeatThreat).at(0);
+    if (nextSeatThreat.mode === "none") {
+      const baseline = chooseNormalBotAction(view);
+      if (baseline) return baseline;
+      const fallback = legalActionFallback(view);
+      return fallback ? { action: fallback, score: 0, reasons: ["legal-action fallback"] } : undefined;
+    }
+    const selected = rankThreatLeadCandidates(view, nextSeatThreat).at(0) ?? legalActionFallback(view);
     if (!selected) return undefined;
     return {
       action: selected,
@@ -380,24 +390,25 @@ export function chooseNormalVNextBotAction(view: BotView): NormalBotDecision | u
   const selected: TurnAction | undefined =
     finish ??
     (forcedBlock
-      ? rankForcedBlockCandidates(view).at(0)
+      ? rankForcedBlockCandidates(view).at(0) ?? pass ?? candidates.at(0)
       : safeCandidates.at(0) ?? pass ?? candidates.at(0));
-  if (!selected) return undefined;
+  const selectedWithFallback = selected ?? legalActionFallback(view);
+  if (!selectedWithFallback) return undefined;
 
   const reasons = [
-    selected.type === "pass"
+    selectedWithFallback.type === "pass"
       ? "normal-vNext：避免高结构损伤，合理 pass"
       : "normal-vNext：最低响应总成本（点数 + 结构 + 控制 + 逢人配）"
   ];
-  if (selected.type === "play" && selected.interpretation.type === "single")
+  if (selectedWithFallback.type === "play" && selectedWithFallback.interpretation.type === "single")
     reasons.push("优先保留 A、级牌与大小王");
-  if (selected.type === "play" && selected.interpretation.type === "three-with-pair")
+  if (selectedWithFallback.type === "play" && selectedWithFallback.interpretation.type === "three-with-pair")
     reasons.push("最小主三张后选择最低资源成本对子");
-  if (opponentThreat(view, 3) && selected.type === "play") reasons.push("阻断对手 1～3 张残局");
-  if (forcedBlock && selected.type === "play")
+  if (opponentThreat(view, 3) && selectedWithFallback.type === "play") reasons.push("阻断对手 1～3 张残局");
+  if (forcedBlock && selectedWithFallback.type === "play")
     reasons.push(`next-seat forced block: ${nextSeatThreat.remainingCards} cards`);
-  if (selected.type === "play" && structureDamageCost(selected, view) > 0)
+  if (selectedWithFallback.type === "play" && structureDamageCost(selectedWithFallback, view) > 0)
     reasons.push("已计入结构损伤成本");
   if (finish) reasons.push("直接出完例外");
-  return { action: selected, score: 0, reasons };
+  return { action: selectedWithFallback, score: 0, reasons };
 }

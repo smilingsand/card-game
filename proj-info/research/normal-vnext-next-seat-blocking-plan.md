@@ -18,8 +18,15 @@
 - 下家 1～3 张且敌方持权时，跳过结构保护，优先最大的非炸弹合法压制；仅在炸弹是唯一响应时使用炸弹。
 - 直接出完与队友持权沿用既有优先级。
 
+## 合法动作安全合同
+
+- 尾局阻断只能重排和选择规则层给出的 legalActions，绝不删除合法动作。
+- 跟牌没有可压制动作时，必须选择合法 pass；强制阻断候选为空时同样回退 pass。
+- 领牌必须选择合法 play；若策略排序没有结果，回退 legalActions 中第一手 play。
+- legalActions 仅含 pass 时选择 pass；仅当 legalActions 为空时才返回未决结果，由调用方视作规则层异常。
+
 ## 回归证据
 
-- normal-vnext-bot.test.ts：28 项通过，覆盖下家 1/2/4/5 张、强制夺权与普通中局反例。
+- normal-vnext-bot.test.ts：31 项通过，覆盖下家 1/2/4/5 张、强制夺权、无压制 pass、领牌兜底与普通中局反例。
 - normal-vnext-metrics.test.ts 与 table-controller.test.ts：12 项通过。
 - typecheck 与 lint：通过。

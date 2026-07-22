@@ -508,3 +508,41 @@ test("普通中局不会错误触发下家尾局领牌策略", () => {
     )?.action
   ).toBe(low);
 });
+
+test("下家即将走完但无可压制牌时，仍返回合法 pass", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        legalActions: [pass],
+        remainingCardCounts: { east: 3, south: 8, west: 8, north: 1 }
+      })
+    )?.action
+  ).toBe(pass);
+});
+
+test("尾局阻断没有可选候选时，回退到合法 pass", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        legalActions: [pass],
+        remainingCardCounts: { east: 3, south: 8, west: 8, north: 3 }
+      })
+    )?.action
+  ).toBe(pass);
+});
+
+test("尾局领牌没有理想阻断牌时，仍选择规则层提供的合法出牌", () => {
+  const onlyPlay = single("four", 4);
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        highestSeat: undefined,
+        selfHand: [card("four", "4")],
+        legalActions: [onlyPlay],
+        remainingCardCounts: { east: 1, south: 8, west: 8, north: 1 }
+      })
+    )?.action
+  ).toBe(onlyPlay);
+});
