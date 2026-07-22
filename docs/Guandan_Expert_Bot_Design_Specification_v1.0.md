@@ -1,4 +1,7 @@
 # Guandan Expert Bot Design Specification
+
+> 历史归档：该 P2.5 expert 设计已于 2026-07-22 撤销，不再是当前产品实现依据。
+> 当前唯一产品策略为 normal-vNext；恢复本规范须遵循 ADR-0024。
 ## 掼蛋专家启发式机器人设计规范 v1.0
 
 

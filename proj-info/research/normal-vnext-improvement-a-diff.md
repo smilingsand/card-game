@@ -1,7 +1,8 @@
 # Normal Bot Improvement A：normal-v1 / normal-vNext 差分
 
 > 日期：2026-07-19
-> 状态：实现完成，等待人工 Preview 验收；默认仍是 normal-v1。
+> 状态：历史差分记录。2026-07-22 起 normal-vNext 已成为唯一产品策略，normal-v1
+> 仅保留为离线历史对照。
 
 ## 范围与隔离
 

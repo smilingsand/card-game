@@ -1,5 +1,9 @@
 # normal-vNext A/B/C execution plan
 
+> 2026-07-22：A/B/C 已完成并合并到产品收敛分支。normal-vNext 现为唯一产品策略；
+> 本文其余内容保留为实施证据，原先“保持 normal-v1 默认 / 不改 P2.5”的阶段性约束
+> 已由 ADR-0024 的收敛决策取代。
+
 ## Goal and stop conditions
 
 Work only on `codex/guandan-reference-strategy-research`. Do not change normal-v1, expert, the rules engine, P2.5 ADR/P2.5-16, or the default profile. Stop before the next phase if legality, partnership, joker-over-low-single, bomb-split, unexplained-differential, or protected-file checks fail.

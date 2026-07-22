@@ -1,5 +1,8 @@
 # P2.5：整手规划驱动的专家策略与评分系统
 
+> 历史归档，已于 2026-07-22 撤销。不得从本目录启动 P2.5 任务；当前唯一产品策略
+> 为 normal-vNext，恢复 expert 路线须先新增 ADR。详见 `tasks.md`。
+
 > [`docs/Guandan_Expert_Bot_Design_Specification_v1.0.md`](../../../docs/Guandan_Expert_Bot_Design_Specification_v1.0.md) 是本阶段最高级设计依据。用户已于 2026-07-16 确认 P2.5A/B/C 分期和关键门禁；生产代码尚未开始改造，所有实现任务仍为 `not_started`。
 
 ## 目标与边界

@@ -387,7 +387,7 @@ test("normal strategy uses a matching three-with-pair instead of an unnecessary 
   });
 });
 
-test("normal strategy keeps a small-joker pair by using big joker over a single ace", () => {
+test("normal-vNext uses the lowest legal joker over a single ace", () => {
   const eastAce = card("east-a", "A");
   const bigJoker = card("north-big", "big-joker", "joker");
   const smallJokerOne = card("north-small-1", "small-joker", "joker");
@@ -417,8 +417,8 @@ test("normal strategy keeps a small-joker pair by using big joker over a single 
   expect(chooseTableBotAction({ ...game, state: afterLead.state })).toMatchObject({
     type: "play",
     actor: "north",
-    cardIds: [bigJoker.id],
-    interpretation: { type: "single", comparisonKey: [17] }
+    cardIds: [smallJokerOne.id],
+    interpretation: { type: "single", comparisonKey: [16] }
   });
 });
 

@@ -15,7 +15,6 @@ import {
   chooseTableBotAction,
   formatCard,
   formatInterpretation,
-  getLegalSingleActions,
   getSelectedPlayActions,
   type TableGame
 } from "./games/guandan/table-controller";
@@ -247,7 +246,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     ? groupOrderedDisplayCards(hand, game.cardsById)
     : groupHumanDisplayCards(hand, game.cardsById, levelRank);
   const selectedActions = getSelectedPlayActions(game, selectedCardIds);
-  const canPass = getLegalSingleActions(game).some((action) => action.type === "pass");
+  const canPass = game.state.current === HUMAN_SEAT && game.state.highest !== undefined;
   const highestPlay = game.state.highestSeat
     ? [...game.publicEvents]
         .reverse()
@@ -290,7 +289,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     </span>
   );
 
-  const submit = (action: ReturnType<typeof getLegalSingleActions>[number]) => {
+  const submit = (action: TurnAction) => {
     const result = applyTableSessionAction(session, action);
     if (!result.ok) {
       setMessage(`规则引擎拒绝此动作：${result.code}`);

@@ -1,5 +1,8 @@
 # 掼蛋参考项目机器人策略研究与迁移规划
 
+> 后续状态（2026-07-22）：本研究产出的 normal-vNext 已成为唯一产品策略；本文中
+> 对 P2.5 expert 链路的分析仅保留为历史对照。
+
 > 日期：2026-07-19
 > 范围：只读分析 `D:\MyWorks\niuma-wj-server`、`D:\MyWorks\GuanDanInOffice`，并与 Card Game Platform 当前 normal / P2.5 expert 链路对照。
 > 本文不修改规则、ADR、profile 或生产策略；所有“迁移”均指后续以本项目规则引擎重新实现，而非复制源码。
