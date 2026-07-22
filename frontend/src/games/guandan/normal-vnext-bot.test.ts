@@ -615,9 +615,9 @@ test("开中局：44422 对 AAAKK 的高控制资源组合倾向 pass", () => {
   });
   expect(chooseNormalVNextBotAction(view)?.action).toBe(pass);
   expect(describeNormalVNextContest(high, view)).toMatchObject({
-    controlResourceCost: 120,
+    controlResourceCost: 390,
     highValuePenalty: 320,
-    actionScore: -467,
+    actionScore: -737,
     recommended: "pass"
   });
 });
@@ -631,9 +631,9 @@ test("开中局：44422 对含级牌的 222AA 倾向 pass", () => {
   });
   expect(chooseNormalVNextBotAction(view)?.action).toBe(pass);
   expect(describeNormalVNextContest(high, view)).toMatchObject({
-    controlResourceCost: 240,
+    controlResourceCost: 660,
     highValuePenalty: 320,
-    actionScore: -589,
+    actionScore: -1009,
     recommended: "pass"
   });
 });
@@ -650,4 +650,74 @@ test("队友持权时，自然 66 仍不无故抢牌", () => {
       })
     )?.action
   ).toBe(pass);
+});
+
+test("三带二有普通对子时，不使用级牌对子作附带牌", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const ordinary = threeWithPair(["eight-a", "eight-b", "eight-c", "three-a", "three-b"], 8);
+  const levelKicker = threeWithPair(["eight-a", "eight-b", "eight-c", "level-a", "level-b"], 8);
+  const view = baseView({
+    selfHand: [
+      card("eight-a", "8"), card("eight-b", "8"), card("eight-c", "8"),
+      card("three-a", "3"), card("three-b", "3"), card("level-a", "2"), card("level-b", "2")
+    ],
+    legalActions: [pass, levelKicker, ordinary]
+  });
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(ordinary);
+  expect(describeNormalVNextAction(levelKicker, view)?.controlResourceCost).toBe(280);
+});
+
+test("有普通三张时，不用红桃级牌补成小三张", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const ordinary = triple(["eight-a", "eight-b", "eight-c"], 8);
+  const wildcardTriple: TurnAction = {
+    type: "play",
+    actor: "east",
+    cardIds: ["seven-a", "seven-b", "heart-level"],
+    interpretation: {
+      type: "triple",
+      comparisonKey: [7],
+      cardIds: ["seven-a", "seven-b", "heart-level"],
+      wildcardAs: { "heart-level": { rank: "7", suit: "spades" } }
+    }
+  };
+  const view = baseView({
+        selfHand: [card("eight-a", "8"), card("eight-b", "8"), card("eight-c", "8"), card("seven-a", "7"), card("seven-b", "7"), { ...card("heart-level", "2"), suit: "hearts" }],
+        legalActions: [pass, wildcardTriple, ordinary]
+      });
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(ordinary);
+  expect(describeNormalVNextAction(wildcardTriple, view)?.controlResourceCost).toBe(220);
+});
+
+test("对手出小单或小对时，不轻易使用级牌或王接牌", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const ordinarySingle = single("seven", 7);
+  const levelSingle = single("level", 15);
+  const ordinaryPair = pair(["six-a", "six-b"], 6);
+  const jokerPair = pair(["small", "big"], 17);
+  const singleView = baseView({
+    selfHand: [card("seven", "7"), card("level", "2"), card("small", "small-joker"), card("big", "big-joker")],
+    legalActions: [pass, levelSingle, ordinarySingle]
+  });
+  const pairView = baseView({
+    selfHand: [card("six-a", "6"), card("six-b", "6"), card("small", "small-joker"), card("big", "big-joker")],
+    legalActions: [pass, jokerPair, ordinaryPair]
+  });
+  expect(chooseNormalVNextBotAction(singleView)?.action).toBe(ordinarySingle);
+  expect(chooseNormalVNextBotAction(pairView)?.action).toBe(ordinaryPair);
+  expect(describeNormalVNextAction(levelSingle, singleView)?.controlResourceCost).toBe(140);
+});
+
+test("残局强制阻断时，允许使用唯一的级牌压制", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const levelSingle = single("level", 15);
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        selfHand: [card("level", "2")],
+        legalActions: [pass, levelSingle],
+        remainingCardCounts: { east: 1, south: 8, west: 8, north: 1 }
+      })
+    )?.action
+  ).toBe(levelSingle);
 });

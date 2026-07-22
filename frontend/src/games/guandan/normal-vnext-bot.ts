@@ -23,6 +23,11 @@ const BREAK_STRAIGHT_COST = 800;
 const BREAK_CONSECUTIVE_PAIR_COST = 900;
 const BREAK_STEEL_PLATE_COST = 1_000;
 const BREAK_BOMB_COST = 100_000;
+const CONTROL_A_COST = 120;
+const CONTROL_LEVEL_COST = 140;
+const CONTROL_HEART_LEVEL_COST = 220;
+const CONTROL_SMALL_JOKER_COST = 300;
+const CONTROL_BIG_JOKER_COST = 360;
 
 type PlayAction = Extract<TurnAction, { readonly type: "play" }>;
 type PatternType = PlayAction["interpretation"]["type"];
@@ -191,10 +196,11 @@ function structureDamageCost(action: PlayAction, view: BotView): number {
 function controlResourceCost(action: PlayAction, view: BotView): number {
   let cost = bombs.has(action.interpretation.type) ? 200 : 0;
   for (const card of selectedCards(action, view)) {
-    if (card.rank === "A") cost += 30;
-    else if (card.rank === view.levelRank) cost += card.suit === "hearts" ? 120 : 60;
-    else if (card.rank === "small-joker") cost += 80;
-    else if (card.rank === "big-joker") cost += 100;
+    if (card.rank === "A") cost += CONTROL_A_COST;
+    else if (card.rank === view.levelRank)
+      cost += card.suit === "hearts" ? CONTROL_HEART_LEVEL_COST : CONTROL_LEVEL_COST;
+    else if (card.rank === "small-joker") cost += CONTROL_SMALL_JOKER_COST;
+    else if (card.rank === "big-joker") cost += CONTROL_BIG_JOKER_COST;
     else if (rankCost(card, view.levelRank) >= 13) cost += 15;
   }
   return cost;
