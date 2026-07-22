@@ -417,8 +417,10 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   return (
     <main aria-label="掼蛋牌桌">
       <header>
-        <span className="preview-profile" aria-label="机器人策略">普通 normal-vNext</span>
-        <h1>单人本地掼蛋</h1>
+        <div className="game-title">
+          <h1>单人本地掼蛋</h1>
+          <span className="preview-profile" aria-label="机器人策略">（策略：普通 normal-vNext）</span>
+        </div>
         <button
           type="button"
           onClick={() => setRulesOpen((open) => !open)}
