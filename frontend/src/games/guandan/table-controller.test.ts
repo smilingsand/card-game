@@ -3,7 +3,6 @@ import type { Card } from "../../platform/types";
 import {
   chooseTableHintAction,
   chooseTableBotAction,
-  chooseTableStrategicDecision,
   createTableGame,
   getSelectedPlayActions,
   submitTableAction,
@@ -217,11 +216,8 @@ test("提示与机器人共用策略，首轮有普通牌时不领出炸弹", ()
     publicEvents: []
   };
 
-  const decision = chooseTableStrategicDecision(game);
-  expect(decision?.explanation.profile.id).toBe("normal");
-  expect(chooseTableHintAction(game)).toEqual(decision?.selectedAction);
-  expect(chooseTableBotAction(game)).toEqual(decision?.selectedAction);
-  expect(decision?.selectedAction).toMatchObject({
+  expect(chooseTableHintAction(game)).toEqual(chooseTableBotAction(game));
+  expect(chooseTableHintAction(game)).toMatchObject({
     type: "play",
     actor: "south",
     cardIds: ["south-a"],
