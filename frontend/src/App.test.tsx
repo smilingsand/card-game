@@ -41,6 +41,8 @@ describe("App", () => {
     render(<App storage={memoryStorage()} />);
     await waitFor(() => expect(screen.getByLabelText("机器人策略")).toHaveTextContent("normal-vNext"));
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("机器人决策耗时")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("normal-vNext 决策诊断")).not.toBeInTheDocument();
   });
 
   it("normal-vNext 等待出牌时明确显示 thinking 状态", async () => {
