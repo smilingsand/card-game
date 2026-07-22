@@ -1,9 +1,12 @@
 import { dealFourPlayers, generateDeck, shuffleDeck } from "../../platform/deck";
 import type { Card, Event, Rank, Seat } from "../../platform/types";
-import { chooseNormalBotAction } from "./normal-bot";
+import { chooseNormalVNextBotAction } from "./normal-vnext-bot";
+import { describeNormalVNextAction } from "./normal-vnext-bot";
+import { diagnoseNormalVNextAction } from "./normal-vnext-metrics";
 import { createBotView } from "./bot-view";
 import { getLegalActions } from "./legal-actions";
 import { recognizePatterns, type PatternInterpretation } from "./patterns";
+import { getCompleteLegalCandidates } from "./rule-complete-legal-actions";
 import {
   applyAction,
   validateAction,
@@ -14,22 +17,18 @@ import {
 
 const SEATS: readonly Seat[] = ["east", "south", "west", "north"];
 const INITIAL_LEVEL_RANK = "2" as const;
-const STRAIGHT_RANKS: readonly Card["rank"][] = [
-  "A",
-  "2",
-  "3",
-  "4",
-  "5",
-  "6",
-  "7",
-  "8",
-  "9",
-  "10",
-  "J",
-  "Q",
-  "K",
-  "A"
-];
+/** 当前产品唯一的机器人策略。 */
+export type TableStrategyProfile = "normal-vNext";
+
+export interface NormalVNextPreviewDiagnostic {
+  readonly action: TurnAction;
+  readonly reasons: readonly string[];
+  readonly structureDamageCost: number;
+  readonly controlResourceCost: number;
+  readonly wildcardOpportunityCost: number;
+  readonly contest: string;
+  readonly alerts: readonly string[];
+}
 
 export interface TableGame {
   readonly cardsById: ReadonlyMap<string, Card>;
@@ -68,115 +67,16 @@ export function createTableGame(
   };
 }
 
-function combinations<T>(items: readonly T[], size: number): readonly (readonly T[])[] {
-  const result: T[][] = [];
-  const visit = (start: number, selected: T[]): void => {
-    if (selected.length === size) {
-      result.push(selected);
-      return;
-    }
-    for (let index = start; index <= items.length - (size - selected.length); index += 1)
-      visit(index + 1, [...selected, items[index]]);
-  };
-  visit(0, []);
-  return result;
-}
-
-function leadingCardCandidates(hand: readonly Card[]): readonly (readonly Card[])[] {
-  const groups = [
-    ...hand
-      .reduce((byRank, card) => {
-        byRank.set(card.rank, [...(byRank.get(card.rank) ?? []), card]);
-        return byRank;
-      }, new Map<Card["rank"], Card[]>())
-      .values()
-  ];
-  const completeGroups = groups.filter((group) => group.length >= 2 && group.length <= 10);
-  const threeWithPairs = groups
-    .filter((group) => group.length === 3)
-    .flatMap((triple) =>
-      groups.filter((group) => group.length === 2).map((pair) => [...triple, ...pair])
-    );
-  const naturalStraights = Array.from({ length: STRAIGHT_RANKS.length - 4 }, (_, start) => {
-    const ranks = STRAIGHT_RANKS.slice(start, start + 5);
-    const cards = ranks.map((rank) => groups.find((group) => group[0]?.rank === rank)?.[0]);
-    return cards.every((card): card is Card => card !== undefined) ? cards : undefined;
-  }).filter((cards): cards is Card[] => cards !== undefined);
-  const candidates = [
-    ...hand.map((card) => [card]),
-    ...completeGroups,
-    ...threeWithPairs,
-    ...naturalStraights
-  ];
-  const seen = new Set<string>();
-  return candidates.filter((cards) => {
-    const key = cards
-      .map((card) => card.id)
-      .sort()
-      .join(",");
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function completeNaturalBombCandidates(hand: readonly Card[]): readonly (readonly Card[])[] {
-  return [
-    ...hand
-      .reduce((byRank, card) => {
-        if (card.suit !== "joker") byRank.set(card.rank, [...(byRank.get(card.rank) ?? []), card]);
-        return byRank;
-      }, new Map<Card["rank"], Card[]>())
-      .values()
-  ].filter((group) => group.length >= 4);
-}
-
-function uniqueCandidates(candidates: readonly (readonly Card[])[]): readonly (readonly Card[])[] {
-  const seen = new Set<string>();
-  return candidates.filter((cards) => {
-    const key = cards
-      .map((card) => card.id)
-      .sort()
-      .join(",");
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function botCardCandidates(game: TableGame): readonly (readonly Card[])[] {
+/** 机器人和提示使用规则层生成的完整合法动作集合。 */
+export function getLegalBotActions(game: TableGame): readonly TurnAction[] {
   const hand = game.state.hands[game.state.current]
     .map((cardId) => game.cardsById.get(cardId))
     .filter((card): card is Card => card !== undefined);
-  if (!game.state.highest) return leadingCardCandidates(hand);
-  return uniqueCandidates([
-    ...combinations(hand, game.state.highest.cardIds.length),
-    // 炸弹可压制任意非炸弹，也会按张数比较；跟炸时必须枚举完整炸弹，不能只取相同张数的子集。
-    ...completeNaturalBombCandidates(hand)
-  ]);
-}
-
-/**
- * 机器人候选只来源于自己的手牌，并先通过规则引擎筛选。
- * 领出时枚举单张、完整同点数组及不拆组的三带二；跟牌时枚举与当前牌
- * 张数相同的组合，因而能覆盖对子、三张、三带二等非单张同牌型压制。
- */
-export function getLegalBotActions(game: TableGame): readonly TurnAction[] {
-  const plays = botCardCandidates(game).flatMap((cards) => {
-    const recognition = recognizePatterns(cards, game.levelRank ?? INITIAL_LEVEL_RANK);
-    if (!recognition.ok) return [];
-    return recognition.interpretations.map((interpretation) => ({
-      type: "play" as const,
-      actor: game.state.current,
-      cardIds: cards.map((card) => card.id),
-      interpretation
-    }));
+  return getCompleteLegalCandidates({
+    state: game.state,
+    selfHand: hand,
+    levelRank: game.levelRank ?? INITIAL_LEVEL_RANK
   });
-  const candidates: TurnAction[] = [
-    ...plays,
-    ...(game.state.highest ? [{ type: "pass" as const, actor: game.state.current }] : [])
-  ];
-  return getLegalActions(game.state, candidates);
 }
 
 /** @deprecated P1-15E 起机器人会枚举可跟的非单张牌型；保留旧导出供调用方平滑迁移。 */
@@ -210,30 +110,60 @@ export function submitTableAction(game: TableGame, action: TurnAction): TurnResu
   return validation.ok ? applyAction(game.state, action) : validation;
 }
 
-function chooseTableStrategicAction(game: TableGame): TurnAction | undefined {
-  const legalActions = getLegalBotActions(game);
-  return chooseNormalBotAction(
-    createBotView({
-      selfSeat: game.state.current,
-      leader: game.state.leader,
-      highestSeat: game.state.highestSeat,
-      levelRank: game.levelRank ?? INITIAL_LEVEL_RANK,
-      hand: game.state.hands[game.state.current]
-        .map((cardId) => game.cardsById.get(cardId))
-        .filter((card): card is Card => card !== undefined),
-      publicEvents: game.publicEvents,
-      remainingCardCounts: Object.fromEntries(
-        SEATS.map((seat) => [seat, game.state.hands[seat].length])
-      ) as Record<Seat, number>,
-      legalActions
-    })
-  )?.action;
+/**
+ * 机器人与提示共享的生产决策入口。normal 仍使用冻结的回归选牌器确定动作，
+ * 随后统一进入 P2.5 的 DecisionExplanation 出口；解释不写回 TableGame。
+ */
+function createTableBotView(game: TableGame, legalActions: readonly TurnAction[]) {
+  return createBotView({
+    selfSeat: game.state.current,
+    leader: game.state.leader,
+    highestSeat: game.state.highestSeat,
+    levelRank: game.levelRank ?? INITIAL_LEVEL_RANK,
+    hand: game.state.hands[game.state.current]
+      .map((cardId) => game.cardsById.get(cardId))
+      .filter((card): card is Card => card !== undefined),
+    publicEvents: game.publicEvents,
+    remainingCardCounts: Object.fromEntries(
+      SEATS.map((seat) => [seat, game.state.hands[seat].length])
+    ) as Record<Seat, number>,
+    legalActions
+  });
+}
+
+/** Read-only Preview diagnostic. It calls the exact normal-vNext production selector once. */
+export function inspectTableNormalVNext(game: TableGame): NormalVNextPreviewDiagnostic | undefined {
+  const legalActions = getCompleteLegalCandidates({
+    state: game.state,
+    selfHand: game.state.hands[game.state.current]
+      .map((cardId) => game.cardsById.get(cardId))
+      .filter((card): card is Card => card !== undefined),
+    levelRank: game.levelRank ?? INITIAL_LEVEL_RANK
+  });
+  const view = createTableBotView(game, legalActions);
+  const decision = chooseNormalVNextBotAction(view);
+  if (!decision) return undefined;
+  const cost = describeNormalVNextAction(decision.action, view);
+  const opponentCounts = Object.entries(view.remainingCardCounts).filter(([seat]) => seat !== view.selfSeat && seat !== (view.selfSeat === "east" ? "west" : view.selfSeat === "west" ? "east" : view.selfSeat === "south" ? "north" : "south")).map(([, count]) => count);
+  return { action: decision.action, reasons: decision.reasons, structureDamageCost: cost?.structureDamageCost ?? 0, controlResourceCost: cost?.controlResourceCost ?? 0, wildcardOpportunityCost: cost?.wildcardOpportunityCost ?? 0, contest: view.highestSeat === undefined ? "lead" : Math.min(...opponentCounts) <= 3 ? "block" : "conserve", alerts: diagnoseNormalVNextAction(view, decision.action) };
+}
+
+export function chooseTableStrategicDecision(game: TableGame) {
+  return chooseNormalVNextBotAction(createTableBotView(game, getLegalBotActions(game)));
 }
 
 /** 人类提示只选中建议牌，评分和机器人领出/跟牌完全一致。 */
-export const chooseTableHintAction = chooseTableStrategicAction;
+export function chooseTableHintAction(
+  game: TableGame
+): TurnAction | undefined {
+  return chooseTableStrategicDecision(game)?.action;
+}
 
-export const chooseTableBotAction = chooseTableStrategicAction;
+export function chooseTableBotAction(
+  game: TableGame
+): TurnAction | undefined {
+  return chooseTableStrategicDecision(game)?.action;
+}
 
 export function formatCard(card: Card): string {
   if (card.rank === "small-joker") return "小王";

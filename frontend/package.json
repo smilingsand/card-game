@@ -15,6 +15,7 @@
     "format:check": "prettier --check .",
     "test": "vitest",
     "test:run": "vitest run --exclude src/games/guandan/bot-benchmark.10k.test.ts",
+    "guandan:normal-vnext-simulation": "vite-node scripts/normal-vnext-simulation.ts",
     "benchmark:p2": "vitest run --configLoader runner src/games/guandan/bot-benchmark.10k.test.ts -t \"分批基准 1\" && vitest run --configLoader runner src/games/guandan/bot-benchmark.10k.test.ts -t \"分批基准 2\" && vitest run --configLoader runner src/games/guandan/bot-benchmark.10k.test.ts -t \"分批基准 3\" && vitest run --configLoader runner src/games/guandan/bot-benchmark.10k.test.ts -t \"分批基准 4\""
   },
   "dependencies": {
@@ -25,6 +26,7 @@
     "@eslint/js": "^9.30.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.7.0",

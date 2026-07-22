@@ -11,6 +11,7 @@ import type { Card, Seat } from "./platform/types";
 import { createIndexedDbStorage, type StorageBoundary } from "./platform/storage";
 import {
   chooseTableHintAction,
+  inspectTableNormalVNext,
   chooseTableBotAction,
   formatCard,
   formatInterpretation,
@@ -151,6 +152,9 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   const [showAllHands, setShowAllHands] = useState(false);
   const [handLayout, setHandLayout] = useState<HandLayout>("stacked");
   const [applyPwaUpdate, setApplyPwaUpdate] = useState<() => void>();
+  const [botThinking, setBotThinking] = useState(false);
+  const [lastBotDecisionMs, setLastBotDecisionMs] = useState<number>();
+  const [lastVNextDiagnostic, setLastVNextDiagnostic] = useState<ReturnType<typeof inspectTableNormalVNext>>();
   const game: TableGame = session.game;
   const levelRank = game.levelRank ?? session.match.levelRank;
   const finishIndex = (seat: Seat) => game.state.finished.indexOf(seat);
@@ -197,8 +201,14 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
       game.state.current === HUMAN_SEAT
     )
       return;
+    setBotThinking(true);
     const timer = window.setTimeout(() => {
-      const action = chooseTableBotAction(game);
+      const startedAt = performance.now();
+      const diagnostic = inspectTableNormalVNext(game);
+      const action = diagnostic?.action ?? chooseTableBotAction(game);
+      setLastVNextDiagnostic(diagnostic);
+      setLastBotDecisionMs(performance.now() - startedAt);
+      setBotThinking(false);
       if (!action) {
         setMessage(`${seatName[game.state.current]}没有可执行的合法动作。`);
         return;
@@ -415,6 +425,15 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   return (
     <main aria-label="掼蛋牌桌">
       <header>
+        <span className="preview-profile" aria-label="机器人策略">普通 normal-vNext</span>
+        <span className="decision-timing" aria-label="机器人决策耗时">
+          决策耗时：{lastBotDecisionMs === undefined ? "—" : `${lastBotDecisionMs.toFixed(1)}ms`}
+        </span>
+        {lastVNextDiagnostic ? (
+          <p aria-label="normal-vNext 决策诊断">
+            {lastVNextDiagnostic.reasons.join("；")}；结构损伤 {lastVNextDiagnostic.structureDamageCost}；控制资源 {lastVNextDiagnostic.controlResourceCost}；逢人配 {lastVNextDiagnostic.wildcardOpportunityCost}；争牌 {lastVNextDiagnostic.contest}；告警 {lastVNextDiagnostic.alerts.join(",") || "无"}
+          </p>
+        ) : null}
         <h1>单人本地掼蛋</h1>
         <button
           type="button"
@@ -555,6 +574,11 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
           <p className="table-status" role="status">
             {message}
           </p>
+          {botThinking ? (
+            <p className="bot-thinking" role="status">
+              normal-vNext 正在思考…
+            </p>
+          ) : null}
         </section>
         <section className="seat west" aria-label="西家座位">
           <strong>{seatName.west}</strong>

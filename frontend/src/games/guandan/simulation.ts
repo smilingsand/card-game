@@ -1,23 +1,24 @@
 import { dealFourPlayers, generateDeck, shuffleDeck } from "../../platform/deck";
-import type { Card, Seat } from "../../platform/types";
+import type { Card, Event, Seat } from "../../platform/types";
 import { chooseBasicBotAction } from "./basic-bot";
 import { chooseNormalBotAction } from "./normal-bot";
-import { createBotView } from "./bot-view";
-import { getLegalActions } from "./legal-actions";
-import { recognizePatterns, type PatternInterpretation } from "./patterns";
+import { chooseNormalVNextBotAction } from "./normal-vnext-bot";
+import { createBotView, type BotView } from "./bot-view";
+import { getCompleteLegalCandidates } from "./rule-complete-legal-actions";
 import { settleRound, type Settlement } from "./settlement";
 import { applyAction, validateAction, type TurnAction, type TurnState } from "./turns";
 
 const SEATS: readonly Seat[] = ["east", "south", "west", "north"];
 const INITIAL_LEVEL = "2" as const;
 const MAX_ACTIONS_PER_GAME = 1_000;
-export type BotDifficulty = "basic" | "normal";
+/** `normal` is retained solely for offline historical comparison, never exposed by the game UI. */
+export type BotDifficulty = "basic" | "normal" | "normal-vNext";
 export type SimulationDifficulties = Readonly<Record<Seat, BotDifficulty>>;
 const NORMAL_DIFFICULTIES: SimulationDifficulties = {
-  east: "normal",
-  south: "normal",
-  west: "normal",
-  north: "normal"
+  east: "normal-vNext",
+  south: "normal-vNext",
+  west: "normal-vNext",
+  north: "normal-vNext"
 };
 
 export type SimulationFailureCode =
@@ -46,6 +47,50 @@ export interface SimulationBatchResult {
   readonly firstFailureSeed?: number;
 }
 
+export interface SimulationDecisionSample {
+  readonly seed: number;
+  readonly actionIndex: number;
+  readonly action: TurnAction;
+  readonly publicEventSequence: number;
+  readonly decisionMs: number;
+  readonly legalActionCount: number;
+  readonly profile: BotDifficulty;
+  readonly view?: BotView;
+  readonly legalActionsGenerationMs?: number;
+  readonly botDecisionMs?: number;
+  readonly reasons?: readonly string[];
+}
+
+export interface RunSimulationOptions {
+  readonly difficulties?: SimulationDifficulties;
+  /**
+   * Diagnostic-only pre-decision projection. It is invoked with exactly the
+   * BotView consumed by the selected bot, before that bot is evaluated. The
+   * callback result is ignored and can never affect game state or selection.
+   */
+  readonly onBotView?: (sample: {
+    readonly seed: number;
+    readonly actionIndex: number;
+    readonly profile: BotDifficulty;
+    readonly view: BotView;
+  }) => void;
+  /** Diagnostics only. It receives public information and the selected legal action. */
+  readonly onDecision?: (sample: SimulationDecisionSample) => void;
+  /** Diagnostic-only guard; defaults to the production simulation protection. */
+  readonly maxActions?: number;
+}
+
+function isSimulationOptions(
+  options: SimulationDifficulties | RunSimulationOptions
+): options is RunSimulationOptions {
+  return (
+    "difficulties" in options ||
+    "onBotView" in options ||
+    "onDecision" in options ||
+    "maxActions" in options
+  );
+}
+
 function createInitialTurnState(seed: number): { state: TurnState; cards: readonly Card[] } {
   const cards = shuffleDeck(generateDeck({ deckCount: 2, includeJokers: true }), seed);
   const deal = dealFourPlayers(cards);
@@ -66,6 +111,35 @@ function createInitialTurnState(seed: number): { state: TurnState; cards: readon
   };
 }
 
+/**
+ * Reproducible first-decision projection for diagnostics/differential tests.
+ * It exposes only the same BotView consumed by an actual simulation bot.
+ */
+export function createInitialSimulationBotView(seed: number): BotView {
+  const initial = createInitialTurnState(seed);
+  const cardsById = new Map(initial.cards.map((card) => [card.id, card]));
+  const selfSeat = initial.state.current;
+  const hand = initial.state.hands[selfSeat]
+    .map((cardId) => cardsById.get(cardId))
+    .filter((card): card is Card => card !== undefined);
+  return createBotView({
+    selfSeat,
+    leader: initial.state.leader,
+    highestSeat: initial.state.highestSeat,
+    levelRank: INITIAL_LEVEL,
+    hand,
+    publicEvents: [],
+    remainingCardCounts: Object.fromEntries(
+      SEATS.map((seat) => [seat, initial.state.hands[seat].length])
+    ) as Record<Seat, number>,
+    legalActions: getCompleteLegalCandidates({
+      state: initial.state,
+      selfHand: hand,
+      levelRank: INITIAL_LEVEL
+    })
+  });
+}
+
 function assertCardInvariant(
   state: TurnState,
   allCardIds: ReadonlySet<string>,
@@ -80,51 +154,65 @@ function assertCardInvariant(
   return undefined;
 }
 
-function candidateActions(
-  state: TurnState,
-  singlePatternsByCardId: ReadonlyMap<string, readonly PatternInterpretation[]>
-): readonly TurnAction[] {
-  const hand = state.hands[state.current];
-  const plays = hand.flatMap((cardId) => {
-    const interpretations = singlePatternsByCardId.get(cardId);
-    if (!interpretations) return [];
-    return interpretations.map((interpretation) => ({
-      type: "play" as const,
-      actor: state.current,
-      cardIds: [cardId],
-      interpretation
-    }));
-  });
-  const candidates: TurnAction[] = state.highest
-    ? [...plays, { type: "pass", actor: state.current }]
-    : plays;
-  return getLegalActions(state, candidates);
-}
-
 function botAction(
   state: TurnState,
   cardsById: ReadonlyMap<string, Card>,
-  singlePatternsByCardId: ReadonlyMap<string, readonly PatternInterpretation[]>,
-  difficulties: SimulationDifficulties
-): TurnAction | undefined {
-  const legalActions = candidateActions(state, singlePatternsByCardId);
+  publicEvents: readonly Event[],
+  difficulties: SimulationDifficulties,
+): {
+  readonly action: TurnAction | undefined;
+  readonly legalActionCount: number;
+  readonly profile: BotDifficulty;
+  readonly view: BotView;
+  readonly legalActionsGenerationMs: number;
+  readonly botDecisionMs: number;
+  readonly reasons: readonly string[];
+} {
+  const hand = state.hands[state.current]
+    .map((cardId) => cardsById.get(cardId))
+    .filter((card): card is Card => card !== undefined);
+  const legalStarted = performance.now();
+  const legalActions = getCompleteLegalCandidates({
+    state,
+    selfHand: hand,
+    levelRank: INITIAL_LEVEL
+  });
+  const legalActionsGenerationMs = performance.now() - legalStarted;
   const view = createBotView({
     selfSeat: state.current,
     leader: state.leader,
     highestSeat: state.highestSeat,
     levelRank: INITIAL_LEVEL,
-    hand: state.hands[state.current]
-      .map((cardId) => cardsById.get(cardId))
-      .filter((card): card is Card => card !== undefined),
-    publicEvents: [],
+    hand,
+    publicEvents,
     remainingCardCounts: Object.fromEntries(
       SEATS.map((seat) => [seat, state.hands[seat].length])
     ) as Record<Seat, number>,
     legalActions
   });
-  return difficulties[state.current] === "basic"
-    ? chooseBasicBotAction(view)
-    : chooseNormalBotAction(view)?.action;
+  const profile = difficulties[state.current];
+  const decisionStarted = performance.now();
+  if (profile === "basic")
+    return {
+      action: chooseBasicBotAction(view),
+      legalActionCount: legalActions.length,
+      profile,
+      view, legalActionsGenerationMs, botDecisionMs: performance.now() - decisionStarted, reasons: []
+    };
+  const decision = profile === "normal" ? chooseNormalBotAction(view) : chooseNormalVNextBotAction(view);
+  return {
+    action: decision?.action,
+    legalActionCount: legalActions.length,
+    profile,
+    view,
+    legalActionsGenerationMs,
+    botDecisionMs: performance.now() - decisionStarted,
+    reasons: decision?.reasons ?? []
+  };
+}
+
+function publicEvent(sequence: number, action: TurnAction): Event<{ readonly action: TurnAction }> {
+  return { sequence, type: "guandan.turn_action", actorId: action.actor, payload: { action } };
 }
 
 /**
@@ -133,26 +221,44 @@ function botAction(
  */
 export function runSimulation(
   seed: number,
-  difficulties: SimulationDifficulties = NORMAL_DIFFICULTIES
+  options: SimulationDifficulties | RunSimulationOptions = NORMAL_DIFFICULTIES
 ): SimulationResult {
+  const normalized: RunSimulationOptions = isSimulationOptions(options)
+    ? options
+    : { difficulties: options };
+  const difficulties = normalized.difficulties ?? NORMAL_DIFFICULTIES;
   const initial = createInitialTurnState(seed);
   const allCardIds = new Set(initial.cards.map((card) => card.id));
   const cardsById = new Map(initial.cards.map((card) => [card.id, card]));
-  const singlePatternsByCardId = new Map<string, readonly PatternInterpretation[]>();
-  for (const card of initial.cards) {
-    const recognition = recognizePatterns([card], INITIAL_LEVEL);
-    if (recognition.ok) singlePatternsByCardId.set(card.id, recognition.interpretations);
-  }
   const playedCardIds = new Set<string>();
+  const publicEvents: Event<{ readonly action: TurnAction }>[] = [];
   let state = initial.state;
   let actionCount = 0;
 
-  while (!state.completed && actionCount < MAX_ACTIONS_PER_GAME) {
+  const maxActions = normalized.maxActions ?? MAX_ACTIONS_PER_GAME;
+  while (!state.completed && actionCount < maxActions) {
     const invariantError = assertCardInvariant(state, allCardIds, playedCardIds);
     if (invariantError)
       return { ok: false, seed, actionCount, code: "invariant_violation", message: invariantError };
 
-    const action = botAction(state, cardsById, singlePatternsByCardId, difficulties);
+    const beforeDecision = performance.now();
+    // `botAction` builds this projection once. The observer receives that exact
+    // input after the decision returns; it never receives a reconstructed or
+    // post-apply view and its return value is ignored.
+    const selected = botAction(
+      state,
+      cardsById,
+      publicEvents,
+      difficulties,
+    );
+    normalized.onBotView?.({
+      seed,
+      actionIndex: actionCount,
+      profile: selected.profile,
+      view: selected.view
+    });
+    const decisionMs = performance.now() - beforeDecision;
+    const action = selected.action;
     if (!action || !validateAction(state, action).ok)
       return {
         ok: false,
@@ -166,6 +272,20 @@ export function runSimulation(
     if (!result.ok)
       return { ok: false, seed, actionCount, code: "illegal_action", message: result.code };
     if (action.type === "play") action.cardIds.forEach((cardId) => playedCardIds.add(cardId));
+    normalized.onDecision?.({
+      seed,
+      actionIndex: actionCount,
+      action,
+      publicEventSequence: publicEvents.at(-1)?.sequence ?? 0,
+      decisionMs,
+      legalActionCount: selected.legalActionCount,
+      profile: selected.profile,
+      view: selected.view,
+      legalActionsGenerationMs: selected.legalActionsGenerationMs,
+      botDecisionMs: selected.botDecisionMs,
+      reasons: selected.reasons,
+    });
+    publicEvents.push(publicEvent(publicEvents.length + 1, action));
     state = result.state;
     actionCount += 1;
   }
@@ -179,7 +299,7 @@ export function runSimulation(
       seed,
       actionCount,
       code: "max_actions_exceeded",
-      message: `exceeded ${MAX_ACTIONS_PER_GAME} actions`
+      message: `exceeded ${maxActions} actions`
     };
 
   try {

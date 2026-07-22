@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach } from "vitest";
 import { App, CardFace, PlayerCardCount } from "./App";
 import { latestRecentActionsBySeat } from "./games/guandan/recent-actions";
 import type { StorageBoundary } from "./platform/storage";
@@ -34,6 +35,47 @@ function memoryStorage(
 }
 
 describe("App", () => {
+  afterEach(() => cleanup());
+
+  it("Preview 保持 normal-v1 默认，并允许切换到 normal-vNext", () => {
+    render(<App storage={memoryStorage()} />);
+
+    const v1 = screen.getByRole("radio", { name: "普通 normal-v1（默认）" });
+    const vNext = screen.getByRole("radio", { name: "普通 normal-vNext（Preview）" });
+    expect(v1).toBeChecked();
+    expect(vNext).not.toBeChecked();
+
+    fireEvent.click(vNext);
+    expect(vNext).toBeChecked();
+    expect(v1).not.toBeChecked();
+  });
+
+  it("Preview 默认保持 normal，并允许显式切换到 expert-24 后展示决策诊断", async () => {
+    render(<App storage={memoryStorage()} />);
+
+    const normal = screen.getByRole("radio", { name: "普通 normal-v1（默认）" });
+    const expert = screen.getByRole("radio", { name: "专家-24（Preview）" });
+    expect(normal).toBeChecked();
+    expect(expert).not.toBeChecked();
+    expect(screen.getByLabelText("机器人决策耗时")).toHaveTextContent("—");
+
+    fireEvent.click(expert);
+    expect(expert).toBeChecked();
+    expect(normal).not.toBeChecked();
+  });
+
+  it("expert-24 等待出牌时明确显示 thinking 状态", async () => {
+    const initial = createTableSession(73);
+    const opening = getLegalSingleActions(initial.game).find((action) => action.type === "play");
+    if (!opening) throw new Error("expected south opening");
+    const afterSouth = applyTableSessionAction(initial, opening);
+    if (!afterSouth.ok) throw new Error("expected south opening");
+
+    render(<App storage={memoryStorage(serializeTableSession(afterSouth.session))} />);
+    fireEvent.click(screen.getByRole("radio", { name: "专家-24（Preview）" }));
+    await waitFor(() => expect(screen.getByText("专家-24 正在思考…")).toBeInTheDocument());
+  });
+
   it("牌桌提供独立的响应式布局边界", async () => {
     render(<App storage={memoryStorage()} />);
     await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
