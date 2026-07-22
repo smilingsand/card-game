@@ -2,6 +2,7 @@ import { dealFourPlayers, generateDeck, shuffleDeck } from "../../platform/deck"
 import type { Card, Event, Seat } from "../../platform/types";
 import { chooseBasicBotAction } from "./basic-bot";
 import { chooseNormalBotAction } from "./normal-bot";
+import { chooseNormalVNextBotAction } from "./normal-vnext-bot";
 import {
   chooseExpertBotDecision,
   getExpertDecisionCacheStatistics,
@@ -22,7 +23,7 @@ const SEATS: readonly Seat[] = ["east", "south", "west", "north"];
 const INITIAL_LEVEL = "2" as const;
 const MAX_ACTIONS_PER_GAME = 1_000;
 /** `expert`/`experimental` are explicit production profiles; neither may fall back to normal. */
-export type BotDifficulty = "basic" | "normal" | "expert" | "experimental";
+export type BotDifficulty = "basic" | "normal" | "normal-vNext" | "expert" | "experimental";
 export type SimulationDifficulties = Readonly<Record<Seat, BotDifficulty>>;
 const NORMAL_DIFFICULTIES: SimulationDifficulties = {
   east: "normal",
@@ -65,6 +66,10 @@ export interface SimulationDecisionSample {
   readonly decisionMs: number;
   readonly legalActionCount: number;
   readonly profile: BotDifficulty;
+  readonly view?: BotView;
+  readonly legalActionsGenerationMs?: number;
+  readonly botDecisionMs?: number;
+  readonly reasons?: readonly string[];
   /** Present only for the real expert decision chain, never synthesized from normal. */
   readonly explanation?: DecisionExplanation;
   /** Post-decision observation only; it is never read by the expert decision chain. */
@@ -107,6 +112,8 @@ export interface RunSimulationOptions {
   }) => void;
   /** Diagnostics only. It receives public information and the selected legal action. */
   readonly onDecision?: (sample: SimulationDecisionSample) => void;
+  /** Diagnostic-only guard; defaults to the production simulation protection. */
+  readonly maxActions?: number;
 }
 
 function isSimulationOptions(
@@ -116,6 +123,7 @@ function isSimulationOptions(
     "difficulties" in options ||
     "onBotView" in options ||
     "onDecision" in options ||
+    "maxActions" in options ||
     "expertPerformanceBudget" in options
   );
 }
@@ -205,17 +213,22 @@ function botAction(
   readonly legalActionCount: number;
   readonly profile: BotDifficulty;
   readonly view: BotView;
+  readonly legalActionsGenerationMs: number;
+  readonly botDecisionMs: number;
+  readonly reasons: readonly string[];
   readonly explanation?: DecisionExplanation;
   readonly expertPerformance?: SimulationDecisionSample["expertPerformance"];
 } {
   const hand = state.hands[state.current]
     .map((cardId) => cardsById.get(cardId))
     .filter((card): card is Card => card !== undefined);
+  const legalStarted = performance.now();
   const legalActions = getCompleteLegalCandidates({
     state,
     selfHand: hand,
     levelRank: INITIAL_LEVEL
   });
+  const legalActionsGenerationMs = performance.now() - legalStarted;
   const view = createBotView({
     selfSeat: state.current,
     leader: state.leader,
@@ -229,20 +242,23 @@ function botAction(
     legalActions
   });
   const profile = difficulties[state.current];
+  const decisionStarted = performance.now();
   if (profile === "basic")
     return {
       action: chooseBasicBotAction(view),
       legalActionCount: legalActions.length,
       profile,
-      view
+      view, legalActionsGenerationMs, botDecisionMs: performance.now() - decisionStarted, reasons: []
     };
   if (profile === "normal")
     return {
       action: chooseNormalBotAction(view)?.action,
       legalActionCount: legalActions.length,
       profile,
-      view
+      view, legalActionsGenerationMs, botDecisionMs: performance.now() - decisionStarted, reasons: chooseNormalBotAction(view)?.reasons ?? []
     };
+  if (profile === "normal-vNext")
+    { const decision = chooseNormalVNextBotAction(view); return { action: decision?.action, legalActionCount: legalActions.length, profile, view, legalActionsGenerationMs, botDecisionMs: performance.now() - decisionStarted, reasons: decision?.reasons ?? [] }; }
   const decision = chooseExpertBotDecision({
     view,
     profile: createDefaultStrategyProfile(profile),
@@ -253,6 +269,9 @@ function botAction(
     legalActionCount: legalActions.length,
     profile,
     view,
+    legalActionsGenerationMs,
+    botDecisionMs: performance.now() - decisionStarted,
+    reasons: [],
     explanation: decision.explanation,
     expertPerformance: {
       botViewReplayFingerprint: replayFingerprint(
@@ -306,7 +325,8 @@ export function runSimulation(
   let state = initial.state;
   let actionCount = 0;
 
-  while (!state.completed && actionCount < MAX_ACTIONS_PER_GAME) {
+  const maxActions = normalized.maxActions ?? MAX_ACTIONS_PER_GAME;
+  while (!state.completed && actionCount < maxActions) {
     const invariantError = assertCardInvariant(state, allCardIds, playedCardIds);
     if (invariantError)
       return { ok: false, seed, actionCount, code: "invariant_violation", message: invariantError };
@@ -351,6 +371,10 @@ export function runSimulation(
       decisionMs,
       legalActionCount: selected.legalActionCount,
       profile: selected.profile,
+      view: selected.view,
+      legalActionsGenerationMs: selected.legalActionsGenerationMs,
+      botDecisionMs: selected.botDecisionMs,
+      reasons: selected.reasons,
       explanation: selected.explanation,
       expertPerformance: selected.expertPerformance
     });
@@ -368,7 +392,7 @@ export function runSimulation(
       seed,
       actionCount,
       code: "max_actions_exceeded",
-      message: `exceeded ${MAX_ACTIONS_PER_GAME} actions`
+      message: `exceeded ${maxActions} actions`
     };
 
   try {
