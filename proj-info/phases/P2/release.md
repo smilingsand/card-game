@@ -1,14 +1,17 @@
 # P2 发布记录
 
-## P2.7 - normal-vNext 策略稳定化（本地版本）
+## P2.7 - normal-vNext 策略稳定化（Production）
 
-- 日期：2026-07-22
+- 日期：2026-07-23
 - 本地 Git 标签：`P2.7-local`（指向本次文档与版本提交）
 - npm 包版本：`2.7.0`
 - 范围：normal-vNext 尾局阻断、合法动作兜底、中小自然结构争牌、控制资源保护、明牌出牌叠层。
 - 本地验证：`typecheck`、`lint`、normal-vNext 41 项、策略指标 1 项、table-controller 11 项、App 19 项通过。
-- 发布状态：**仅本地/GitHub；尚未创建新的 Vercel Preview 或 Production 部署。**
-- 后续发布要求：新的 Preview 人工试玩、Production 部署、公开入口检查，以及 PWA/移动端按需复测；完成后补充 deployment URL、提交 SHA 与人工验收证据。
+- 源代码提交：`7ef2dbf`（`P2.7: document normal-vNext stabilization`）。
+- Vercel Production：`dpl_EdpHsAKzhmCUyjHUTPuHBXJjxnYQ`，2026-07-23 由 `wentop/card-game` 远端构建完成；构建执行 `npm run build`、TypeScript 检查和 Vite 构建均通过。
+- 部署详情：[Vercel Inspect](https://vercel.com/wentop/card-game/EdpHsAKzhmCUyjHUTPuHBXJjxnYQ)；不可变部署地址：`https://card-game-r30w56pj1-wentop.vercel.app`。
+- 正式入口：`https://card-game-wentop.vercel.app/`，已重新绑定到上述部署，并以匿名 HTTPS 请求确认 HTTP 200 与应用根节点存在。
+- 发布状态：**Production 已完成并公开可访问。** 尚未单独创建 P2.7 Preview；移动端/PWA 人工复测按后续实际发布风险执行，不得以 P2-06 的历史真机证据替代 P2.7 的新人工证据。
 
 ## P2-06 历史 Production 记录
 

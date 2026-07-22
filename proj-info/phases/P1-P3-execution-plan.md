@@ -234,7 +234,7 @@
 
 这不是新的 P2 子任务，也不改变 P3-01 的依赖状态。产品唯一机器人已收敛为 normal-vNext；P2.7 固化了下家尾局阻断、合法动作兜底、自然中小结构争牌、控制资源保护和明牌后出牌覆盖先出牌的显示层级。
 
-验证证据：`typecheck`、`lint`、normal-vNext 固定牌例 41 项、策略指标 1 项、table-controller 11 项和 App 19 项均通过。策略仅消费 BotView 和规则层完整 legalActions；规则引擎、normal-v1、P2.5 expert 与默认 profile 均未改变。P2.7 为本地/GitHub 版本，新的 Preview/Production 验收仍待完成，发布记录见 `P2/release.md`。
+验证证据：`typecheck`、`lint`、normal-vNext 固定牌例 41 项、策略指标 1 项、table-controller 11 项和 App 19 项均通过。策略仅消费 BotView 和规则层完整 legalActions；规则引擎、normal-v1、P2.5 expert 与默认 profile 均未改变。P2.7 已于 2026-07-23 由 Vercel `wentop/card-game` 远端构建并部署 Production，正式入口 `https://card-game-wentop.vercel.app/` 已匿名 HTTPS 复核 HTTP 200；尚未单独创建 P2.7 Preview，发布记录见 `P2/release.md`。
 
 ## P2.5：整手规划驱动的专家策略与评分系统
 
