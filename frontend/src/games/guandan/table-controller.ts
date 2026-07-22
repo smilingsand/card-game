@@ -2,6 +2,8 @@ import { dealFourPlayers, generateDeck, shuffleDeck } from "../../platform/deck"
 import type { Card, Event, Rank, Seat } from "../../platform/types";
 import { chooseNormalBotAction } from "./normal-bot";
 import { chooseNormalVNextBotAction } from "./normal-vnext-bot";
+import { describeNormalVNextAction } from "./normal-vnext-bot";
+import { diagnoseNormalVNextAction } from "./normal-vnext-metrics";
 import { createBotView } from "./bot-view";
 import { getLegalActions } from "./legal-actions";
 import { recognizePatterns, type PatternInterpretation } from "./patterns";
@@ -36,6 +38,16 @@ export interface CandidateProfileConfig {
 
 /** `normal` is the frozen normal-v1 baseline; normal-vNext is Preview-only. */
 export type TableStrategyProfile = StrategyProfileId | "normal-vNext";
+
+export interface NormalVNextPreviewDiagnostic {
+  readonly action: TurnAction;
+  readonly reasons: readonly string[];
+  readonly structureDamageCost: number;
+  readonly controlResourceCost: number;
+  readonly wildcardOpportunityCost: number;
+  readonly contest: string;
+  readonly alerts: readonly string[];
+}
 
 export interface TableGame {
   readonly cardsById: ReadonlyMap<string, Card>;
@@ -162,6 +174,23 @@ function createTableBotView(game: TableGame, legalActions: readonly TurnAction[]
     ) as Record<Seat, number>,
     legalActions
   });
+}
+
+/** Read-only Preview diagnostic. It calls the exact normal-vNext production selector once. */
+export function inspectTableNormalVNext(game: TableGame): NormalVNextPreviewDiagnostic | undefined {
+  const legalActions = getCompleteLegalCandidates({
+    state: game.state,
+    selfHand: game.state.hands[game.state.current]
+      .map((cardId) => game.cardsById.get(cardId))
+      .filter((card): card is Card => card !== undefined),
+    levelRank: game.levelRank ?? INITIAL_LEVEL_RANK
+  });
+  const view = createTableBotView(game, legalActions);
+  const decision = chooseNormalVNextBotAction(view);
+  if (!decision) return undefined;
+  const cost = describeNormalVNextAction(decision.action, view);
+  const opponentCounts = Object.entries(view.remainingCardCounts).filter(([seat]) => seat !== view.selfSeat && seat !== (view.selfSeat === "east" ? "west" : view.selfSeat === "west" ? "east" : view.selfSeat === "south" ? "north" : "south")).map(([, count]) => count);
+  return { action: decision.action, reasons: decision.reasons, structureDamageCost: cost?.structureDamageCost ?? 0, controlResourceCost: cost?.controlResourceCost ?? 0, wildcardOpportunityCost: cost?.wildcardOpportunityCost ?? 0, contest: view.highestSeat === undefined ? "lead" : Math.min(...opponentCounts) <= 3 ? "block" : "conserve", alerts: diagnoseNormalVNextAction(view, decision.action) };
 }
 
 export function chooseTableStrategicDecision(

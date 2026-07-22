@@ -11,6 +11,7 @@ import type { Card, Seat } from "./platform/types";
 import { createIndexedDbStorage, type StorageBoundary } from "./platform/storage";
 import {
   chooseTableHintAction,
+  inspectTableNormalVNext,
   chooseTableBotAction,
   formatCard,
   formatInterpretation,
@@ -155,6 +156,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   const [botProfile, setBotProfile] = useState<TableStrategyProfile>("normal");
   const [botThinking, setBotThinking] = useState(false);
   const [lastBotDecisionMs, setLastBotDecisionMs] = useState<number>();
+  const [lastVNextDiagnostic, setLastVNextDiagnostic] = useState<ReturnType<typeof inspectTableNormalVNext>>();
   const game: TableGame = session.game;
   const levelRank = game.levelRank ?? session.match.levelRank;
   const finishIndex = (seat: Seat) => game.state.finished.indexOf(seat);
@@ -204,7 +206,9 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     setBotThinking(true);
     const timer = window.setTimeout(() => {
       const startedAt = performance.now();
-      const action = chooseTableBotAction(game, botProfile);
+      const diagnostic = botProfile === "normal-vNext" ? inspectTableNormalVNext(game) : undefined;
+      const action = diagnostic?.action ?? chooseTableBotAction(game, botProfile);
+      setLastVNextDiagnostic(diagnostic);
       setLastBotDecisionMs(performance.now() - startedAt);
       setBotThinking(false);
       if (!action) {
@@ -456,6 +460,11 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         <span className="decision-timing" aria-label="机器人决策耗时">
           决策耗时：{lastBotDecisionMs === undefined ? "—" : `${lastBotDecisionMs.toFixed(1)}ms`}
         </span>
+        {botProfile === "normal-vNext" && lastVNextDiagnostic ? (
+          <p aria-label="normal-vNext 决策诊断">
+            {lastVNextDiagnostic.reasons.join("；")}；结构损伤 {lastVNextDiagnostic.structureDamageCost}；控制资源 {lastVNextDiagnostic.controlResourceCost}；逢人配 {lastVNextDiagnostic.wildcardOpportunityCost}；争牌 {lastVNextDiagnostic.contest}；告警 {lastVNextDiagnostic.alerts.join(",") || "无"}
+          </p>
+        ) : null}
         <h1>单人本地掼蛋</h1>
         <button
           type="button"
