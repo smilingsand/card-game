@@ -132,12 +132,7 @@ export function evaluateControlResources(
   input: EvaluateControlResourcesInput
 ): ControlResourceEvaluation {
   const before = inventory(input.structure);
-  // Post-action evaluation has already derived this exact remaining-hand structure. Reusing it
-  // avoids a duplicate pure analysis without changing the control inventory.
-  const after = inventory(
-    input.postAction.afterAnalysis?.structure ??
-      analyzeHandStructure(input.postAction.remainingHand, input.levelRank)
-  );
+  const after = inventory(analyzeHandStructure(input.postAction.remainingHand, input.levelRank));
   const playedIds =
     input.action.type === "play" ? new Set(input.action.cardIds) : new Set<string>();
   const spentResourceCardIds = before.totalUniqueCardIds.filter((id) => playedIds.has(id));
@@ -156,20 +151,6 @@ export function evaluateControlResources(
     remainingReserveCount === 0;
   const preservesRecoveryPoint = after.recoveryPointCount > 0;
   const reasons: string[] = [];
-  // A control card need not be the *last* one to carry an opportunity cost.
-  // In particular, using a joker, level card or AA/high pair as an attachment
-  // can be materially worse than spending an otherwise equivalent low pair.
-  // These are exact facts from the bot's own hand only; they do not infer an
-  // opponent holding or invoke any successor analysis.
-  const spent = new Set(spentResourceCardIds);
-  const spentJoker = before.jokers.cardIds.some((id) => spent.has(id));
-  const spentLevel = before.levelCards.cardIds.some((id) => spent.has(id));
-  const spentAceOrHighPair =
-    before.aces.cardIds.some((id) => spent.has(id)) ||
-    before.highPairs.cardIds.some((id) => spent.has(id));
-  if (!exception && spentJoker) reasons.push("spends_joker_control");
-  if (!exception && spentLevel) reasons.push("spends_level_control");
-  if (!exception && spentAceOrHighPair) reasons.push("spends_ace_or_high_pair_control");
   if (!exception && spendsLastControlResource) reasons.push("spends_last_control_resource");
   if (!exception && lowSinglesRemain && !preservesRecoveryPoint)
     reasons.push("leaves_low_singles_without_recovery");

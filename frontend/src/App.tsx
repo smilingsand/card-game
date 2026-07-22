@@ -16,8 +16,7 @@ import {
   formatInterpretation,
   getLegalSingleActions,
   getSelectedPlayActions,
-  type TableGame,
-  type TableStrategyProfile
+  type TableGame
 } from "./games/guandan/table-controller";
 import {
   applyTableSessionAction,
@@ -152,9 +151,6 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   const [showAllHands, setShowAllHands] = useState(false);
   const [handLayout, setHandLayout] = useState<HandLayout>("stacked");
   const [applyPwaUpdate, setApplyPwaUpdate] = useState<() => void>();
-  const [botProfile, setBotProfile] = useState<TableStrategyProfile>("normal");
-  const [botThinking, setBotThinking] = useState(false);
-  const [lastBotDecisionMs, setLastBotDecisionMs] = useState<number>();
   const game: TableGame = session.game;
   const levelRank = game.levelRank ?? session.match.levelRank;
   const finishIndex = (seat: Seat) => game.state.finished.indexOf(seat);
@@ -201,12 +197,8 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
       game.state.current === HUMAN_SEAT
     )
       return;
-    setBotThinking(true);
     const timer = window.setTimeout(() => {
-      const startedAt = performance.now();
-      const action = chooseTableBotAction(game, botProfile);
-      setLastBotDecisionMs(performance.now() - startedAt);
-      setBotThinking(false);
+      const action = chooseTableBotAction(game);
       if (!action) {
         setMessage(`${seatName[game.state.current]}没有可执行的合法动作。`);
         return;
@@ -219,7 +211,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
       setSession(result.session);
     }, botThinkDelayMs(game.publicEvents.length));
     return () => window.clearTimeout(timer);
-  }, [botProfile, game, session]);
+  }, [game, session]);
 
   useEffect(() => {
     if (!game.state.completed) return;
@@ -423,30 +415,6 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   return (
     <main aria-label="掼蛋牌桌">
       <header>
-        <fieldset className="preview-profile" aria-label="机器人 Preview profile">
-          <legend>机器人 Preview</legend>
-          <label>
-            <input
-              type="radio"
-              name="bot-profile"
-              checked={botProfile === "normal"}
-              onChange={() => setBotProfile("normal")}
-            />
-            普通（默认）
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="bot-profile"
-              checked={botProfile === "expert"}
-              onChange={() => setBotProfile("expert")}
-            />
-            专家-24（Preview）
-          </label>
-        </fieldset>
-        <span className="decision-timing" aria-label="机器人决策耗时">
-          决策耗时：{lastBotDecisionMs === undefined ? "—" : `${lastBotDecisionMs.toFixed(1)}ms`}
-        </span>
         <h1>单人本地掼蛋</h1>
         <button
           type="button"
@@ -587,11 +555,6 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
           <p className="table-status" role="status">
             {message}
           </p>
-          {botThinking ? (
-            <p className="bot-thinking" role="status">
-              {botProfile === "expert" ? "专家-24 正在思考…" : "机器人正在思考…"}
-            </p>
-          ) : null}
         </section>
         <section className="seat west" aria-label="西家座位">
           <strong>{seatName.west}</strong>

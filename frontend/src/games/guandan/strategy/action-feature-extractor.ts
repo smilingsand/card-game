@@ -44,9 +44,7 @@ export function extractActionFeatures(input: ExtractActionFeaturesInput): Action
     cardsPlayed: isPass ? 0 : input.action.cardIds.length,
     isPass,
     blocksOpponent: !isPass && ["high", "critical"].includes(input.situation.opponentThreat.level),
-    // A non-pass while the teammate is holding the current trick takes over
-    // control; it is not support merely because a teammate is currently ahead.
-    helpsPartner: input.control.exception === "team_support",
+    helpsPartner: input.situation.teammate.isHolding || input.control.exception === "team_support",
     postAction: input.postAction,
     control: input.control,
     followUp: input.followUp,

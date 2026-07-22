@@ -24,25 +24,7 @@ export interface DecisionExplanation {
 
 export interface ExplainedCandidate {
   readonly action: TurnAction;
-  /** Stable physical + semantic key used by ADR-0018 replayable screening. */
-  readonly candidateKey?: string;
-  /** Full legal-candidate light stage, computed without successor analysis. */
-  readonly lightBaseScore?: number;
-  /** ADR-0022 replayable light-stage proxy and its auditable components. */
-  readonly deadHandRiskProxy?: import("./dead-hand-risk-proxy").DeadHandRiskProxy;
-  /** Deterministic score before any complete FollowUp work. */
-  readonly baseScore?: number;
   readonly finalScore: number;
-  /** Only completed candidates may participate in final action selection. */
-  readonly followUpStatus?: "completed" | "not_evaluated";
-  readonly postActionStatus?: "completed" | "not_evaluated";
-  /** A screened-out legal candidate never competes for the final action. */
-  readonly notFinallyEligible?: boolean;
-  readonly screeningReason?:
-    "mandatory" | "base_score_budget" | "dead_hand_risk_proxy_budget" | "mandatory_overflow";
-  readonly followUpSelectionReason?:
-    "mandatory" | "base_score_budget" | "dead_hand_risk_proxy_budget" | "mandatory_overflow";
-  readonly mandatoryReason?: "finish_now" | "must_beat" | "partner_finish_setup" | null;
   readonly components: ScoreComponents;
   readonly matchedRules: readonly RuleAdjustment[];
   readonly hardExcluded: boolean;
@@ -67,31 +49,11 @@ export interface ExplainedCandidate {
     readonly createsRunoutPath: boolean;
     readonly retainsControlPotential: boolean;
   };
-  /** Auditable strategy signals used by the P2.5 simulation diagnostics. */
-  readonly signals: StrategyFeatureSnapshot["signals"];
-  /** Strict wildcard aliases share this candidate's canonical physical analysis. */
-  readonly aliases?: readonly TurnAction[];
-  readonly equivalentInterpretationCount?: number;
-  readonly sharedPhysicalScore?: number;
-  readonly interpretationSpecificScore?: number;
 }
 
 export interface DecisionCandidateInput {
   readonly score: CandidateActionScore;
   readonly features: StrategyFeatureSnapshot;
-  readonly aliases?: readonly TurnAction[];
-  readonly baseScore?: number;
-  readonly lightBaseScore?: number;
-  readonly deadHandRiskProxy?: import("./dead-hand-risk-proxy").DeadHandRiskProxy;
-  readonly candidateKey?: string;
-  readonly postActionStatus?: "completed" | "not_evaluated";
-  readonly notFinallyEligible?: boolean;
-  readonly screeningReason?:
-    "mandatory" | "base_score_budget" | "dead_hand_risk_proxy_budget" | "mandatory_overflow";
-  readonly followUpStatus?: "completed" | "not_evaluated";
-  readonly followUpSelectionReason?:
-    "mandatory" | "base_score_budget" | "dead_hand_risk_proxy_budget" | "mandatory_overflow";
-  readonly mandatoryReason?: "finish_now" | "must_beat" | "partner_finish_setup" | null;
 }
 
 export interface CreateDecisionInput {
@@ -107,85 +69,30 @@ export interface CreateDecisionInput {
 export interface StrategyDecision {
   readonly selectedAction: TurnAction;
   readonly explanation: DecisionExplanation;
-  readonly debug?: {
-    readonly candidateCount: number;
-    readonly hardExcludedCount: number;
-    /** A-layer interpretation count before semantic alias normalization. */
-    readonly rawLegalInterpretationCount?: number;
-    readonly canonicalPhysicalActionCount?: number;
-    readonly semanticCandidateCount?: number;
-    readonly postActionExecutionCount?: number;
-    readonly postActionSelection?: {
-      readonly budget: { readonly default: number; readonly max: number };
-      readonly selectedCount: number;
-      readonly mandatoryOverflow: boolean;
-    };
-    readonly followUpExecutionCount?: number;
-    readonly followUpSelection?: {
-      readonly budget: { readonly default: number; readonly max: number };
-      readonly selectedCount: number;
-      readonly mandatoryOverflow: boolean;
-    };
-    /** Exact FollowUp inner successor-analysis cache diagnostics. */
-    readonly followUpSuccessorAnalysisCacheHitCount?: number;
-    readonly followUpSuccessorAnalysisCacheMissCount?: number;
-    /** Exact root-leading catalogue projection diagnostics. */
-    readonly followUpLeadCatalogueSource?: "view" | "generated";
-    readonly followUpLeadProjectionCount?: number;
-    readonly followUpLeadFilteredActionCount?: number;
-    /** Diagnostic-only elapsed time by expert module; never participates in selection. */
-    readonly moduleElapsedMilliseconds?: Readonly<Record<string, number>>;
-  };
+  readonly debug?: { readonly candidateCount: number; readonly hardExcludedCount: number };
 }
 
-const NORMAL_PROFILE_VERSION = "p2.5a-1";
-/** ADR-0021 freezes the deep-admission policy as an expert profile version. */
-const EXPERT_DEPTH_PROFILE_VERSION = "p2.5a-depth-24-v1";
+const PROFILE_VERSION = "p2.5a-1";
 
 /**
  * 三个 profile 是显式、版本化快照。experimental 默认不继承 expert 规则，
  * 以免尚未验证的规则通过隐式回退进入默认机器人。
  */
 export function createDefaultStrategyProfile(id: StrategyProfileId): StrategyProfileSnapshot {
-  const version = id === "normal" ? NORMAL_PROFILE_VERSION : EXPERT_DEPTH_PROFILE_VERSION;
   return createStrategyProfile({
     id,
-    version,
-    rulesVersion: version,
-    weightsVersion: version,
+    version: PROFILE_VERSION,
+    rulesVersion: PROFILE_VERSION,
+    weightsVersion: PROFILE_VERSION,
     enabledRuleIds: id === "expert" ? STRATEGY_RULES.map((rule) => rule.id) : []
   });
 }
 
 function explainCandidate(input: DecisionCandidateInput): ExplainedCandidate {
   const { score, features } = input;
-  const sharedPhysicalScore =
-    score.components.postActionStructureValue +
-    score.components.finishabilityValue +
-    score.components.contestValue +
-    score.components.controlBudgetValue +
-    score.components.followUpValue +
-    score.components.teamworkValue +
-    score.components.memoryValue -
-    score.components.combinationDestructionPenalty -
-    score.components.deadHandRiskPenalty;
-  const interpretationSpecificScore =
-    score.components.immediatePlayValue +
-    score.components.expertRuleAdjustment -
-    score.components.wildcardOpportunityCost;
   return {
     action: score.action,
-    candidateKey: input.candidateKey,
-    lightBaseScore: input.lightBaseScore,
-    deadHandRiskProxy: input.deadHandRiskProxy,
-    baseScore: input.baseScore,
     finalScore: score.finalScore,
-    followUpStatus: input.followUpStatus,
-    postActionStatus: input.postActionStatus,
-    notFinallyEligible: input.notFinallyEligible,
-    screeningReason: input.screeningReason,
-    followUpSelectionReason: input.followUpSelectionReason,
-    mandatoryReason: input.mandatoryReason,
     components: score.components,
     matchedRules: score.adjustments,
     hardExcluded: score.hardExcluded,
@@ -205,12 +112,7 @@ function explainCandidate(input: DecisionCandidateInput): ExplainedCandidate {
       opportunityCost: features.control.opportunityCost.score,
       reasons: features.control.opportunityCost.reasons
     },
-    followUp: { ...features.followUp },
-    signals: { ...features.signals },
-    aliases: [...(input.aliases ?? [])],
-    equivalentInterpretationCount: 1 + (input.aliases?.length ?? 0),
-    sharedPhysicalScore,
-    interpretationSpecificScore
+    followUp: { ...features.followUp }
   };
 }
 
@@ -239,16 +141,9 @@ function finalReason(selected: ExplainedCandidate): readonly string[] {
  */
 export function createDecision(input: CreateDecisionInput): StrategyDecision {
   if (input.candidates.length === 0) throw new Error("至少需要一个已评分候选");
-  const completed = input.candidates.filter(
-    (candidate) =>
-      (candidate.postActionStatus === undefined || candidate.postActionStatus === "completed") &&
-      (candidate.followUpStatus === undefined || candidate.followUpStatus === "completed") &&
-      candidate.notFinallyEligible !== true
-  );
-  if (completed.length === 0) throw new Error("最终选择必须至少有一个已完成 FollowUp 的候选");
   const selectedAction = selectAction({
     legalActions: input.legalActions,
-    candidates: completed.map(({ score }) => score)
+    candidates: input.candidates.map(({ score }) => score)
   });
   const candidates = input.candidates.map(explainCandidate);
   const selected = candidates.find((candidate) => sameAction(candidate.action, selectedAction));

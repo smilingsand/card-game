@@ -44,7 +44,7 @@ const expert = (enabledRuleIds = STRATEGY_RULES.map((rule) => rule.id)): Strateg
   createStrategyProfile({ id: "expert", enabledRuleIds });
 
 test("核心目录完整落地 30–40 条稳定规则，注册表排序且拒绝重复 ID", () => {
-  expect(STRATEGY_RULES).toHaveLength(42);
+  expect(STRATEGY_RULES).toHaveLength(40);
   expect(STRATEGY_RULES.map((rule) => rule.id)).toEqual(
     [...STRATEGY_RULES].map((rule) => rule.id).sort()
   );

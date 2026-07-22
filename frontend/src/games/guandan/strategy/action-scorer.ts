@@ -64,18 +64,13 @@ export function scoreAction(input: ScoreActionInput): CandidateActionScore {
     finishabilityValue:
       features.postAction.delta.finishability - features.postAction.delta.estimatedTurns,
     contestValue: features.contest.contestValue,
-    // Passing does not *create* a recovery point or retain the turn.  Giving
-    // it these successor-only benefits made pass structurally dominate a
-    // natural, low-cost contest simply because it did not remove cards.
-    controlBudgetValue: features.isPass
-      ? 0
-      : (features.control.preservesRecoveryPoint ? 1 : 0) -
-        (features.control.spendsLastControlResource ? 1 : 0),
-    followUpValue: features.isPass
-      ? 0
-      : (features.followUp.createsRunoutPath ? 1 : 0) +
-        (features.followUp.retainsControlPotential ? 1 : 0) -
-        (features.followUp.noUsefulFollowUp ? 1 : 0),
+    controlBudgetValue:
+      (features.control.preservesRecoveryPoint ? 1 : 0) -
+      (features.control.spendsLastControlResource ? 1 : 0),
+    followUpValue:
+      (features.followUp.createsRunoutPath ? 1 : 0) +
+      (features.followUp.retainsControlPotential ? 1 : 0) -
+      (features.followUp.noUsefulFollowUp ? 1 : 0),
     teamworkValue: features.helpsPartner ? 1 : 0,
     memoryValue: 0,
     expertRuleAdjustment: adjustments

@@ -42,13 +42,6 @@ export interface StrategySignals {
   readonly spendsControlSequence?: boolean;
   readonly hasManyLowSingles?: boolean;
   readonly preservesSameTypeRecovery?: boolean;
-  /** A same-pattern lower legal response exists in the complete A layer. */
-  readonly overbidsLowestLegalResponse?: boolean;
-  /** With the same three-card main rank, a cheaper legal attachment pair exists. */
-  readonly overbidsLowestThreeWithPairAttachment?: boolean;
-  readonly opponentHasCurrentControl?: boolean;
-  /** The current public winning play belongs to the teammate. */
-  readonly takesOverTeammateControl?: boolean;
 }
 
 export interface StrategyFeatureSnapshot extends ActionFeatureSnapshot {
@@ -215,13 +208,7 @@ const coreDefinitions: readonly RuleDefinition[] = [
   ["12", "优先减少无法回收的弱散单", 3, "bonus", signal("reducesUnrecoverableLowSingles")],
   ["13", "避免产生孤立三张", -3, "penalty", signal("createsIsolatedTriple")],
   ["14", "避免产生大量弱对子", -3, "penalty", signal("createsWeakPairs")],
-  [
-    "15",
-    "组牌方案保留回收点",
-    3,
-    "bonus",
-    and(not(action("pass")), signal("preservesRecoveryPoint"))
-  ],
+  ["15", "组牌方案保留回收点", 3, "bonus", signal("preservesRecoveryPoint")],
   [
     "16",
     "主攻方案优先减少总手数",
@@ -256,14 +243,14 @@ const coreDefinitions: readonly RuleDefinition[] = [
     "手牌较多时保留高单回收点",
     4,
     "bonus",
-    and(not(action("pass")), (f) => f.phase !== "endgame", signal("preservesRecoveryPoint"))
+    and((f) => f.phase !== "endgame", signal("preservesRecoveryPoint"))
   ],
   [
     "22",
     "手牌较多时保留高对子回收点",
     3,
     "bonus",
-    and(not(action("pass")), (f) => f.phase !== "endgame", signal("preservesSameTypeRecovery"))
+    and((f) => f.phase !== "endgame", signal("preservesSameTypeRecovery"))
   ],
   [
     "23",
@@ -288,13 +275,7 @@ const coreDefinitions: readonly RuleDefinition[] = [
     and(signal("breaksNaturalBomb"), not(signal("endgameBlock")), not(signal("directFinish")))
   ],
   ["27", "取得牌权但无后续则降权", -4, "penalty", (f) => !f.isPass && f.followUp.noUsefulFollowUp],
-  [
-    "28",
-    "保留同型大牌回收弱路",
-    3,
-    "bonus",
-    and(not(action("pass")), signal("preservesSameTypeRecovery"))
-  ],
+  ["28", "保留同型大牌回收弱路", 3, "bonus", signal("preservesSameTypeRecovery")],
   [
     "29",
     "尾局阻断提高控制牌使用意愿",
@@ -380,54 +361,6 @@ const coreDefinitions: readonly RuleDefinition[] = [
     4,
     "bonus",
     and(not(action("pass")), signal("teammateUnableToControl"), (f) => f.blocksOpponent)
-  ],
-  [
-    "41",
-    "非强制阻断时优先最小同牌型合法压制，保留高牌与王作为控制资源",
-    -4,
-    "penalty",
-    and(
-      not(action("pass")),
-      signal("overbidsLowestLegalResponse"),
-      not(signal("directFinish")),
-      not(signal("endgameBlock"))
-    )
-  ],
-  [
-    "42",
-    "对手持牌权下，完整自然小牌型的低成本压制优先于机械过牌",
-    9,
-    "bonus",
-    and(
-      not(action("pass")),
-      signal("opponentHasCurrentControl"),
-      signal("preservesNaturalPattern"),
-      not((f) => f.control.spendsLastControlResource)
-    )
-  ],
-  [
-    "43",
-    "队友已公开压住时不得为普通争牌接管牌权；仅直接出完、明确阻断或连续走牌例外",
-    -1000,
-    "hard_exclusion",
-    and(
-      not(action("pass")),
-      signal("takesOverTeammateControl"),
-      not(signal("directFinish")),
-      not(signal("endgameBlock"))
-    )
-  ],
-  [
-    "44",
-    "同一三带二主三张下优先使用最低价值合法附带对子，保留 AA、级牌对子和高对子控制资源",
-    -5,
-    "penalty",
-    and(
-      not(action("pass")),
-      signal("overbidsLowestThreeWithPairAttachment"),
-      not(signal("directFinish")),
-      not(signal("endgameBlock"))
-    )
   ]
 ];
 
@@ -489,9 +422,7 @@ function assertRuleMayLoad(rule: ExpertStrategyRule, profile: StrategyProfileSna
 export function evaluateExpertStrategyRules(
   input: EvaluateExpertStrategyRulesInput
 ): ExpertStrategyEvaluation {
-  // STRATEGY_RULES is registered, sorted and immutable at module initialization. Re-registering
-  // it for every candidate is observationally redundant; custom registries retain validation.
-  const registry = input.registry ? registerExpertStrategyRules(input.registry) : STRATEGY_RULES;
+  const registry = registerExpertStrategyRules(input.registry ?? STRATEGY_RULES);
   const enabled = new Set(input.profile.enabledRuleIds);
   if (input.profile.id === "normal" && enabled.size > 0)
     throw new Error("normal profile 不得启用专家策略规则");

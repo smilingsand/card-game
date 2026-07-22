@@ -6,7 +6,7 @@ import type { PostActionHandEvaluation } from "./post-action-hand-evaluator";
 import type { SituationAnalysis } from "./situation-analyzer";
 
 const situation = (
-  threat: "low" | "medium" | "high" | "critical",
+  threat: "low" | "high" | "critical",
   teammate: { isSprinting: boolean; isHolding: boolean } = { isSprinting: false, isHolding: false }
 ) => ({ opponentThreat: { level: threat }, teammate }) as SituationAnalysis;
 
@@ -33,35 +33,6 @@ const follow = (overrides: Record<string, unknown> = {}) =>
     retainsControlPotential: false,
     ...overrides
   }) as FollowUpPlan;
-
-test("opponent control pressure makes a natural low-cost response contest-worthy", () => {
-  const context = createContestContext({
-    opponentThreat: {
-      level: "low",
-      currentControlSeat: "south",
-      consecutiveControlRounds: 2
-    },
-    teammate: { isSprinting: false, isHolding: false }
-  } as SituationAnalysis);
-  const skipped = evaluateContestAction({
-    context,
-    action: { type: "pass", actor: "east" },
-    postAction: post(),
-    control: control(),
-    followUp: follow()
-  });
-  const response = evaluateContestAction({
-    context,
-    action: { type: "play", actor: "east", cardIds: ["x"], interpretation: undefined as never },
-    postAction: post(),
-    control: control(),
-    followUp: follow()
-  });
-
-  expect(response.contestValue).toBeGreaterThan(skipped.contestValue);
-  expect(response.shouldContest).toBe(true);
-  expect(response.reasons).toContain("opponent_control_pressure");
-});
 
 test("低威胁、高结构/资源成本且无后续时，pass 正常胜过可合法压制，绝不机械 must-contest", () => {
   const context = createContestContext(situation("low"));

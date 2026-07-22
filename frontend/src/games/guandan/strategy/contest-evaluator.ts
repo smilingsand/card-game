@@ -6,7 +6,6 @@ import type { SituationAnalysis } from "./situation-analyzer";
 
 export interface ContestContext {
   readonly opponentThreat: number;
-  readonly opponentControlPressure: number;
   readonly partnerNeed: number;
   readonly publicReasons: readonly string[];
 }
@@ -54,20 +53,14 @@ const actionId = (action: TurnAction) =>
 
 /** 仅将公开 Situation 压缩为可复用的争夺上下文，不读取任何隐藏牌面。 */
 export function createContestContext(situation: SituationAnalysis): ContestContext {
-  const consecutiveControlRounds = situation.opponentThreat.consecutiveControlRounds ?? 0;
-  const opponentControlPressure =
-    situation.opponentThreat.currentControlSeat === undefined
-      ? 0
-      : 2 + Math.min(3, Math.max(0, consecutiveControlRounds - 1) * 2);
-  const opponentThreat = threatValue[situation.opponentThreat.level] + opponentControlPressure;
+  const opponentThreat = threatValue[situation.opponentThreat.level];
   const partnerNeed = situation.teammate.isSprinting ? 4 : situation.teammate.isHolding ? -2 : 0;
   const publicReasons = [
     `${situation.opponentThreat.level}_opponent_threat`,
-    ...(opponentControlPressure > 0 ? ["opponent_control_pressure"] : []),
     ...(situation.teammate.isSprinting ? ["teammate_sprinting"] : []),
     ...(situation.teammate.isHolding ? ["teammate_holding"] : [])
   ];
-  return { opponentThreat, opponentControlPressure, partnerNeed, publicReasons };
+  return { opponentThreat, partnerNeed, publicReasons };
 }
 
 /**
@@ -115,8 +108,6 @@ export function evaluateContestAction(input: EvaluateContestActionInput): Contes
       deadHandRiskCost;
   const reasons = [...input.context.publicReasons];
   if (isPass) reasons.push("pass_keeps_option_open");
-  if (!isPass && input.context.opponentControlPressure > 0)
-    reasons.push("opponent_control_pressure");
   if (!isPass && input.context.opponentThreat >= 7) reasons.push("critical_opponent_threat");
   if (!isPass && input.control.exception === "team_support") reasons.push("team_support_exception");
   if (!isPass && input.followUp.createsRunoutPath) reasons.push("runout_path");
