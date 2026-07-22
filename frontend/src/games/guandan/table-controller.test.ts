@@ -3,7 +3,6 @@ import type { Card } from "../../platform/types";
 import {
   chooseTableHintAction,
   chooseTableBotAction,
-  chooseTableStrategicDecision,
   createTableGame,
   getSelectedPlayActions,
   submitTableAction,
@@ -63,6 +62,11 @@ test("东家领出后，北家有可压制单张时会接牌", () => {
   const response = chooseTableBotAction(responseGame);
   expect(response).toMatchObject({ type: "play", actor: "north", cardIds: [north.id] });
   expect(chooseTableHintAction(responseGame)).toEqual(response);
+  expect(chooseTableBotAction(responseGame)).toMatchObject({
+    type: "play",
+    actor: "north",
+    cardIds: [north.id]
+  });
 });
 
 test("机器人从合法动作中枚举并压制三带二", () => {
@@ -217,11 +221,8 @@ test("提示与机器人共用策略，首轮有普通牌时不领出炸弹", ()
     publicEvents: []
   };
 
-  const decision = chooseTableStrategicDecision(game);
-  expect(decision?.explanation.profile.id).toBe("normal");
-  expect(chooseTableHintAction(game)).toEqual(decision?.selectedAction);
-  expect(chooseTableBotAction(game)).toEqual(decision?.selectedAction);
-  expect(decision?.selectedAction).toMatchObject({
+  expect(chooseTableHintAction(game)).toEqual(chooseTableBotAction(game));
+  expect(chooseTableHintAction(game)).toMatchObject({
     type: "play",
     actor: "south",
     cardIds: ["south-a"],
@@ -386,7 +387,7 @@ test("normal strategy uses a matching three-with-pair instead of an unnecessary 
   });
 });
 
-test("normal strategy keeps a small-joker pair by using big joker over a single ace", () => {
+test("normal-vNext uses the lowest legal joker over a single ace", () => {
   const eastAce = card("east-a", "A");
   const bigJoker = card("north-big", "big-joker", "joker");
   const smallJokerOne = card("north-small-1", "small-joker", "joker");
@@ -416,8 +417,8 @@ test("normal strategy keeps a small-joker pair by using big joker over a single 
   expect(chooseTableBotAction({ ...game, state: afterLead.state })).toMatchObject({
     type: "play",
     actor: "north",
-    cardIds: [bigJoker.id],
-    interpretation: { type: "single", comparisonKey: [17] }
+    cardIds: [smallJokerOne.id],
+    interpretation: { type: "single", comparisonKey: [16] }
   });
 });
 

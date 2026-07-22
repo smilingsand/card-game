@@ -1,11 +1,6 @@
 import type { Card, Rank, Suit } from "../../platform/types";
 import { getLegalActions } from "./legal-actions";
 import { recognizePatterns, type PatternInterpretation } from "./patterns";
-import {
-  canonicalizeSemanticCandidates,
-  type CanonicalPhysicalAction
-} from "./strategy/semantic-action-candidates";
-import { DecisionCache, type CacheStatistics } from "./strategy/decision-cache";
 import type { TurnAction, TurnState } from "./turns";
 
 type LevelRank = Exclude<Rank, "small-joker" | "big-joker">;
@@ -88,10 +83,8 @@ export interface RuleCompleteLegalActionsInput {
  * required whenever following/leading semantics can differ.
  */
 export const COMPLETE_LEGAL_ACTIONS_RULES_VERSION = "guandan-v5";
-const completeLegalActionsCache = new DecisionCache<readonly TurnAction[]>(256);
-const completeLegalCandidateGroupsCache = new DecisionCache<readonly CanonicalPhysicalAction[]>(
-  256
-);
+const completeLegalActionsCache = new Map<string, readonly TurnAction[]>();
+const COMPLETE_LEGAL_ACTIONS_CACHE_CAPACITY = 256;
 
 /**
  * Last cold A-layer generation only.  This is deliberately diagnostic data,
@@ -155,18 +148,9 @@ function completeLegalActionsCacheKey(input: RuleCompleteLegalActionsInput): str
   });
 }
 
-export function getCompleteLegalActionsCacheStatistics(): CacheStatistics {
-  return completeLegalActionsCache.statistics();
-}
-
-export function getCompleteLegalCandidateGroupsCacheStatistics(): CacheStatistics {
-  return completeLegalCandidateGroupsCache.statistics();
-}
-
 /** Test/benchmark hook; production capacity is bounded and observable. */
 export function clearCompleteLegalActionsCaches(): void {
   completeLegalActionsCache.clear();
-  completeLegalCandidateGroupsCache.clear();
   lastGenerationStatistics = undefined;
 }
 
@@ -327,7 +311,11 @@ function generateCompleteLegalCandidates(
     recognitionMilliseconds,
     legalFilterMilliseconds: performance.now() - legalFilterStarted
   };
-  if (deduplicatePhysicalSets) completeLegalActionsCache.set(cacheKey, result);
+  if (deduplicatePhysicalSets) {
+    if (completeLegalActionsCache.size >= COMPLETE_LEGAL_ACTIONS_CACHE_CAPACITY)
+      completeLegalActionsCache.delete(completeLegalActionsCache.keys().next().value as string);
+    completeLegalActionsCache.set(cacheKey, result);
+  }
   return result;
 }
 
@@ -420,13 +408,3 @@ export function getUnoptimizedCompleteLegalCandidatesForDifferential(
  * A 层的规范化产物：规则仍完整枚举并裁决所有解释，而消费方可按实体
  * 出牌集合取得 canonical physical action 与语义候选/alias 的精确分组。
  */
-export function getCompleteLegalCandidateGroups(
-  input: RuleCompleteLegalActionsInput
-): readonly CanonicalPhysicalAction[] {
-  const cacheKey = completeLegalActionsCacheKey(input);
-  const cached = completeLegalCandidateGroupsCache.get(cacheKey);
-  if (cached) return cached;
-  const groups = canonicalizeSemanticCandidates(getCompleteLegalCandidates(input));
-  completeLegalCandidateGroupsCache.set(cacheKey, groups);
-  return groups;
-}

@@ -46,6 +46,7 @@ Desktop.ini
 
 # Local Codex state; project documentation in proj-info/ is intentionally tracked
 .codex/
+.playwright-cli/
 task_plan.md
 findings.md
 progress.md

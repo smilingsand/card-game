@@ -11,13 +11,12 @@ import type { Card, Seat } from "./platform/types";
 import { createIndexedDbStorage, type StorageBoundary } from "./platform/storage";
 import {
   chooseTableHintAction,
+  inspectTableNormalVNext,
   chooseTableBotAction,
   formatCard,
   formatInterpretation,
-  getLegalSingleActions,
   getSelectedPlayActions,
-  type TableGame,
-  type TableStrategyProfile
+  type TableGame
 } from "./games/guandan/table-controller";
 import {
   applyTableSessionAction,
@@ -152,9 +151,9 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   const [showAllHands, setShowAllHands] = useState(false);
   const [handLayout, setHandLayout] = useState<HandLayout>("stacked");
   const [applyPwaUpdate, setApplyPwaUpdate] = useState<() => void>();
-  const [botProfile, setBotProfile] = useState<TableStrategyProfile>("normal");
   const [botThinking, setBotThinking] = useState(false);
   const [lastBotDecisionMs, setLastBotDecisionMs] = useState<number>();
+  const [lastVNextDiagnostic, setLastVNextDiagnostic] = useState<ReturnType<typeof inspectTableNormalVNext>>();
   const game: TableGame = session.game;
   const levelRank = game.levelRank ?? session.match.levelRank;
   const finishIndex = (seat: Seat) => game.state.finished.indexOf(seat);
@@ -204,7 +203,9 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     setBotThinking(true);
     const timer = window.setTimeout(() => {
       const startedAt = performance.now();
-      const action = chooseTableBotAction(game, botProfile);
+      const diagnostic = inspectTableNormalVNext(game);
+      const action = diagnostic?.action ?? chooseTableBotAction(game);
+      setLastVNextDiagnostic(diagnostic);
       setLastBotDecisionMs(performance.now() - startedAt);
       setBotThinking(false);
       if (!action) {
@@ -219,7 +220,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
       setSession(result.session);
     }, botThinkDelayMs(game.publicEvents.length));
     return () => window.clearTimeout(timer);
-  }, [botProfile, game, session]);
+  }, [game, session]);
 
   useEffect(() => {
     if (!game.state.completed) return;
@@ -245,7 +246,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     ? groupOrderedDisplayCards(hand, game.cardsById)
     : groupHumanDisplayCards(hand, game.cardsById, levelRank);
   const selectedActions = getSelectedPlayActions(game, selectedCardIds);
-  const canPass = getLegalSingleActions(game).some((action) => action.type === "pass");
+  const canPass = game.state.current === HUMAN_SEAT && game.state.highest !== undefined;
   const highestPlay = game.state.highestSeat
     ? [...game.publicEvents]
         .reverse()
@@ -288,7 +289,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
     </span>
   );
 
-  const submit = (action: ReturnType<typeof getLegalSingleActions>[number]) => {
+  const submit = (action: TurnAction) => {
     const result = applyTableSessionAction(session, action);
     if (!result.ok) {
       setMessage(`规则引擎拒绝此动作：${result.code}`);
@@ -423,30 +424,15 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
   return (
     <main aria-label="掼蛋牌桌">
       <header>
-        <fieldset className="preview-profile" aria-label="机器人 Preview profile">
-          <legend>机器人 Preview</legend>
-          <label>
-            <input
-              type="radio"
-              name="bot-profile"
-              checked={botProfile === "normal"}
-              onChange={() => setBotProfile("normal")}
-            />
-            普通（默认）
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="bot-profile"
-              checked={botProfile === "expert"}
-              onChange={() => setBotProfile("expert")}
-            />
-            专家-24（Preview）
-          </label>
-        </fieldset>
+        <span className="preview-profile" aria-label="机器人策略">普通 normal-vNext</span>
         <span className="decision-timing" aria-label="机器人决策耗时">
           决策耗时：{lastBotDecisionMs === undefined ? "—" : `${lastBotDecisionMs.toFixed(1)}ms`}
         </span>
+        {lastVNextDiagnostic ? (
+          <p aria-label="normal-vNext 决策诊断">
+            {lastVNextDiagnostic.reasons.join("；")}；结构损伤 {lastVNextDiagnostic.structureDamageCost}；控制资源 {lastVNextDiagnostic.controlResourceCost}；逢人配 {lastVNextDiagnostic.wildcardOpportunityCost}；争牌 {lastVNextDiagnostic.contest}；告警 {lastVNextDiagnostic.alerts.join(",") || "无"}
+          </p>
+        ) : null}
         <h1>单人本地掼蛋</h1>
         <button
           type="button"
@@ -589,7 +575,7 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
           </p>
           {botThinking ? (
             <p className="bot-thinking" role="status">
-              {botProfile === "expert" ? "专家-24 正在思考…" : "机器人正在思考…"}
+              normal-vNext 正在思考…
             </p>
           ) : null}
         </section>

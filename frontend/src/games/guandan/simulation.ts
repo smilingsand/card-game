@@ -2,17 +2,7 @@ import { dealFourPlayers, generateDeck, shuffleDeck } from "../../platform/deck"
 import type { Card, Event, Seat } from "../../platform/types";
 import { chooseBasicBotAction } from "./basic-bot";
 import { chooseNormalBotAction } from "./normal-bot";
-import {
-  chooseExpertBotDecision,
-  getExpertDecisionCacheStatistics,
-  type ExpertDecisionBudget
-} from "./strategy/expert-decision";
-import { createDecisionFingerprint } from "./strategy/decision-cache";
-import { getExpertHandAnalysisCacheStatistics } from "./strategy/hand-analysis-cache";
-import {
-  createDefaultStrategyProfile,
-  type DecisionExplanation
-} from "./strategy/decision-explanation";
+import { chooseNormalVNextBotAction } from "./normal-vnext-bot";
 import { createBotView, type BotView } from "./bot-view";
 import { getCompleteLegalCandidates } from "./rule-complete-legal-actions";
 import { settleRound, type Settlement } from "./settlement";
@@ -21,14 +11,14 @@ import { applyAction, validateAction, type TurnAction, type TurnState } from "./
 const SEATS: readonly Seat[] = ["east", "south", "west", "north"];
 const INITIAL_LEVEL = "2" as const;
 const MAX_ACTIONS_PER_GAME = 1_000;
-/** `expert`/`experimental` are explicit production profiles; neither may fall back to normal. */
-export type BotDifficulty = "basic" | "normal" | "expert" | "experimental";
+/** `normal` is retained solely for offline historical comparison, never exposed by the game UI. */
+export type BotDifficulty = "basic" | "normal" | "normal-vNext";
 export type SimulationDifficulties = Readonly<Record<Seat, BotDifficulty>>;
 const NORMAL_DIFFICULTIES: SimulationDifficulties = {
-  east: "normal",
-  south: "normal",
-  west: "normal",
-  north: "normal"
+  east: "normal-vNext",
+  south: "normal-vNext",
+  west: "normal-vNext",
+  north: "normal-vNext"
 };
 
 export type SimulationFailureCode =
@@ -65,35 +55,14 @@ export interface SimulationDecisionSample {
   readonly decisionMs: number;
   readonly legalActionCount: number;
   readonly profile: BotDifficulty;
-  /** Present only for the real expert decision chain, never synthesized from normal. */
-  readonly explanation?: DecisionExplanation;
-  /** Post-decision observation only; it is never read by the expert decision chain. */
-  readonly expertPerformance?: {
-    readonly botViewReplayFingerprint: string;
-    readonly rawLegalInterpretationCount: number;
-    readonly canonicalPhysicalActionCount: number;
-    readonly semanticCandidateCount: number;
-    readonly postActionExecutionCount: number;
-    readonly followUpExecutionCount: number;
-    readonly moduleElapsedMilliseconds: Readonly<Record<string, number>>;
-    readonly memory?: {
-      readonly rss?: number;
-      readonly heapUsed?: number;
-      readonly heapTotal?: number;
-    };
-    readonly decisionCache: ReturnType<typeof getExpertDecisionCacheStatistics>;
-    readonly handAnalysisCache: ReturnType<typeof getExpertHandAnalysisCacheStatistics>;
-  };
+  readonly view?: BotView;
+  readonly legalActionsGenerationMs?: number;
+  readonly botDecisionMs?: number;
+  readonly reasons?: readonly string[];
 }
 
 export interface RunSimulationOptions {
   readonly difficulties?: SimulationDifficulties;
-  /**
-   * Diagnostic/replay-only expert budget override. It is intentionally
-   * explicit so historical BotView samples can be reproduced without making
-   * the current production expert profile select a legacy budget.
-   */
-  readonly expertPerformanceBudget?: ExpertDecisionBudget;
   /**
    * Diagnostic-only pre-decision projection. It is invoked with exactly the
    * BotView consumed by the selected bot, before that bot is evaluated. The
@@ -107,6 +76,8 @@ export interface RunSimulationOptions {
   }) => void;
   /** Diagnostics only. It receives public information and the selected legal action. */
   readonly onDecision?: (sample: SimulationDecisionSample) => void;
+  /** Diagnostic-only guard; defaults to the production simulation protection. */
+  readonly maxActions?: number;
 }
 
 function isSimulationOptions(
@@ -116,19 +87,8 @@ function isSimulationOptions(
     "difficulties" in options ||
     "onBotView" in options ||
     "onDecision" in options ||
-    "expertPerformanceBudget" in options
+    "maxActions" in options
   );
-}
-
-/** Diagnostic identifier only. seed/actionIndex replays the actual BotView; this compact hash avoids
- * retaining the complete legal-action payload in every benchmark sample. */
-function replayFingerprint(value: string): string {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return `p25-botview-v1:${(hash >>> 0).toString(16).padStart(8, "0")}`;
 }
 
 function createInitialTurnState(seed: number): { state: TurnState; cards: readonly Card[] } {
@@ -199,23 +159,25 @@ function botAction(
   cardsById: ReadonlyMap<string, Card>,
   publicEvents: readonly Event[],
   difficulties: SimulationDifficulties,
-  expertPerformanceBudget?: ExpertDecisionBudget
 ): {
   readonly action: TurnAction | undefined;
   readonly legalActionCount: number;
   readonly profile: BotDifficulty;
   readonly view: BotView;
-  readonly explanation?: DecisionExplanation;
-  readonly expertPerformance?: SimulationDecisionSample["expertPerformance"];
+  readonly legalActionsGenerationMs: number;
+  readonly botDecisionMs: number;
+  readonly reasons: readonly string[];
 } {
   const hand = state.hands[state.current]
     .map((cardId) => cardsById.get(cardId))
     .filter((card): card is Card => card !== undefined);
+  const legalStarted = performance.now();
   const legalActions = getCompleteLegalCandidates({
     state,
     selfHand: hand,
     levelRank: INITIAL_LEVEL
   });
+  const legalActionsGenerationMs = performance.now() - legalStarted;
   const view = createBotView({
     selfSeat: state.current,
     leader: state.leader,
@@ -229,56 +191,23 @@ function botAction(
     legalActions
   });
   const profile = difficulties[state.current];
+  const decisionStarted = performance.now();
   if (profile === "basic")
     return {
       action: chooseBasicBotAction(view),
       legalActionCount: legalActions.length,
       profile,
-      view
+      view, legalActionsGenerationMs, botDecisionMs: performance.now() - decisionStarted, reasons: []
     };
-  if (profile === "normal")
-    return {
-      action: chooseNormalBotAction(view)?.action,
-      legalActionCount: legalActions.length,
-      profile,
-      view
-    };
-  const decision = chooseExpertBotDecision({
-    view,
-    profile: createDefaultStrategyProfile(profile),
-    performanceBudget: expertPerformanceBudget
-  });
+  const decision = profile === "normal" ? chooseNormalBotAction(view) : chooseNormalVNextBotAction(view);
   return {
-    action: decision.selectedAction,
+    action: decision?.action,
     legalActionCount: legalActions.length,
     profile,
     view,
-    explanation: decision.explanation,
-    expertPerformance: {
-      botViewReplayFingerprint: replayFingerprint(
-        createDecisionFingerprint({
-          view,
-          legalActionSummary: JSON.stringify(view.legalActions),
-          profile: decision.explanation.profile
-        })
-      ),
-      rawLegalInterpretationCount:
-        decision.debug?.rawLegalInterpretationCount ?? legalActions.length,
-      canonicalPhysicalActionCount:
-        decision.debug?.canonicalPhysicalActionCount ?? legalActions.length,
-      semanticCandidateCount: decision.debug?.semanticCandidateCount ?? legalActions.length,
-      postActionExecutionCount: decision.debug?.postActionExecutionCount ?? 0,
-      followUpExecutionCount: decision.debug?.followUpExecutionCount ?? 0,
-      moduleElapsedMilliseconds: decision.debug?.moduleElapsedMilliseconds ?? {},
-      memory: (() => {
-        const usage = globalThis.process?.memoryUsage?.();
-        return usage
-          ? { rss: usage.rss, heapUsed: usage.heapUsed, heapTotal: usage.heapTotal }
-          : undefined;
-      })(),
-      decisionCache: getExpertDecisionCacheStatistics(),
-      handAnalysisCache: getExpertHandAnalysisCacheStatistics()
-    }
+    legalActionsGenerationMs,
+    botDecisionMs: performance.now() - decisionStarted,
+    reasons: decision?.reasons ?? []
   };
 }
 
@@ -306,7 +235,8 @@ export function runSimulation(
   let state = initial.state;
   let actionCount = 0;
 
-  while (!state.completed && actionCount < MAX_ACTIONS_PER_GAME) {
+  const maxActions = normalized.maxActions ?? MAX_ACTIONS_PER_GAME;
+  while (!state.completed && actionCount < maxActions) {
     const invariantError = assertCardInvariant(state, allCardIds, playedCardIds);
     if (invariantError)
       return { ok: false, seed, actionCount, code: "invariant_violation", message: invariantError };
@@ -320,7 +250,6 @@ export function runSimulation(
       cardsById,
       publicEvents,
       difficulties,
-      normalized.expertPerformanceBudget
     );
     normalized.onBotView?.({
       seed,
@@ -351,8 +280,10 @@ export function runSimulation(
       decisionMs,
       legalActionCount: selected.legalActionCount,
       profile: selected.profile,
-      explanation: selected.explanation,
-      expertPerformance: selected.expertPerformance
+      view: selected.view,
+      legalActionsGenerationMs: selected.legalActionsGenerationMs,
+      botDecisionMs: selected.botDecisionMs,
+      reasons: selected.reasons,
     });
     publicEvents.push(publicEvent(publicEvents.length + 1, action));
     state = result.state;
@@ -368,7 +299,7 @@ export function runSimulation(
       seed,
       actionCount,
       code: "max_actions_exceeded",
-      message: `exceeded ${MAX_ACTIONS_PER_GAME} actions`
+      message: `exceeded ${maxActions} actions`
     };
 
   try {

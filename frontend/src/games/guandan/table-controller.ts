@@ -1,21 +1,12 @@
 import { dealFourPlayers, generateDeck, shuffleDeck } from "../../platform/deck";
 import type { Card, Event, Rank, Seat } from "../../platform/types";
-import { chooseNormalBotAction } from "./normal-bot";
+import { chooseNormalVNextBotAction } from "./normal-vnext-bot";
+import { describeNormalVNextAction } from "./normal-vnext-bot";
+import { diagnoseNormalVNextAction } from "./normal-vnext-metrics";
 import { createBotView } from "./bot-view";
 import { getLegalActions } from "./legal-actions";
 import { recognizePatterns, type PatternInterpretation } from "./patterns";
-import { getLegacyNormalCandidates } from "./legacy-normal-candidates";
 import { getCompleteLegalCandidates } from "./rule-complete-legal-actions";
-import { rankExpertCandidates } from "./strategy/candidate-generator";
-import { generateHandPlans } from "./strategy/hand-plan-generator";
-import { analyzeHandStructure } from "./strategy/hand-structure-analyzer";
-import {
-  createNormalBaselineDecision,
-  createDefaultStrategyProfile,
-  type StrategyDecision
-} from "./strategy/decision-explanation";
-import { chooseExpertBotDecision } from "./strategy/expert-decision";
-import type { StrategyProfileId } from "./strategy/expert-strategy-knowledge-base";
 import {
   applyAction,
   validateAction,
@@ -26,14 +17,18 @@ import {
 
 const SEATS: readonly Seat[] = ["east", "south", "west", "north"];
 const INITIAL_LEVEL_RANK = "2" as const;
-export interface CandidateProfileConfig {
-  readonly version: string;
-  readonly performanceBudget: {
-    readonly handPlanTopN: { readonly default: number; readonly max: number };
-  };
-}
+/** 当前产品唯一的机器人策略。 */
+export type TableStrategyProfile = "normal-vNext";
 
-export type TableStrategyProfile = StrategyProfileId;
+export interface NormalVNextPreviewDiagnostic {
+  readonly action: TurnAction;
+  readonly reasons: readonly string[];
+  readonly structureDamageCost: number;
+  readonly controlResourceCost: number;
+  readonly wildcardOpportunityCost: number;
+  readonly contest: string;
+  readonly alerts: readonly string[];
+}
 
 export interface TableGame {
   readonly cardsById: ReadonlyMap<string, Card>;
@@ -72,41 +67,15 @@ export function createTableGame(
   };
 }
 
-/**
- * normal profile 的冻结回归入口。P2.5-07 不将完整候选静默接入默认机器人或提示。
- */
+/** 机器人和提示使用规则层生成的完整合法动作集合。 */
 export function getLegalBotActions(game: TableGame): readonly TurnAction[] {
   const hand = game.state.hands[game.state.current]
     .map((cardId) => game.cardsById.get(cardId))
     .filter((card): card is Card => card !== undefined);
-  return getLegacyNormalCandidates({
+  return getCompleteLegalCandidates({
     state: game.state,
     selfHand: hand,
     levelRank: game.levelRank ?? INITIAL_LEVEL_RANK
-  });
-}
-
-/** A/B 层：完整规则候选再按专家结构重排；仅供后续专家链消费，尚未接入默认策略。 */
-export function getExpertRankedBotCandidates(
-  game: TableGame,
-  profile: CandidateProfileConfig
-): readonly TurnAction[] {
-  const hand = game.state.hands[game.state.current]
-    .map((cardId) => game.cardsById.get(cardId))
-    .filter((card): card is Card => card !== undefined);
-  const structure = analyzeHandStructure(hand, game.levelRank ?? INITIAL_LEVEL_RANK);
-  const handPlans = generateHandPlans({
-    structure,
-    performanceBudget: profile.performanceBudget
-  });
-  return rankExpertCandidates({
-    legalActions: getCompleteLegalCandidates({
-      state: game.state,
-      selfHand: hand,
-      levelRank: game.levelRank ?? INITIAL_LEVEL_RANK
-    }),
-    structure,
-    handPlans
   });
 }
 
@@ -162,49 +131,38 @@ function createTableBotView(game: TableGame, legalActions: readonly TurnAction[]
   });
 }
 
-export function chooseTableStrategicDecision(
-  game: TableGame,
-  profile: TableStrategyProfile = "normal"
-): StrategyDecision | undefined {
-  if (profile !== "normal") {
-    const legalActions = getCompleteLegalCandidates({
-      state: game.state,
-      selfHand: game.state.hands[game.state.current]
-        .map((cardId) => game.cardsById.get(cardId))
-        .filter((card): card is Card => card !== undefined),
-      levelRank: game.levelRank ?? INITIAL_LEVEL_RANK
-    });
-    if (legalActions.length === 0) return undefined;
-    return chooseExpertBotDecision({
-      view: createTableBotView(game, legalActions),
-      profile: createDefaultStrategyProfile(profile)
-    });
-  }
+/** Read-only Preview diagnostic. It calls the exact normal-vNext production selector once. */
+export function inspectTableNormalVNext(game: TableGame): NormalVNextPreviewDiagnostic | undefined {
+  const legalActions = getCompleteLegalCandidates({
+    state: game.state,
+    selfHand: game.state.hands[game.state.current]
+      .map((cardId) => game.cardsById.get(cardId))
+      .filter((card): card is Card => card !== undefined),
+    levelRank: game.levelRank ?? INITIAL_LEVEL_RANK
+  });
+  const view = createTableBotView(game, legalActions);
+  const decision = chooseNormalVNextBotAction(view);
+  if (!decision) return undefined;
+  const cost = describeNormalVNextAction(decision.action, view);
+  const opponentCounts = Object.entries(view.remainingCardCounts).filter(([seat]) => seat !== view.selfSeat && seat !== (view.selfSeat === "east" ? "west" : view.selfSeat === "west" ? "east" : view.selfSeat === "south" ? "north" : "south")).map(([, count]) => count);
+  return { action: decision.action, reasons: decision.reasons, structureDamageCost: cost?.structureDamageCost ?? 0, controlResourceCost: cost?.controlResourceCost ?? 0, wildcardOpportunityCost: cost?.wildcardOpportunityCost ?? 0, contest: view.highestSeat === undefined ? "lead" : Math.min(...opponentCounts) <= 3 ? "block" : "conserve", alerts: diagnoseNormalVNextAction(view, decision.action) };
+}
 
-  const legalActions = getLegalBotActions(game);
-  const normalDecision = chooseNormalBotAction(createTableBotView(game, legalActions));
-  return normalDecision
-    ? createNormalBaselineDecision({
-        legalActions,
-        selectedAction: normalDecision.action,
-        reasons: normalDecision.reasons
-      })
-    : undefined;
+export function chooseTableStrategicDecision(game: TableGame) {
+  return chooseNormalVNextBotAction(createTableBotView(game, getLegalBotActions(game)));
 }
 
 /** 人类提示只选中建议牌，评分和机器人领出/跟牌完全一致。 */
 export function chooseTableHintAction(
-  game: TableGame,
-  profile: TableStrategyProfile = "normal"
+  game: TableGame
 ): TurnAction | undefined {
-  return chooseTableStrategicDecision(game, profile)?.selectedAction;
+  return chooseTableStrategicDecision(game)?.action;
 }
 
 export function chooseTableBotAction(
-  game: TableGame,
-  profile: TableStrategyProfile = "normal"
+  game: TableGame
 ): TurnAction | undefined {
-  return chooseTableStrategicDecision(game, profile)?.selectedAction;
+  return chooseTableStrategicDecision(game)?.action;
 }
 
 export function formatCard(card: Card): string {
