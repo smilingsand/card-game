@@ -19,8 +19,8 @@ P2-01 至 P2-06 均已验收，包含 PWA、Production 与 iPhone Safari 离线�
 - [P2 验收矩阵](proj-info/phases/P2/test-matrix.md)
 - [策略收敛 ADR](proj-info/adr/ADR-0024-normal-vnext-strategy-replacement.md)
 - [阶段文档入口](proj-info/phases/README.md)
-- [平台路线图](proj-info/00-平台规划与会话记忆/platform-roadmap.md)
-- [跨会话记忆规范](proj-info/00-平台规划与会话记忆/session-memory-playbook.md)
+- [平台路线图](proj-info/00-长期路线图与历史工作日志/platform-roadmap.md)
+- [新 session 读取规范](proj-info/00-长期路线图与历史工作日志/session-memory-playbook.md)
 - [项目级开发规范](AGENTS.md)
 
 ## 目录
