@@ -1,3 +1,12 @@
+# P3 测试矩阵
+
+| 验收项               | 证据                                                                      | 结果                                    |
+| -------------------- | ------------------------------------------------------------------------- | --------------------------------------- |
+| P3-02 浏览器固定回放 | `cd frontend; npm.cmd run test:run -- core-cross-runtime.browser.test.ts` | 固定 seed、初始状态和动作流的浏览器回放 |
+| P3-02 Node 固定回放  | `cd frontend; npm.cmd run test:core --workspace=card-game-backend`        | `backend/` 仅以包名消费同一核心         |
+
+P3-02 主验收（2026-07-23）：`node frontend/node_modules/typescript/bin/tsc -p packages/guandan-core/tsconfig.json --noEmit --pretty false`、前端两份 tsconfig、ESLint、Prettier、Vite production build 均通过；浏览器固定回放与 App 测试共 20 项通过；Node 后端固定回放 1 项通过；核心 table-session 与 BotView 牌例 14 项通过。共享包只使用 ES2022 类型，不依赖 DOM、React、Vite、Cloudflare 或 Node 专属 API。
+
 # P3-01 测试矩阵
 
 | 验收项                         | 证据                                            | 结果                                                                                             |

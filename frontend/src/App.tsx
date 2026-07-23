@@ -7,7 +7,7 @@ import {
   type TouchEvent
 } from "react";
 import "./App.css";
-import type { Card, Seat } from "./platform/types";
+import type { Card, Seat } from "@card-game/guandan-core";
 import { createIndexedDbStorage, type StorageBoundary } from "./platform/storage";
 import {
   chooseTableHintAction,
@@ -16,7 +16,7 @@ import {
   formatInterpretation,
   getSelectedPlayActions,
   type TableGame
-} from "./games/guandan/table-controller";
+} from "@card-game/guandan-core";
 import {
   applyTableSessionAction,
   createTableSession,
@@ -31,21 +31,21 @@ import {
   submitSouthTribute,
   type TableSave,
   type TableSession
-} from "./games/guandan/table-session";
+} from "@card-game/guandan-core";
 import {
   groupHumanDisplayCards,
   groupOrderedDisplayCards,
   moveHumanDisplayCard,
   reconcileHumanDisplayOrder,
   sortPlayedCards
-} from "./games/guandan/display-order";
-import type { TurnAction } from "./games/guandan/turns";
+} from "@card-game/guandan-core";
+import type { TurnAction } from "@card-game/guandan-core";
 import {
   actionFromPublicEvent,
   latestRecentActionLayerBySeat,
   latestRecentActionsBySeat
-} from "./games/guandan/recent-actions";
-import { botThinkDelayMs } from "./games/guandan/bot-timing";
+} from "@card-game/guandan-core";
+import { botThinkDelayMs } from "@card-game/guandan-core";
 import { registerPwaServiceWorker } from "./pwa/service-worker";
 
 const HUMAN_SEAT: Seat = "south";
@@ -424,7 +424,9 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
       <header>
         <div className="game-title">
           <h1>单人本地掼蛋</h1>
-          <span className="preview-profile" aria-label="机器人策略">（策略：普通 normal-vNext）</span>
+          <span className="preview-profile" aria-label="机器人策略">
+            （策略：普通 normal-vNext）
+          </span>
         </div>
         <button
           type="button"

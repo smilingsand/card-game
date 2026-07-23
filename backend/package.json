@@ -1,0 +1,12 @@
+{
+  "name": "card-game-backend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "test:core": "node ../frontend/node_modules/vitest/vitest.mjs run core-consumer.node.test.ts import-boundary.node.test.ts --config ../frontend/vite.config.ts"
+  },
+  "dependencies": {
+    "@card-game/guandan-core": "file:../packages/guandan-core"
+  }
+}

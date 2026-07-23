@@ -1,0 +1,11 @@
+{
+  "name": "@card-game/guandan-core",
+  "private": true,
+  "version": "5.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./metadata": "./src/metadata.ts",
+    "./test-suite": "./src/test-suite.test.ts"
+  }
+}

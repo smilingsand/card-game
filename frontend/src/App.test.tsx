@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { App, CardFace, PlayerCardCount } from "./App";
-import { latestRecentActionLayerBySeat, latestRecentActionsBySeat } from "./games/guandan/recent-actions";
-import type { StorageBoundary } from "./platform/storage";
+import { latestRecentActionLayerBySeat, latestRecentActionsBySeat } from "@card-game/guandan-core";
+import type { StorageBoundary } from "@card-game/guandan-core";
 import {
   applyTableSessionAction,
   createTableSession,
@@ -10,8 +10,8 @@ import {
   prepareNextTableSession,
   serializeTableSession,
   type TableSave
-} from "./games/guandan/table-session";
-import { getLegalSingleActions } from "./games/guandan/table-controller";
+} from "@card-game/guandan-core";
+import { getLegalSingleActions } from "@card-game/guandan-core";
 
 function memoryStorage(
   initial?: TableSave
@@ -39,7 +39,9 @@ describe("App", () => {
 
   it("牌桌只展示 normal-vNext 策略", async () => {
     render(<App storage={memoryStorage()} />);
-    await waitFor(() => expect(screen.getByLabelText("机器人策略")).toHaveTextContent("normal-vNext"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("机器人策略")).toHaveTextContent("normal-vNext")
+    );
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("机器人决策耗时")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("normal-vNext 决策诊断")).not.toBeInTheDocument();
@@ -279,6 +281,7 @@ describe("App", () => {
 
   it("提示和出牌仍通过规则入口提交", async () => {
     render(<App storage={memoryStorage()} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "提示" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "提示" }));
     expect(screen.getByRole("status")).toHaveTextContent(/^提示：可出/);
     fireEvent.click(screen.getByRole("button", { name: /^出牌/ }));

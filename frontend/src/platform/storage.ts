@@ -1,8 +1,6 @@
-export interface StorageBoundary<Value> {
-  load(): Promise<Value | undefined>;
-  save(value: Value): Promise<void>;
-  clear(): Promise<void>;
-}
+import type { StorageBoundary } from "@card-game/guandan-core";
+
+export type { StorageBoundary } from "@card-game/guandan-core";
 
 export class StorageUnavailableError extends Error {
   constructor() {

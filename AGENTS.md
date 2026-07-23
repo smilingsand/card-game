@@ -27,14 +27,18 @@ docs/       稳定、面向使用者的规则和说明
 proj-info/  开发治理、ADR、阶段计划、验收、发布和交接记录
 frontend/   浏览器应用、前端测试和构建配置
 backend/    P3 起创建的权威服务端
+packages/   前后端共同消费的中立纯 TypeScript 包
 tools/      可复用且有 README 的开发工具，不存临时脚本
 temp/       可删除的中间产物，永不提交
 ```
 
-根目录只保留必要的控制文件和一级目录：`.agents`、`.codex`、`.github`、`AGENTS.md`、`README.md`、`LICENSE`、`.gitignore`、`docs`、`proj-info`、`tools`、`temp`、`frontend`、`backend`。不得在根目录留下构建产物、报告、截图、依赖或临时脚本。
+根目录只保留必要的控制文件和一级目录：`.agents`、`.codex`、`.github`、`AGENTS.md`、`README.md`、`LICENSE`、`.gitignore`、`docs`、`proj-info`、`tools`、`temp`、`frontend`、`backend`、`packages`。不得在根目录留下构建产物、报告、截图、依赖或临时脚本。
+
+`packages/guandan-core/` 是规则、牌型比较、合法动作、事件流、会话状态、BotView 与确定性重放的唯一纯 TypeScript 源码。`frontend/` 与 `backend/` 均只能通过 `@card-game/guandan-core` 包导出消费它；前端不得保留共享规则副本，后端不得从 `frontend/src` 导入。
 
 ## 4. 架构与安全硬约束
 
+- `packages/guandan-core/` 是规则、牌型比较、合法动作、事件流、会话状态、BotView 和确定性重放的唯一纯 TypeScript 源码；`frontend/` 与 `backend/` 均只能通过包导出消费它，前端不得保留共享规则副本，后端不得从 `frontend/src` 导入。
 - 核心规则是纯 TypeScript：同样的 `seed + initial state + actions` 必须得到同样结果；不得依赖 React、DOM、时间或网络。
 - 公共 `platform` 层不得导入掼蛋/拖拉机专属类型；每个游戏只能通过插件边界接入。
 - 每张实体牌必须有唯一 ID；禁止以点数或花色作为身份。

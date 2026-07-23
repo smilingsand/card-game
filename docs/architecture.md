@@ -37,6 +37,8 @@ card-game/
 
 根目录不添加构建输出、报告、截图、临时脚本或工具缓存。`frontend/` 是 Vercel 项目 Root Directory；`.vercel/` 必须被 Git 忽略。
 
+`packages/guandan-core/` 是规则、牌型比较、合法动作、事件流、会话状态、BotView 与确定性重放的唯一源码。`frontend/` 与 `backend/` 均通过 `@card-game/guandan-core` 包导出消费它；核心不得导入 React、DOM、Vite、Cloudflare API 或 Node 专属 API，IndexedDB 适配器仅留在 `frontend/src/platform/`。
+
 ## 依赖方向
 
 ```text
@@ -58,7 +60,12 @@ type CardId = string;
 type PlayerId = string;
 type GameId = "guandan" | "tractor-80";
 
-interface Card { id: CardId; deckIndex: number; suit: Suit; rank: Rank }
+interface Card {
+  id: CardId;
+  deckIndex: number;
+  suit: Suit;
+  rank: Rank;
+}
 interface GamePlugin<State, Action, View> {
   readonly gameId: GameId;
   createInitialState(options: unknown, seed: number): State;
@@ -67,7 +74,12 @@ interface GamePlugin<State, Action, View> {
   applyAction(state: State, action: Action): State;
   projectForPlayer(state: State, playerId: PlayerId): View;
 }
-interface GameEvent { sequence: number; type: string; actorId?: PlayerId; payload: unknown }
+interface GameEvent {
+  sequence: number;
+  type: string;
+  actorId?: PlayerId;
+  payload: unknown;
+}
 ```
 
 ## 状态与回放

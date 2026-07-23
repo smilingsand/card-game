@@ -1,0 +1,9 @@
+{
+  "name": "card-game-workspace",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "packages/*"
+  ]
+}

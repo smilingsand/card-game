@@ -1,7 +1,8 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
-import { TABLE_RULES_VERSION } from "./src/games/guandan/table-session";
+// Vite loads this configuration before its alias resolver is active.
+import { GUANDAN_CORE_RULES_VERSION } from "@card-game/guandan-core/metadata";
 import { createServiceWorkerSource } from "./src/pwa/service-worker-template";
 
 function staticAssetBuildVersion(staticAssets: readonly string[]): string {
@@ -28,7 +29,7 @@ function pwaShellPlugin(): Plugin {
         fileName: "service-worker.js",
         source: createServiceWorkerSource({
           buildVersion: staticAssetBuildVersion(staticAssets),
-          rulesVersion: TABLE_RULES_VERSION,
+          rulesVersion: GUANDAN_CORE_RULES_VERSION,
           staticAssets
         })
       });
@@ -40,8 +41,13 @@ export default defineConfig({
   plugins: [react(), pwaShellPlugin()],
   test: {
     cache: false,
+    server: {
+      deps: {
+        inline: ["@card-game/guandan-core"]
+      }
+    },
     environment: "jsdom",
     globals: true,
-    setupFiles: "./src/test/setup.ts"
+    setupFiles: new URL("./src/test/setup.ts", import.meta.url).pathname
   }
 });
