@@ -13,12 +13,17 @@ import {
   type RuntimeConfig,
 } from "./security";
 export { AuthorityGameDurableObject } from "./authority-game";
+export { RoomDurableObject } from "./room";
 
 export interface Env {
   AUTH_SESSION: DurableObjectNamespace;
   RATE_LIMITER: DurableObjectNamespace;
   AUTHORITY_GAME: DurableObjectNamespace;
+  ROOM: DurableObjectNamespace;
   ROOM_SEED_ENCRYPTION_KEY?: string;
+  ROOM_INVITE_HASH_KEY?: string;
+  /** 仅本地 P3-04 fixture；生产环境不得设置。 */
+  P3_TEST_MODE?: string;
   ENVIRONMENT?: string;
   SESSION_TTL_SECONDS?: string;
   RATE_LIMIT_PER_MINUTE?: string;
@@ -140,6 +145,16 @@ function securityLog(event: string, fields: Record<string, unknown>): void {
   console.info(JSON.stringify({ event, ...redactLogFields(fields) }));
 }
 
+function createRoomId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  let raw = "";
+  for (const byte of bytes) raw += String.fromCharCode(byte);
+  return btoa(raw)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/u, "");
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     let config: RuntimeConfig;
@@ -195,10 +210,14 @@ export default {
 
     const authenticated = await requireSession(request, env);
     if (authenticated instanceof Response) return authenticated;
+    // P3-04 legacy fixture: these routes remain unavailable in non-test
+    // runtimes. P3-05 public traffic enters only through room lifecycle APIs.
     const authority =
-      /^\/v1\/authority\/([A-Za-z0-9_-]{1,128})(?:\/(command|view|replay|new-game|next-round))?$/u.exec(
-        url.pathname,
-      );
+      env.P3_TEST_MODE === "true"
+        ? /^\/v1\/authority\/([A-Za-z0-9_-]{1,128})(?:\/(command|view|replay|new-game|next-round))?$/u.exec(
+            url.pathname,
+          )
+        : undefined;
     if (authority) {
       const [, roomId, action] = authority;
       if (
@@ -233,6 +252,45 @@ export default {
           },
         );
       }
+    }
+    const roomMatch =
+      /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/(join|ready|start|view|seat-requests|seat-requests\/approve)$/u.exec(
+        url.pathname,
+      );
+    const isRoomCreate =
+      request.method === "POST" && url.pathname === "/v1/rooms";
+    if (isRoomCreate || roomMatch) {
+      const action = isRoomCreate ? "create" : roomMatch![2];
+      const roomId = isRoomCreate ? createRoomId() : roomMatch![1];
+      const methodAllowed =
+        isRoomCreate || action !== "view"
+          ? request.method === "POST"
+          : request.method === "GET";
+      if (!methodAllowed) return error("not_found", 404);
+      let body: Record<string, unknown> = {};
+      if (request.method === "POST") {
+        try {
+          body = (await request.json()) as Record<string, unknown>;
+        } catch {
+          return error("invalid_payload", 400);
+        }
+      }
+      const room = env.ROOM.get(env.ROOM.idFromName(roomId));
+      const internalAction =
+        action === "seat-requests"
+          ? "seat-request"
+          : action === "seat-requests/approve"
+            ? "approve-seat-request"
+            : action;
+      return room.fetch(`https://room.internal/${internalAction}`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...body,
+          roomId,
+          subjectId: authenticated.subjectId,
+          now: Date.now(),
+        }),
+      });
     }
     if (request.method === "GET" && url.pathname === "/v1/session")
       return json({ anonymousId: authenticated.subjectId });

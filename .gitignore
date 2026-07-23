@@ -26,6 +26,7 @@ yarn-error.log*
 # Local configuration and secrets (commit examples only)
 .env
 .env.*
+backend/.dev.vars
 !.env.example
 !.env.*.example
 **/.vercel/

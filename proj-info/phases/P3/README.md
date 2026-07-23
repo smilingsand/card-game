@@ -2,7 +2,7 @@
 
 ## 状态
 
-P3-01 已验收。目标是在不改变 `guandan-v5` 规则的前提下，提供一间房间 1–4 名真人、其余空座由 `normal-vNext` 控制的权威多人游戏；下一项可启动任务为 P3-02。
+P3-01 至 P3-04 已验收。目标是在不改变 `guandan-v5` 规则的前提下，提供一间房间 1–4 名真人、其余空座由 `normal-vNext` 控制的权威多人游戏；当前正在执行 P3-05 房间生命周期。本阶段仅使用本地 Vite/Miniflare/SQLite Durable Object，不部署 Cloudflare。
 
 ## 入口
 

@@ -1,0 +1,3 @@
+# Generate a distinct local value before running `npm run dev`:
+#   node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+ROOM_INVITE_HASH_KEY=replace-with-a-local-32-byte-base64url-secret
