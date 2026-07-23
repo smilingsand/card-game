@@ -12,7 +12,7 @@
 - 本地版本已包含：尾局下家阻断、合法动作兜底、自然中小结构争牌、控制资源保护，以及明牌时按出牌先后显示覆盖关系。
 - P2.7 已部署到 Vercel Production 并完成用户人工试玩验收；正式入口为 `https://card-game-wentop.vercel.app/`。未来的移动端/PWA 风险变更按需单独复测。
 
-下一项产品阶段任务为 P3-01。任务顺序和验收门槛以 [P1-P3 执行计划](proj-info/phases/P1-P3-execution-plan.md) 为准。
+P3-01 至 P3-07 已在本地 `P3-development` 分支完成验收；下一项任务为 P3-08（超时、断线等待、机器人托管与安全交接）。任务顺序和验收门槛以 [P1-P3 执行计划](proj-info/phases/P1-P3-execution-plan.md) 为准。当前 P3 仅在本地 Vite、Wrangler/Miniflare 与 SQLite-backed Durable Object 中验证，尚未部署 Cloudflare。
 
 ## 文档入口
 
@@ -23,9 +23,10 @@
 - [P2.7 发布记录](proj-info/phases/P2/release.md)
 - [阶段入口](proj-info/phases/README.md)
 - [策略收敛 ADR](proj-info/adr/ADR-0024-normal-vnext-strategy-replacement.md)
-- [最新交接说明](proj-info/handoffs/HANDOFF-2026-07-22-P2.7-normal-vnext-stabilization.md)
+- [最新 P3 交接说明](proj-info/handoffs/P3-01-P3-07-local-handoff.md)
+- [座位、控制权与视图投影 ADR](proj-info/adr/ADR-0029-p3-seat-controller-and-view-projection.md)
 - [项目开发合同](AGENTS.md)
 
 ## 目录
 
-`docs/` 保存稳定规则和产品说明；`proj-info/` 保存计划、ADR、验收、发布与交接记录；`frontend/` 保存浏览器应用；`backend/` 预留给 P3；`tools/` 仅保存可复用工具；`temp/` 保存可删除中间产物且永不提交。
+`docs/` 保存稳定规则和产品说明；`proj-info/` 保存计划、ADR、验收、发布与交接记录；`frontend/` 保存浏览器应用；`backend/` 保存 P3 Worker、Durable Object、实时协议与本地测试；`packages/guandan-core/` 是前后端共享的纯 TypeScript 规则核心；`tools/` 仅保存可复用工具；`temp/` 保存可删除中间产物且永不提交。

@@ -730,3 +730,43 @@ button:disabled {
     font-size: 0.75rem;
   }
 }
+.mode-switch {
+  position: fixed;
+  z-index: 2;
+  right: 1rem;
+  bottom: 1rem;
+}
+
+.multiplayer-app,
+.multiplayer-lobby,
+.multiplayer-room,
+.multiplayer-game {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.multiplayer-app {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.multiplayer-lobby label {
+  display: grid;
+  gap: 0.25rem;
+  max-width: 24rem;
+}
+
+.multiplayer-seats,
+.multiplayer-table {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.5rem;
+}
+
+.multiplayer-seats article,
+.multiplayer-table span {
+  border: 1px solid var(--panel-border, #8d6e63);
+  border-radius: 0.35rem;
+  padding: 0.5rem;
+}

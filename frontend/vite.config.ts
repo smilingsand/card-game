@@ -39,6 +39,17 @@ function pwaShellPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), pwaShellPlugin()],
+  server: {
+    // Local-only bridge: Vite proxies the browser's same-origin /v1 and WebSocket
+    // requests to a locally running Wrangler worker. No Cloudflare account is used.
+    proxy: {
+      "/v1": {
+        target: process.env.P3_LOCAL_WORKER_ORIGIN ?? "http://127.0.0.1:8787",
+        changeOrigin: true,
+        ws: true
+      }
+    }
+  },
   test: {
     cache: false,
     server: {

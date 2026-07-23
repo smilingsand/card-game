@@ -47,6 +47,8 @@ import {
 } from "@card-game/guandan-core";
 import { botThinkDelayMs } from "@card-game/guandan-core";
 import { registerPwaServiceWorker } from "./pwa/service-worker";
+import { MultiplayerApp } from "./multiplayer/MultiplayerApp";
+import type { MultiplayerClient } from "./multiplayer/client";
 
 const HUMAN_SEAT: Seat = "south";
 type BotSeat = "east" | "north" | "west";
@@ -142,7 +144,7 @@ export function PlayerCardCount({
   );
 }
 
-export function App({ storage }: { readonly storage?: StorageBoundary<TableSave> }) {
+function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> }) {
   const saveStorage = useMemo(() => storage ?? defaultStorage(), [storage]);
   const [session, setSession] = useState<TableSession>(() => createTableSession(newSeed()));
   const [selectedCardIds, setSelectedCardIds] = useState<readonly string[]>([]);
@@ -722,5 +724,45 @@ export function App({ storage }: { readonly storage?: StorageBoundary<TableSave>
         )}
       </section>
     </main>
+  );
+}
+
+/** The local save boundary is mounted only for the single-player application. */
+export function App({
+  storage,
+  multiplayerClient
+}: {
+  readonly storage?: StorageBoundary<TableSave>;
+  readonly multiplayerClient?: MultiplayerClient;
+}) {
+  const initialRoomId = new URLSearchParams(window.location.search).get("room") ?? undefined;
+  const [mode, setMode] = useState<"solo" | "multiplayer">(initialRoomId ? "multiplayer" : "solo");
+  const setOnlineRoom = (roomId: string | undefined) => {
+    const url = new URL(window.location.href);
+    if (roomId) url.searchParams.set("room", roomId);
+    else url.searchParams.delete("room");
+    window.history.replaceState(undefined, "", url);
+  };
+  if (mode === "multiplayer")
+    return (
+      <MultiplayerApp
+        client={multiplayerClient}
+        initialRoomId={initialRoomId}
+        onRoomChange={setOnlineRoom}
+        onExit={() => {
+          setOnlineRoom(undefined);
+          setMode("solo");
+        }}
+      />
+    );
+  return (
+    <>
+      <div className="mode-switch">
+        <button type="button" onClick={() => setMode("multiplayer")}>
+          多人联机
+        </button>
+      </div>
+      <SoloApp storage={storage} />
+    </>
   );
 }
