@@ -3,6 +3,7 @@ import type { Seat } from "@card-game/guandan-core";
 export interface RoomEnv {
   readonly AUTHORITY_GAME: DurableObjectNamespace;
   readonly ROOM_INVITE_HASH_KEY?: string;
+  readonly P3_TEST_MODE?: string;
 }
 
 const SEATS: readonly Seat[] = ["south", "east", "north", "west"];
@@ -183,6 +184,17 @@ export class RoomDurableObject {
   }
 
   private async startAuthority(meta: MetaRow, now: number): Promise<boolean> {
+    const controllers = Object.fromEntries(
+      this.seats()
+        .filter((seat): seat is SeatRow & { readonly subjectId: string } =>
+          Boolean(seat.subjectId),
+        )
+        .map((seat) => [seat.seat, seat.subjectId]),
+    );
+    const initialLeader =
+      this.env.P3_TEST_MODE === "true"
+        ? "east"
+        : SEATS[crypto.getRandomValues(new Uint32Array(1))[0] % SEATS.length];
     const stub = this.env.AUTHORITY_GAME.get(
       this.env.AUTHORITY_GAME.idFromName(meta.roomId),
     );
@@ -191,6 +203,8 @@ export class RoomDurableObject {
       body: JSON.stringify({
         ownerId: `room:${meta.roomId}`,
         subjectId: `room:${meta.roomId}`,
+        controllers,
+        initialLeader,
         now,
       }),
     });
@@ -260,7 +274,11 @@ export class RoomDurableObject {
         return json({ error: "not_in_room" }, 403);
       return json({ room: this.projection(meta) });
     }
-    if (meta.phase === "started")
+    if (
+      meta.phase === "started" &&
+      path !== "/authority-view" &&
+      path !== "/authority-command"
+    )
       return json({ error: "room_already_started" }, 409);
 
     if (path === "/join") {
@@ -304,6 +322,51 @@ export class RoomDurableObject {
 
     const ownSeat = this.subjectSeat(subjectId);
     if (!ownSeat) return json({ error: "not_in_room" }, 403);
+    if (path === "/authority-view") {
+      if (meta.phase !== "started")
+        return json({ error: "room_not_started" }, 409);
+      const authority = this.env.AUTHORITY_GAME.get(
+        this.env.AUTHORITY_GAME.idFromName(meta.roomId),
+      );
+      return authority.fetch("https://authority.internal/view", {
+        method: "POST",
+        body: JSON.stringify({ subjectId, now: payload.now }),
+      });
+    }
+    if (path === "/authority-command") {
+      if (meta.phase !== "started")
+        return json({ error: "room_not_started" }, 409);
+      if (
+        typeof payload.commandId !== "string" ||
+        typeof payload.kind !== "string" ||
+        !Number.isInteger(payload.expectedEventSequence)
+      )
+        return json({ error: "invalid_payload" }, 422);
+      const cardIds = Array.isArray(payload.cardIds)
+        ? payload.cardIds.filter(
+            (cardId): cardId is string => typeof cardId === "string",
+          )
+        : undefined;
+      if (
+        Array.isArray(payload.cardIds) &&
+        cardIds?.length !== payload.cardIds.length
+      )
+        return json({ error: "invalid_payload" }, 422);
+      const authority = this.env.AUTHORITY_GAME.get(
+        this.env.AUTHORITY_GAME.idFromName(meta.roomId),
+      );
+      return authority.fetch("https://authority.internal/command", {
+        method: "POST",
+        body: JSON.stringify({
+          subjectId,
+          now: payload.now,
+          commandId: payload.commandId,
+          expectedEventSequence: payload.expectedEventSequence,
+          kind: payload.kind,
+          ...(cardIds ? { cardIds } : {}),
+        }),
+      });
+    }
     if (path === "/ready") {
       this.ctx.storage.transactionSync(() => {
         this.ctx.storage.sql.exec(

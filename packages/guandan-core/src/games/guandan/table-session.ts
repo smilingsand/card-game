@@ -117,12 +117,15 @@ function noTributePlan(): TributePlan {
   return { kind: "none", antiTribute: false, proof: [], obligations: [] };
 }
 
-function initialMatch(seed: TableSeed): MatchSessionState {
+function initialMatch(
+  seed: TableSeed,
+  leader: import("../../platform/types").Seat = "south",
+): MatchSessionState {
   return {
     roundNumber: 1,
     roundSeed: seed,
     levels: { northSouth: "2", eastWest: "2" },
-    leader: "south",
+    leader,
     levelRank: "2",
     tributePlan: noTributePlan(),
     tributePhase: "ready",
@@ -259,8 +262,13 @@ function createSessionFromGame(
   };
 }
 
-export function createTableSession(seed: TableSeed = 0): TableSession {
-  const match = initialMatch(seed);
+export function createTableSession(
+  seed: TableSeed = 0,
+  options: {
+    readonly initialLeader?: import("../../platform/types").Seat;
+  } = {},
+): TableSession {
+  const match = initialMatch(seed, options.initialLeader ?? "south");
   const game = createTableGame(seed, {
     levelRank: match.levelRank,
     leader: match.leader,

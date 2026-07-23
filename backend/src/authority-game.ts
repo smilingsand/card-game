@@ -20,6 +20,12 @@ interface MetaRow extends Record<string, SqlStorageValue> {
   readonly ownerId: string;
   readonly encryptedSeed: string;
   readonly expiresAt: number;
+  readonly initialLeader: Seat;
+}
+
+interface ControllerRow extends Record<string, SqlStorageValue> {
+  readonly seat: Seat;
+  readonly subjectId: string;
 }
 
 interface EventRow extends Record<string, SqlStorageValue> {
@@ -107,6 +113,18 @@ async function decryptSeed(value: string, env: AuthorityEnv): Promise<string> {
 }
 
 function view(session: TableSession, seat: Seat) {
+  const downstream: Record<Seat, Seat> = {
+    south: "east",
+    east: "north",
+    north: "west",
+    west: "south",
+  };
+  const upstream: Record<Seat, Seat> = {
+    south: "west",
+    east: "south",
+    north: "east",
+    west: "north",
+  };
   const cards = session.game.state.hands[seat]
     .map((id) => session.game.cardsById.get(id))
     .filter((card) => card !== undefined);
@@ -124,7 +142,22 @@ function view(session: TableSession, seat: Seat) {
       ]),
     ),
     publicEvents: session.game.publicEvents,
+    positions: {
+      bottom: seat,
+      left: upstream[seat],
+      right: downstream[seat],
+      top: downstream[downstream[seat]],
+    },
   };
+}
+
+function isSeat(value: unknown): value is Seat {
+  return (
+    value === "south" ||
+    value === "east" ||
+    value === "north" ||
+    value === "west"
+  );
 }
 
 function completedFixture(session: TableSession): TableSession {
@@ -148,7 +181,10 @@ export class AuthorityGameDurableObject {
 
   private setup(): void {
     this.ctx.storage.sql.exec(
-      "CREATE TABLE IF NOT EXISTS meta (id INTEGER PRIMARY KEY CHECK(id=1), game_id TEXT NOT NULL, owner_id TEXT NOT NULL, encrypted_seed TEXT NOT NULL, expires_at INTEGER NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS meta (id INTEGER PRIMARY KEY CHECK(id=1), game_id TEXT NOT NULL, owner_id TEXT NOT NULL, encrypted_seed TEXT NOT NULL, expires_at INTEGER NOT NULL, initial_leader TEXT NOT NULL DEFAULT 'south')",
+    );
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS controllers (seat TEXT PRIMARY KEY, subject_id TEXT NOT NULL UNIQUE)",
     );
     this.ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS events (sequence INTEGER PRIMARY KEY, payload TEXT NOT NULL)",
@@ -163,7 +199,7 @@ export class AuthorityGameDurableObject {
   private meta(): MetaRow | undefined {
     return [
       ...this.ctx.storage.sql.exec<MetaRow>(
-        "SELECT game_id as gameId, owner_id as ownerId, encrypted_seed as encryptedSeed, expires_at as expiresAt FROM meta WHERE id=1",
+        "SELECT game_id as gameId, owner_id as ownerId, encrypted_seed as encryptedSeed, expires_at as expiresAt, initial_leader as initialLeader FROM meta WHERE id=1",
       ),
     ][0];
   }
@@ -188,7 +224,9 @@ export class AuthorityGameDurableObject {
       if (snapshot.eventSequence !== latestSnapshot.eventSequence)
         throw new Error("snapshot_sequence_mismatch");
     }
-    let session = createTableSession(seed);
+    let session = createTableSession(seed, {
+      initialLeader: meta.initialLeader,
+    });
     for (const row of this.ctx.storage.sql.exec<EventRow>(
       "SELECT sequence, payload FROM events ORDER BY sequence",
     )) {
@@ -260,6 +298,14 @@ export class AuthorityGameDurableObject {
     // Never expose encrypted storage, a seed, or a parser/replay error to callers.
     return json({ error: "authority_state_unavailable" }, 503);
   }
+  private controllerSeat(subjectId: string): Seat | undefined {
+    return [
+      ...this.ctx.storage.sql.exec<ControllerRow>(
+        "SELECT seat, subject_id as subjectId FROM controllers WHERE subject_id=?",
+        subjectId,
+      ),
+    ][0]?.seat;
+  }
   async fetch(request: Request): Promise<Response> {
     this.setup();
     const path = new URL(request.url).pathname;
@@ -273,16 +319,49 @@ export class AuthorityGameDurableObject {
         typeof payload.now !== "number"
       )
         return json({ error: "invalid_payload" }, 400);
+      const now = payload.now;
       if (this.meta()) return json({ error: "already_initialized" }, 409);
+      const controllers = payload.controllers;
+      const suppliedControllers =
+        controllers &&
+        typeof controllers === "object" &&
+        !Array.isArray(controllers)
+          ? Object.entries(controllers as Record<string, unknown>)
+          : [];
+      if (
+        suppliedControllers.some(
+          ([seat, subjectId]) => !isSeat(seat) || typeof subjectId !== "string",
+        ) ||
+        new Set(suppliedControllers.map(([, subjectId]) => subjectId)).size !==
+          suppliedControllers.length
+      )
+        return json({ error: "invalid_controllers" }, 400);
+      const initialLeader = isSeat(payload.initialLeader)
+        ? payload.initialLeader
+        : "south";
+      const bindings = suppliedControllers.length
+        ? suppliedControllers.map(
+            ([seat, subjectId]) => [seat as Seat, subjectId as string] as const,
+          )
+        : [["south", payload.ownerId] as const];
       const encryptedSeed = await encryptSeed(secureSeed(), this.env);
       const gameId = opaqueId();
-      this.ctx.storage.sql.exec(
-        "INSERT INTO meta (id, game_id, owner_id, encrypted_seed, expires_at) VALUES (1, ?, ?, ?, ?)",
-        gameId,
-        payload.ownerId,
-        encryptedSeed,
-        payload.now + 2_592_000_000,
-      );
+      this.ctx.storage.transactionSync(() => {
+        this.ctx.storage.sql.exec(
+          "INSERT INTO meta (id, game_id, owner_id, encrypted_seed, expires_at, initial_leader) VALUES (1, ?, ?, ?, ?, ?)",
+          gameId,
+          payload.ownerId,
+          encryptedSeed,
+          now + 2_592_000_000,
+          initialLeader,
+        );
+        for (const [seat, subjectId] of bindings)
+          this.ctx.storage.sql.exec(
+            "INSERT INTO controllers (seat, subject_id) VALUES (?, ?)",
+            seat,
+            subjectId,
+          );
+      });
       return json({ ok: true, gameId }, 201);
     }
     const meta = this.meta();
@@ -290,14 +369,19 @@ export class AuthorityGameDurableObject {
     if (typeof payload.now !== "number" || payload.now >= meta.expiresAt) {
       this.ctx.storage.transactionSync(() => {
         this.ctx.storage.sql.exec("DELETE FROM commands");
+        this.ctx.storage.sql.exec("DELETE FROM controllers");
         this.ctx.storage.sql.exec("DELETE FROM snapshots");
         this.ctx.storage.sql.exec("DELETE FROM events");
         this.ctx.storage.sql.exec("DELETE FROM meta");
       });
       return json({ error: "room_expired" }, 410);
     }
-    if (payload.subjectId !== meta.ownerId)
-      return json({ error: "forbidden" }, 403);
+    const subjectSeat =
+      typeof payload.subjectId === "string"
+        ? this.controllerSeat(payload.subjectId)
+        : undefined;
+    const isOwner = payload.subjectId === meta.ownerId;
+    if (!isOwner && !subjectSeat) return json({ error: "forbidden" }, 403);
     // These routes are deliberately unreachable from the public Worker router and
     // only enabled by the local Miniflare fixture. They prove persistence invariants
     // without adding a client-facing audit or state-mutation API.
@@ -341,7 +425,7 @@ export class AuthorityGameDurableObject {
     }
     if (path === "/view") {
       try {
-        return json(view(await this.restore(meta), "south"));
+        return json(view(await this.restore(meta), subjectSeat ?? "south"));
       } catch {
         return this.unavailableState();
       }
@@ -437,8 +521,22 @@ export class AuthorityGameDurableObject {
     } catch {
       return this.unavailableState();
     }
+    if (!subjectSeat) return json({ error: "forbidden" }, 403);
+    if (
+      !isOwner &&
+      payload.expectedEventSequence !== session.stream.events.length - 1
+    )
+      return json(
+        {
+          error: "event_sequence_conflict",
+          eventSequence: session.stream.events.length - 1,
+        },
+        409,
+      );
+    if (session.game.state.current !== subjectSeat)
+      return json({ error: "not_your_turn" }, 409);
     let action: TurnAction | undefined;
-    if (payload.kind === "pass") action = { type: "pass", actor: "south" };
+    if (payload.kind === "pass") action = { type: "pass", actor: subjectSeat };
     if (
       payload.kind === "play" &&
       Array.isArray(payload.cardIds) &&
@@ -453,7 +551,7 @@ export class AuthorityGameDurableObject {
       acknowledged: true,
       commandId: payload.commandId,
       eventSequence: event.sequence,
-      view: view(result.session, "south"),
+      view: view(result.session, subjectSeat),
     };
     this.ctx.storage.transactionSync(() => {
       this.ctx.storage.sql.exec(

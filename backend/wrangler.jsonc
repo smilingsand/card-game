@@ -14,6 +14,7 @@
       { "name": "RATE_LIMITER", "class_name": "RateLimiterDurableObject" },
       { "name": "AUTHORITY_GAME", "class_name": "AuthorityGameDurableObject" },
       { "name": "ROOM", "class_name": "RoomDurableObject" },
+      { "name": "REALTIME_ROOM", "class_name": "RealtimeRoomDurableObject" },
     ],
   },
   "migrations": [
@@ -28,6 +29,10 @@
     {
       "tag": "v2-p3-05-room-lifecycle",
       "new_sqlite_classes": ["RoomDurableObject"],
+    },
+    {
+      "tag": "v3-p3-06-realtime-room",
+      "new_sqlite_classes": ["RealtimeRoomDurableObject"],
     },
   ],
 }

@@ -14,12 +14,14 @@ import {
 } from "./security";
 export { AuthorityGameDurableObject } from "./authority-game";
 export { RoomDurableObject } from "./room";
+export { RealtimeRoomDurableObject } from "./realtime-room";
 
 export interface Env {
   AUTH_SESSION: DurableObjectNamespace;
   RATE_LIMITER: DurableObjectNamespace;
   AUTHORITY_GAME: DurableObjectNamespace;
   ROOM: DurableObjectNamespace;
+  REALTIME_ROOM: DurableObjectNamespace;
   ROOM_SEED_ENCRYPTION_KEY?: string;
   ROOM_INVITE_HASH_KEY?: string;
   /** 仅本地 P3-04 fixture；生产环境不得设置。 */
@@ -210,6 +212,29 @@ export default {
 
     const authenticated = await requireSession(request, env);
     if (authenticated instanceof Response) return authenticated;
+    const realtimeRoom = /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/realtime$/u.exec(
+      url.pathname,
+    );
+    if (realtimeRoom) {
+      if (
+        request.method !== "GET" ||
+        request.headers.get("upgrade")?.toLowerCase() !== "websocket"
+      )
+        return error("websocket_upgrade_required", 426);
+      const roomId = realtimeRoom[1];
+      const realtime = env.REALTIME_ROOM.get(
+        env.REALTIME_ROOM.idFromName(roomId),
+      );
+      return realtime.fetch(
+        `https://realtime.internal/connect?roomId=${encodeURIComponent(roomId)}`,
+        {
+          headers: {
+            Upgrade: "websocket",
+            "x-p3-internal-subject": authenticated.subjectId,
+          },
+        },
+      );
+    }
     // P3-04 legacy fixture: these routes remain unavailable in non-test
     // runtimes. P3-05 public traffic enters only through room lifecycle APIs.
     const authority =
@@ -254,7 +279,7 @@ export default {
       }
     }
     const roomMatch =
-      /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/(join|ready|start|view|seat-requests|seat-requests\/approve)$/u.exec(
+      /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/(join|ready|start|view|game-view|actions|seat-requests|seat-requests\/approve)$/u.exec(
         url.pathname,
       );
     const isRoomCreate =
@@ -263,7 +288,7 @@ export default {
       const action = isRoomCreate ? "create" : roomMatch![2];
       const roomId = isRoomCreate ? createRoomId() : roomMatch![1];
       const methodAllowed =
-        isRoomCreate || action !== "view"
+        isRoomCreate || (action !== "view" && action !== "game-view")
           ? request.method === "POST"
           : request.method === "GET";
       if (!methodAllowed) return error("not_found", 404);
@@ -279,9 +304,13 @@ export default {
       const internalAction =
         action === "seat-requests"
           ? "seat-request"
-          : action === "seat-requests/approve"
-            ? "approve-seat-request"
-            : action;
+            : action === "seat-requests/approve"
+              ? "approve-seat-request"
+            : action === "actions"
+              ? "authority-command"
+              : action === "game-view"
+                ? "authority-view"
+              : action;
       return room.fetch(`https://room.internal/${internalAction}`, {
         method: "POST",
         body: JSON.stringify({
