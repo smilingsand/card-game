@@ -1,0 +1,12 @@
+{
+  "name": "p3-01-durable-object-poc",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test *.test.mjs",
+    "measure": "node four-client-durable-object.poc.mjs"
+  },
+  "devDependencies": {
+    "miniflare": "^4.20260721.0"
+  }
+}
