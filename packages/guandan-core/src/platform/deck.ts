@@ -1,5 +1,6 @@
 // Shared Guandan core source.
 import type { Card, Rank, Seat, Suit } from "./types";
+import { createSecureSeedRandom, type SecureSeed } from "./secure-seed";
 
 export interface DeckConfig {
   readonly deckCount: number;
@@ -107,13 +108,15 @@ function createMulberry32(seed: number): () => number {
 /** 返回新数组，按 ADR-0002 使用带 seed 的 Fisher-Yates 洗牌。 */
 export function shuffleDeck(
   cards: readonly Card[],
-  seed: number,
+  seed: number | SecureSeed,
 ): readonly Card[] {
-  assertSeed(seed);
+  if (typeof seed === "number") assertSeed(seed);
   assertUniqueCardIds(cards);
 
   const shuffled = [...cards];
-  const random = createMulberry32(seed);
+  // Keep the legacy number path byte-for-byte stable for P1/P2 replays.
+  const random =
+    typeof seed === "number" ? createMulberry32(seed) : createSecureSeedRandom(seed);
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(random() * (index + 1));
     [shuffled[index], shuffled[swapIndex]] = [

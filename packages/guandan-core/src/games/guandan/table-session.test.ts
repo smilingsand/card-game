@@ -1,10 +1,12 @@
 // Shared Guandan core test.
 import { describe, expect, test } from "vitest";
 import { getLegalSingleActions } from "./table-controller";
+import { parseSecureSeed } from "../../platform/secure-seed";
 import {
   applyTableSessionAction,
   createTableSession,
   prepareNextTableSession,
+  prepareNextTableSessionWithSecureSeed,
   getSouthReturnChoices,
   getSouthTributeChoices,
   restoreTableSession,
@@ -101,6 +103,40 @@ describe("牌桌事件存档", () => {
     expect(next.game.levelRank).toBe("5");
     expect(restored.match).toEqual(next.match);
     expect(restored.game.state).toEqual(next.game.state);
+  });
+
+  test("权威下一局显式消费新的 256 位 seed，旧派生入口保持独立", () => {
+    const initial = createTableSession(
+      parseSecureSeed(
+        "0123456789abcdef00112233445566778899aabbccddeefffedcba9876543210",
+      ),
+    );
+    const completed = {
+      ...initial,
+      game: {
+        ...initial.game,
+        state: {
+          ...initial.game.state,
+          completed: true as const,
+          finished: ["south", "north", "east", "west"] as const,
+        },
+      },
+      match: {
+        ...initial.match,
+        currentFinish: ["south", "north", "east", "west"] as const,
+      },
+    };
+    const nextSeed = parseSecureSeed(
+      "1123456789abcdef00112233445566778899aabbccddeefffedcba9876543210",
+    );
+    const next = prepareNextTableSessionWithSecureSeed(completed, nextSeed);
+    expect(next.match.roundSeed).toBe(nextSeed);
+    expect(
+      restoreTableSession(serializeTableSession(next)).match.roundSeed,
+    ).toBe(nextSeed);
+    expect(() =>
+      prepareNextTableSessionWithSecureSeed(completed, initial.seed),
+    ).toThrow("new secure seed");
   });
 
   test("北家头游而东家进贡时，下一局由东家先出并使用东/西方等级", () => {

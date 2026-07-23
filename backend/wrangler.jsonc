@@ -12,6 +12,7 @@
     "bindings": [
       { "name": "AUTH_SESSION", "class_name": "AuthSessionDurableObject" },
       { "name": "RATE_LIMITER", "class_name": "RateLimiterDurableObject" },
+      { "name": "AUTHORITY_GAME", "class_name": "AuthorityGameDurableObject" },
     ],
   },
   "migrations": [
@@ -20,6 +21,7 @@
       "new_sqlite_classes": [
         "AuthSessionDurableObject",
         "RateLimiterDurableObject",
+        "AuthorityGameDurableObject",
       ],
     },
   ],

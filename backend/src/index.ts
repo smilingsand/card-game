@@ -12,10 +12,13 @@ import {
   type ReconnectCredential,
   type RuntimeConfig,
 } from "./security";
+export { AuthorityGameDurableObject } from "./authority-game";
 
 export interface Env {
   AUTH_SESSION: DurableObjectNamespace;
   RATE_LIMITER: DurableObjectNamespace;
+  AUTHORITY_GAME: DurableObjectNamespace;
+  ROOM_SEED_ENCRYPTION_KEY?: string;
   ENVIRONMENT?: string;
   SESSION_TTL_SECONDS?: string;
   RATE_LIMIT_PER_MINUTE?: string;
@@ -192,6 +195,45 @@ export default {
 
     const authenticated = await requireSession(request, env);
     if (authenticated instanceof Response) return authenticated;
+    const authority =
+      /^\/v1\/authority\/([A-Za-z0-9_-]{1,128})(?:\/(command|view|replay|new-game|next-round))?$/u.exec(
+        url.pathname,
+      );
+    if (authority) {
+      const [, roomId, action] = authority;
+      if (
+        (request.method === "POST" && !action) ||
+        (request.method === "POST" &&
+          (action === "command" ||
+            action === "new-game" ||
+            action === "next-round")) ||
+        (request.method === "GET" && (action === "view" || action === "replay"))
+      ) {
+        let body: Record<string, unknown> = {};
+        if (request.method === "POST") {
+          try {
+            body = (await request.json()) as Record<string, unknown>;
+          } catch {
+            return error("invalid_payload", 400);
+          }
+        }
+        const stub = env.AUTHORITY_GAME.get(
+          env.AUTHORITY_GAME.idFromName(roomId),
+        );
+        return stub.fetch(
+          "https://authority.internal/" + (action ?? "initialize"),
+          {
+            method: "POST",
+            body: JSON.stringify({
+              ...body,
+              subjectId: authenticated.subjectId,
+              ownerId: authenticated.subjectId,
+              now: Date.now(),
+            }),
+          },
+        );
+      }
+    }
     if (request.method === "GET" && url.pathname === "/v1/session")
       return json({ anonymousId: authenticated.subjectId });
     if (request.method === "POST" && url.pathname === "/v1/session/rotate") {

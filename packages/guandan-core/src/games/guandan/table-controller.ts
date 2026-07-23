@@ -5,6 +5,7 @@ import {
   shuffleDeck,
 } from "../../platform/deck";
 import type { Card, Event, Rank, Seat } from "../../platform/types";
+import type { SecureSeed } from "../../platform/secure-seed";
 import { chooseNormalVNextBotAction } from "./normal-vnext-bot";
 import { describeNormalVNextAction } from "./normal-vnext-bot";
 import { diagnoseNormalVNextAction } from "./normal-vnext-metrics";
@@ -44,7 +45,7 @@ export interface TableGame {
 }
 
 export function createTableGame(
-  seed = 0,
+  seed: number | SecureSeed = 0,
   options: {
     readonly levelRank?: Exclude<Rank, "small-joker" | "big-joker">;
     readonly leader?: Seat;

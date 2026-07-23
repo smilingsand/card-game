@@ -11,6 +11,11 @@ import {
 import type { Event } from "../../platform/types";
 import { GUANDAN_CORE_RULES_VERSION } from "../../metadata";
 import {
+  deriveSecureSeed,
+  parseSecureSeed,
+  type SecureSeed,
+} from "../../platform/secure-seed";
+import {
   createTableGame,
   submitTableAction,
   type TableGame,
@@ -32,13 +37,14 @@ import type { TurnAction, TurnResult, TurnState } from "./turns";
 
 export const TABLE_RULES_VERSION = GUANDAN_CORE_RULES_VERSION;
 export const TABLE_SAVE_SCHEMA_VERSION = 4;
+export type TableSeed = number | SecureSeed;
 
 export type TributePhase = "ready" | "awaiting-tribute" | "awaiting-return";
 
 /** Serializable, public match facts that span individual tables. */
 export interface MatchSessionState {
   readonly roundNumber: number;
-  readonly roundSeed: number;
+  readonly roundSeed: TableSeed;
   readonly levels: MatchLevels;
   readonly leader: import("../../platform/types").Seat;
   readonly levelRank: MatchLevels[keyof MatchLevels];
@@ -74,7 +80,7 @@ interface TableSnapshotState {
 }
 
 export interface TableSession {
-  readonly seed: number;
+  readonly seed: TableSeed;
   readonly game: TableGame;
   readonly match: MatchSessionState;
   readonly stream: EventStream<TableSessionEvent>;
@@ -85,7 +91,7 @@ export interface TableSession {
 
 export interface TableSave {
   readonly saveSchemaVersion: typeof TABLE_SAVE_SCHEMA_VERSION;
-  readonly seed: number;
+  readonly seed: TableSeed;
   readonly stream: EventStream<TableSessionEvent>;
   readonly snapshot: Snapshot<TableSnapshotState>;
   readonly humanDisplayOrder?: readonly string[];
@@ -111,7 +117,7 @@ function noTributePlan(): TributePlan {
   return { kind: "none", antiTribute: false, proof: [], obligations: [] };
 }
 
-function initialMatch(seed: number): MatchSessionState {
+function initialMatch(seed: TableSeed): MatchSessionState {
   return {
     roundNumber: 1,
     roundSeed: seed,
@@ -200,8 +206,17 @@ function applyEvent(state: ReplayState, event: TableSessionEvent): ReplayState {
 function assertCompatible(save: RestorableTableSave): void {
   if (save.saveSchemaVersion !== TABLE_SAVE_SCHEMA_VERSION)
     throw new TableSaveError("legacy single-round saves cannot be restored");
-  if (!Number.isInteger(save.seed))
-    throw new TableSaveError("save seed must be an integer");
+  if (typeof save.seed === "string") {
+    try {
+      parseSecureSeed(save.seed);
+    } catch {
+      throw new TableSaveError("save seed must be a valid secure seed");
+    }
+  } else if (!Number.isInteger(save.seed)) {
+    throw new TableSaveError(
+      "save seed must be a legacy number or secure seed",
+    );
+  }
   if (
     save.stream.schemaVersion !== EVENT_SCHEMA_VERSION ||
     save.snapshot.schemaVersion !== EVENT_SCHEMA_VERSION
@@ -224,7 +239,7 @@ function assertCompatible(save: RestorableTableSave): void {
 }
 
 function createSessionFromGame(
-  seed: number,
+  seed: TableSeed,
   game: TableGame,
   match: MatchSessionState,
   stream: EventStream<TableSessionEvent>,
@@ -244,7 +259,7 @@ function createSessionFromGame(
   };
 }
 
-export function createTableSession(seed = 0): TableSession {
+export function createTableSession(seed: TableSeed = 0): TableSession {
   const match = initialMatch(seed);
   const game = createTableGame(seed, {
     levelRank: match.levelRank,
@@ -295,7 +310,8 @@ export function setHumanDisplayOrder(
   return { ...session, humanDisplayOrder: [...humanDisplayOrder] };
 }
 
-function nextRoundSeed(seed: number, roundNumber: number): number {
+function nextRoundSeed(seed: TableSeed, roundNumber: number): TableSeed {
+  if (typeof seed !== "number") return deriveSecureSeed(seed, roundNumber);
   return (Math.imul(seed ^ roundNumber, 1_103_515_245) + 12_345) >>> 0;
 }
 
@@ -587,6 +603,29 @@ export function submitSouthReturn(
  * not performed here; upper layers must resolve the exposed plan before allowing play.
  */
 export function prepareNextTableSession(session: TableSession): TableSession {
+  return prepareNextTableSessionWithRoundSeed(
+    session,
+    nextRoundSeed(session.seed, session.match.roundNumber + 1),
+  );
+}
+
+/**
+ * Authority-only next-round entry: the caller supplies a newly generated
+ * 256-bit seed. Legacy callers continue to use prepareNextTableSession().
+ */
+export function prepareNextTableSessionWithSecureSeed(
+  session: TableSession,
+  roundSeed: SecureSeed,
+): TableSession {
+  if (roundSeed === session.match.roundSeed)
+    throw new TableSaveError("next round must use a new secure seed");
+  return prepareNextTableSessionWithRoundSeed(session, roundSeed);
+}
+
+function prepareNextTableSessionWithRoundSeed(
+  session: TableSession,
+  roundSeed: TableSeed,
+): TableSession {
   const finish = session.match.currentFinish ?? session.game.state.finished;
   if (!session.game.state.completed || finish.length !== 4)
     throw new TableSaveError(
@@ -595,7 +634,6 @@ export function prepareNextTableSession(session: TableSession): TableSession {
   const leader = finish[0];
   const levels = levelsAfterRound(session.match.levels, finish);
   const roundNumber = session.match.roundNumber + 1;
-  const roundSeed = nextRoundSeed(session.seed, roundNumber);
   // 级牌取上一局胜方（头游方）升级后的等级，与进贡确定的先手分离。
   const levelRank = levelForLeader(levels, finish[0]);
   const game = createTableGame(roundSeed, { leader, levelRank });
@@ -635,7 +673,7 @@ export function prepareNextTableSession(session: TableSession): TableSession {
  */
 export function restartCurrentTableSession(
   session: TableSession,
-  roundSeed: number,
+  roundSeed: TableSeed,
 ): TableSession {
   const leader = session.match.previousFinish?.[0] ?? "south";
   const game = createTableGame(roundSeed, {
@@ -720,7 +758,7 @@ export function restoreTableSession(save: RestorableTableSave): TableSession {
         initialState: () => initial,
         applyEvent,
       },
-      save.seed,
+      0,
       save.stream.events,
     );
   } catch (error) {

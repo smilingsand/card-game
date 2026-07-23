@@ -8,6 +8,7 @@ export default defineConfig({
       "../packages/guandan-core/src/platform/deck.test.ts",
       "../packages/guandan-core/src/platform/event-store.test.ts",
       "../packages/guandan-core/src/platform/runtime-globals.test.ts",
+      "../packages/guandan-core/src/platform/secure-seed.test.ts",
       "../packages/guandan-core/src/platform/types.test.ts",
       "../packages/guandan-core/src/games/guandan/basic-bot.test.ts",
       "../packages/guandan-core/src/games/guandan/bot-benchmark.test.ts",

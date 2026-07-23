@@ -1,4 +1,5 @@
 export * from "./platform/deck";
+export * from "./platform/secure-seed";
 export * from "./platform/clock";
 export * from "./platform/event-store";
 export * from "./platform/reducer";
