@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "card-game-backend",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-23",
+  "vars": {
+    "ENVIRONMENT": "local",
+    "SESSION_TTL_SECONDS": "86400",
+    "RATE_LIMIT_PER_MINUTE": "30",
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "AUTH_SESSION", "class_name": "AuthSessionDurableObject" },
+      { "name": "RATE_LIMITER", "class_name": "RateLimiterDurableObject" },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1-p3-03-security-baseline",
+      "new_sqlite_classes": [
+        "AuthSessionDurableObject",
+        "RateLimiterDurableObject",
+      ],
+    },
+  ],
+}

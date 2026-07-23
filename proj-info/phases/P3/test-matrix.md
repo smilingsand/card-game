@@ -7,6 +7,17 @@
 
 P3-02 主验收（2026-07-23）：`node frontend/node_modules/typescript/bin/tsc -p packages/guandan-core/tsconfig.json --noEmit --pretty false`、前端两份 tsconfig、ESLint、Prettier、Vite production build 均通过；浏览器固定回放与 App 测试共 20 项通过；Node 后端固定回放 1 项通过；核心 table-session 与 BotView 牌例 14 项通过。共享包只使用 ES2022 类型，不依赖 DOM、React、Vite、Cloudflare 或 Node 专属 API。
 
+## P3-03 测试矩阵（accepted）
+
+| 验收项                               | 证据                                                                                                                          | 当前结果                                                                                          |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Worker 健康检查与 SQLite DO 本地链路 | `cd backend; npm.cmd run test:p3-03`                                                                                          | Miniflare SQLite DO：`/health`、匿名会话、令牌轮换并使旧令牌失效、模糊输入拒绝、限流，共 6 项通过 |
+| 配置、鉴权与日志脱敏                 | `cd backend; npm.cmd run typecheck`；同上安全单测                                                                             | 配置 schema、跨身份访问拒绝、Cookie 安全属性与 token/seed/手牌字段脱敏均通过                      |
+| 既有共享核心边界与固定回放           | `cd backend; npm.cmd run test:core`                                                                                           | 2 项通过；后端仍只通过 `@card-game/guandan-core` 消费共享核心                                     |
+| 格式、CLI 与差异检查                 | `cd backend; node ../frontend/node_modules/prettier/bin/prettier.cjs --check .`；`npx wrangler --version`；`git diff --check` | Prettier 通过；Wrangler `4.113.0`；差异检查通过                                                   |
+
+本任务未执行 `wrangler login`、部署或任何云资源操作；`wrangler.jsonc` 仅定义本地 Worker/SQLite Durable Object 配置。Wrangler、Miniflare 与官方 Workers 类型为锁定的本地开发依赖；黑盒测试以 `new_sqlite_classes` 对应的 SQLite DO 配置运行。P3-12 前仍不得进行公网部署。
+
 # P3-01 测试矩阵
 
 | 验收项                         | 证据                                            | 结果                                                                                             |

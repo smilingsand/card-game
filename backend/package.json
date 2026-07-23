@@ -4,9 +4,18 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test:core": "node ../frontend/node_modules/vitest/vitest.mjs run core-consumer.node.test.ts import-boundary.node.test.ts --config ../frontend/vite.config.ts"
+    "test:core": "node ../frontend/node_modules/vitest/vitest.mjs run core-consumer.node.test.ts import-boundary.node.test.ts --config ../frontend/vite.config.ts --configLoader runner",
+    "test:p3-03": "node ../frontend/node_modules/vitest/vitest.mjs run test/p3-03-security.node.test.ts test/p3-03-worker.local.test.mjs --config ../frontend/vite.config.ts --configLoader runner",
+    "typecheck": "..\\frontend\\node_modules\\.bin\\tsc.cmd -p tsconfig.json --noEmit --pretty false",
+    "dev": "wrangler dev --local",
+    "test:local": "wrangler dev --local --test-scheduled"
   },
   "dependencies": {
     "@card-game/guandan-core": "file:../packages/guandan-core"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260723.1",
+    "miniflare": "^4.20260721.0",
+    "wrangler": "^4.113.0"
   }
 }
