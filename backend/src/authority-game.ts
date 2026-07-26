@@ -9,6 +9,12 @@ import {
   type TableSession,
   type TurnAction,
 } from "@card-game/guandan-core";
+import {
+  backupChecksum,
+  operationalLog,
+  verifyAuthorityBackup,
+  type AuthorityBackup,
+} from "./observability";
 
 export interface AuthorityEnv {
   readonly ROOM_SEED_ENCRYPTION_KEY?: string;
@@ -32,6 +38,11 @@ interface ControllerRow extends Record<string, SqlStorageValue> {
 interface EventRow extends Record<string, SqlStorageValue> {
   readonly sequence: number;
   readonly payload: string;
+}
+
+interface CommandRow extends Record<string, SqlStorageValue> {
+  readonly commandId: string;
+  readonly response: string;
 }
 
 type StoredEvent =
@@ -202,6 +213,9 @@ export class AuthorityGameDurableObject {
     this.ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS bot_controls (seat TEXT PRIMARY KEY)",
     );
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS backup_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at INTEGER NOT NULL, outcome TEXT NOT NULL, reason TEXT, event_sequence INTEGER)",
+    );
   }
   private meta(): MetaRow | undefined {
     return [
@@ -299,6 +313,110 @@ export class AuthorityGameDurableObject {
       roundSeedFingerprint: await fingerprint(String(session.match.roundSeed)),
       roundNumber: session.match.roundNumber,
     };
+  }
+
+  private async backup(meta: MetaRow): Promise<AuthorityBackup> {
+    const session = await this.restore(meta);
+    const events = [
+      ...this.ctx.storage.sql.exec<EventRow>(
+        "SELECT sequence, payload FROM events ORDER BY sequence",
+      ),
+    ];
+    const snapshot =
+      [
+        ...this.ctx.storage.sql.exec<{
+          eventSequence: number;
+          payload: string;
+        }>(
+          "SELECT event_sequence as eventSequence, payload FROM snapshots ORDER BY event_sequence DESC LIMIT 1",
+        ),
+      ][0] ?? null;
+    const commands = [
+      ...this.ctx.storage.sql.exec<CommandRow>(
+        "SELECT command_id as commandId, response FROM commands ORDER BY command_id",
+      ),
+    ];
+    const unsigned = {
+      format: "p3-authority-backup-v1" as const,
+      roomId: meta.ownerId.startsWith("room:")
+        ? meta.ownerId.slice("room:".length)
+        : meta.gameId,
+      gameId: meta.gameId,
+      rulesVersion: session.stream.rulesVersion,
+      roundNumber: session.match.roundNumber,
+      eventSequence: session.stream.events.length - 1,
+      initialLeader: meta.initialLeader,
+      encryptedSeed: meta.encryptedSeed,
+      events,
+      commands,
+      snapshot,
+    };
+    return { ...unsigned, checksum: await backupChecksum(unsigned) };
+  }
+
+  private auditBackup(
+    now: number,
+    outcome: "ok" | "failed",
+    reason: string | undefined,
+    eventSequence: number | undefined,
+    roomId: string,
+  ): void {
+    this.ctx.storage.sql.exec(
+      "INSERT INTO backup_audit (created_at, outcome, reason, event_sequence) VALUES (?, ?, ?, ?)",
+      now,
+      outcome,
+      reason ?? null,
+      eventSequence ?? null,
+    );
+    operationalLog("authority_backup", {
+      roomId,
+      outcome,
+      reason,
+      eventSequence,
+    });
+  }
+
+  private async restoreBackup(
+    backup: AuthorityBackup,
+    now: number,
+    roomId: string,
+  ): Promise<"ok" | "checksum_mismatch" | "event_sequence_gap"> {
+    const verified = await verifyAuthorityBackup(backup);
+    if (verified !== "ok") {
+      this.auditBackup(now, "failed", verified, undefined, roomId);
+      return verified;
+    }
+    this.ctx.storage.transactionSync(() => {
+      this.ctx.storage.sql.exec("DELETE FROM commands");
+      this.ctx.storage.sql.exec("DELETE FROM snapshots");
+      this.ctx.storage.sql.exec("DELETE FROM events");
+      this.ctx.storage.sql.exec(
+        "UPDATE meta SET game_id=?, encrypted_seed=?, initial_leader=? WHERE id=1",
+        backup.gameId,
+        backup.encryptedSeed,
+        backup.initialLeader,
+      );
+      for (const event of backup.events)
+        this.ctx.storage.sql.exec(
+          "INSERT INTO events (sequence, payload) VALUES (?, ?)",
+          event.sequence,
+          event.payload,
+        );
+      if (backup.snapshot)
+        this.ctx.storage.sql.exec(
+          "INSERT INTO snapshots (event_sequence, payload) VALUES (?, ?)",
+          backup.snapshot.eventSequence,
+          backup.snapshot.payload,
+        );
+      for (const command of backup.commands)
+        this.ctx.storage.sql.exec(
+          "INSERT INTO commands (command_id, response) VALUES (?, ?)",
+          command.commandId,
+          command.response,
+        );
+    });
+    this.auditBackup(now, "ok", undefined, backup.eventSequence, roomId);
+    return "ok";
   }
 
   private unavailableState(): Response {
@@ -451,6 +569,43 @@ export class AuthorityGameDurableObject {
     // without adding a client-facing audit or state-mutation API.
     if (this.env.P3_TEST_MODE === "true" && path === "/internal-audit")
       return json({ gameId: meta.gameId, ...(await this.auditSeed(meta)) });
+    if (this.env.P3_TEST_MODE === "true" && path === "/internal-backup") {
+      const roomId = meta.ownerId.startsWith("room:")
+        ? meta.ownerId.slice("room:".length)
+        : meta.gameId;
+      try {
+        const backup = await this.backup(meta);
+        this.auditBackup(
+          payload.now,
+          "ok",
+          undefined,
+          backup.eventSequence,
+          roomId,
+        );
+        return json(backup);
+      } catch {
+        this.auditBackup(
+          payload.now,
+          "failed",
+          "backup_export_failed",
+          undefined,
+          roomId,
+        );
+        return json({ error: "backup_unavailable" }, 503);
+      }
+    }
+    if (this.env.P3_TEST_MODE === "true" && path === "/internal-restore") {
+      const backup = payload.backup as AuthorityBackup | undefined;
+      if (!backup || typeof backup !== "object")
+        return json({ error: "invalid_backup" }, 422);
+      const roomId = meta.ownerId.startsWith("room:")
+        ? meta.ownerId.slice("room:".length)
+        : meta.gameId;
+      const result = await this.restoreBackup(backup, payload.now, roomId);
+      return result === "ok"
+        ? json({ ok: true, eventSequence: backup.eventSequence })
+        : json({ error: `backup_${result}` }, 422);
+    }
     if (
       this.env.P3_TEST_MODE === "true" &&
       path === "/internal-corrupt-snapshot"
@@ -459,6 +614,20 @@ export class AuthorityGameDurableObject {
         "UPDATE snapshots SET payload=? WHERE event_sequence=(SELECT MAX(event_sequence) FROM snapshots)",
         JSON.stringify({ eventSequence: -1, state: { corrupt: true } }),
       );
+      return json({ ok: true });
+    }
+    if (
+      this.env.P3_TEST_MODE === "true" &&
+      path === "/internal-corrupt-event-gap"
+    ) {
+      this.ctx.storage.sql.exec("DELETE FROM events WHERE sequence=0");
+      return json({ ok: true });
+    }
+    if (
+      this.env.P3_TEST_MODE === "true" &&
+      path === "/internal-corrupt-event-gap"
+    ) {
+      this.ctx.storage.sql.exec("DELETE FROM events WHERE sequence=0");
       return json({ ok: true });
     }
     if (

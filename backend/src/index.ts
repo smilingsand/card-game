@@ -67,12 +67,13 @@ function error(
 
 async function parseJsonObject(
   request: Request,
+  maxBytes = MAX_JSON_BYTES,
 ): Promise<Record<string, unknown>> {
   const length = Number(request.headers.get("content-length") ?? "0");
-  if (!Number.isFinite(length) || length > MAX_JSON_BYTES)
+  if (!Number.isFinite(length) || length > maxBytes)
     throw new Error("payload_too_large");
   const text = await request.text();
-  if (new TextEncoder().encode(text).byteLength > MAX_JSON_BYTES)
+  if (new TextEncoder().encode(text).byteLength > maxBytes)
     throw new Error("payload_too_large");
   try {
     const value = JSON.parse(text || "{}");
@@ -178,7 +179,15 @@ export default {
     let postBody: Record<string, unknown> | undefined;
     if (request.method === "POST") {
       try {
-        postBody = await parseJsonObject(request);
+        const testRecovery =
+          env.P3_TEST_MODE === "true" &&
+          /^\/v1\/authority\/[A-Za-z0-9_-]{1,128}\/restore$/u.test(
+            url.pathname,
+          );
+        postBody = await parseJsonObject(
+          request,
+          testRecovery ? 128 * 1_024 : MAX_JSON_BYTES,
+        );
       } catch (cause) {
         const code = cause instanceof Error ? cause.message : "invalid_payload";
         securityLog("request_rejected", {
@@ -265,7 +274,7 @@ export default {
     // runtimes. P3-05 public traffic enters only through room lifecycle APIs.
     const authority =
       env.P3_TEST_MODE === "true"
-        ? /^\/v1\/authority\/([A-Za-z0-9_-]{1,128})(?:\/(command|view|replay|new-game|next-round))?$/u.exec(
+        ? /^\/v1\/authority\/([A-Za-z0-9_-]{1,128})(?:\/(command|view|replay|new-game|next-round|backup|restore|corrupt|corrupt-event-gap))?$/u.exec(
             url.pathname,
           )
         : undefined;
@@ -276,7 +285,11 @@ export default {
         (request.method === "POST" &&
           (action === "command" ||
             action === "new-game" ||
-            action === "next-round")) ||
+            action === "next-round" ||
+            action === "backup" ||
+            action === "restore" ||
+            action === "corrupt" ||
+            action === "corrupt-event-gap")) ||
         (request.method === "GET" && (action === "view" || action === "replay"))
       ) {
         let body: Record<string, unknown> = {};
@@ -285,7 +298,16 @@ export default {
           env.AUTHORITY_GAME.idFromName(roomId),
         );
         return stub.fetch(
-          "https://authority.internal/" + (action ?? "initialize"),
+          "https://authority.internal/" +
+            (action === "backup"
+              ? "internal-backup"
+              : action === "restore"
+                ? "internal-restore"
+                : action === "corrupt"
+                  ? "internal-corrupt-snapshot"
+                  : action === "corrupt-event-gap"
+                    ? "internal-corrupt-event-gap"
+                    : (action ?? "initialize")),
           {
             method: "POST",
             body: JSON.stringify({
