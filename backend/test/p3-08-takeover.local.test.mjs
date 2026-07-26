@@ -112,6 +112,12 @@ test("P3-08: 本回合断线满十秒只在动作边界由 normal-vNext 托管�
       { headers: { cookie: east } },
     );
     expect((await before.json()).hand).toHaveLength(27);
+    const replayBefore = await runtime.dispatchFetch(
+      `https://local.test/v1/authority/${roomId}/replay`,
+      { headers: { cookie: east } },
+    );
+    expect(replayBefore.status).toBe(200);
+    const { eventCount: eventCountBefore } = await replayBefore.json();
 
     expect(
       (
@@ -148,7 +154,13 @@ test("P3-08: 本回合断线满十秒只在动作边界由 normal-vNext 托管�
     expect(recovered.status).toBe(200);
     const projection = await recovered.json();
     expect(projection.seat).toBe("east");
-    expect(projection.hand).toHaveLength(26);
+    expect(projection.hand.length).toBeLessThan(27);
+    const replayAfter = await runtime.dispatchFetch(
+      `https://local.test/v1/authority/${roomId}/replay`,
+      { headers: { cookie: east } },
+    );
+    expect(replayAfter.status).toBe(200);
+    expect((await replayAfter.json()).eventCount).toBe(eventCountBefore + 1);
     expect(JSON.stringify(projection)).not.toMatch(
       /seed|encryptedSeed|cardsById|reasons/i,
     );

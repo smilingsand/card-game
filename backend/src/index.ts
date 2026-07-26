@@ -65,7 +65,9 @@ function error(
   return json({ error: code }, status, headers);
 }
 
-async function parseEmptyJson(request: Request): Promise<void> {
+async function parseJsonObject(
+  request: Request,
+): Promise<Record<string, unknown>> {
   const length = Number(request.headers.get("content-length") ?? "0");
   if (!Number.isFinite(length) || length > MAX_JSON_BYTES)
     throw new Error("payload_too_large");
@@ -73,7 +75,10 @@ async function parseEmptyJson(request: Request): Promise<void> {
   if (new TextEncoder().encode(text).byteLength > MAX_JSON_BYTES)
     throw new Error("payload_too_large");
   try {
-    validateEmptyObject(JSON.parse(text || "{}"));
+    const value = JSON.parse(text || "{}");
+    if (typeof value !== "object" || value === null || Array.isArray(value))
+      throw new Error("invalid_payload");
+    return value as Record<string, unknown>;
   } catch {
     throw new Error("invalid_payload");
   }
@@ -170,30 +175,45 @@ export default {
       return json({ status: "ok", service: "card-game-backend" });
     if (!url.pathname.startsWith("/v1/")) return error("not_found", 404);
 
-    const routeRequiresBody =
-      request.method === "POST" &&
-      ["/v1/session", "/v1/session/rotate"].includes(url.pathname);
-    if (routeRequiresBody) {
+    let postBody: Record<string, unknown> | undefined;
+    if (request.method === "POST") {
       try {
-        await parseEmptyJson(request);
+        postBody = await parseJsonObject(request);
       } catch (cause) {
-        return error(
-          cause instanceof Error ? cause.message : "invalid_payload",
-          cause instanceof Error && cause.message === "payload_too_large"
-            ? 413
-            : 400,
-        );
+        const code = cause instanceof Error ? cause.message : "invalid_payload";
+        securityLog("request_rejected", {
+          method: request.method,
+          route: url.pathname,
+          reason: code,
+        });
+        return error(code, code === "payload_too_large" ? 413 : 400);
       }
     }
+    if (["/v1/session", "/v1/session/rotate"].includes(url.pathname))
+      try {
+        validateEmptyObject(postBody ?? {});
+      } catch {
+        securityLog("request_rejected", {
+          method: request.method,
+          route: url.pathname,
+          reason: "invalid_payload",
+        });
+        return error("invalid_payload", 400);
+      }
     const decision = await rateDecision(
       env,
       requestRateKey(request),
       config.rateLimitPerMinute,
     );
-    if (!decision.allowed)
+    if (!decision.allowed) {
+      securityLog("rate_limited", {
+        method: request.method,
+        route: url.pathname,
+      });
       return error("rate_limited", 429, {
         "retry-after": String(decision.retryAfterSeconds),
       });
+    }
 
     if (request.method === "POST" && url.pathname === "/v1/session") {
       const subjectId = createAnonymousSubjectId();
@@ -211,7 +231,13 @@ export default {
     }
 
     const authenticated = await requireSession(request, env);
-    if (authenticated instanceof Response) return authenticated;
+    if (authenticated instanceof Response) {
+      securityLog("authentication_rejected", {
+        method: request.method,
+        route: url.pathname,
+      });
+      return authenticated;
+    }
     const realtimeRoom = /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/realtime$/u.exec(
       url.pathname,
     );
@@ -254,13 +280,7 @@ export default {
         (request.method === "GET" && (action === "view" || action === "replay"))
       ) {
         let body: Record<string, unknown> = {};
-        if (request.method === "POST") {
-          try {
-            body = (await request.json()) as Record<string, unknown>;
-          } catch {
-            return error("invalid_payload", 400);
-          }
-        }
+        if (request.method === "POST") body = postBody ?? {};
         const stub = env.AUTHORITY_GAME.get(
           env.AUTHORITY_GAME.idFromName(roomId),
         );
@@ -293,13 +313,7 @@ export default {
           : request.method === "GET";
       if (!methodAllowed) return error("not_found", 404);
       let body: Record<string, unknown> = {};
-      if (request.method === "POST") {
-        try {
-          body = (await request.json()) as Record<string, unknown>;
-        } catch {
-          return error("invalid_payload", 400);
-        }
-      }
+      if (request.method === "POST") body = postBody ?? {};
       const room = env.ROOM.get(env.ROOM.idFromName(roomId));
       const requestNow =
         env.P3_TEST_MODE === "true" &&
