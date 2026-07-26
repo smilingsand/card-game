@@ -1,6 +1,7 @@
 import {
   applyTableSessionAction,
   createTableSession,
+  chooseTableBotAction,
   getSelectedPlayActions,
   parseSecureSeed,
   prepareNextTableSessionWithSecureSeed,
@@ -195,6 +196,12 @@ export class AuthorityGameDurableObject {
     this.ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS snapshots (event_sequence INTEGER PRIMARY KEY, payload TEXT NOT NULL)",
     );
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS turn_state (id INTEGER PRIMARY KEY CHECK(id=1), started_at INTEGER NOT NULL)",
+    );
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS bot_controls (seat TEXT PRIMARY KEY)",
+    );
   }
   private meta(): MetaRow | undefined {
     return [
@@ -306,6 +313,25 @@ export class AuthorityGameDurableObject {
       ),
     ][0]?.seat;
   }
+  private botControlled(seat: Seat): boolean {
+    return Boolean(
+      [
+        ...this.ctx.storage.sql.exec<{ seat: Seat }>(
+          "SELECT seat FROM bot_controls WHERE seat=?",
+          seat,
+        ),
+      ][0],
+    );
+  }
+  private turnStartedAt(): number {
+    return (
+      [
+        ...this.ctx.storage.sql.exec<{ startedAt: number }>(
+          "SELECT started_at as startedAt FROM turn_state WHERE id=1",
+        ),
+      ][0]?.startedAt ?? 0
+    );
+  }
   async fetch(request: Request): Promise<Response> {
     this.setup();
     const path = new URL(request.url).pathname;
@@ -361,6 +387,10 @@ export class AuthorityGameDurableObject {
             seat,
             subjectId,
           );
+        this.ctx.storage.sql.exec(
+          "INSERT INTO turn_state (id, started_at) VALUES (1, ?)",
+          now,
+        );
       });
       return json({ ok: true, gameId }, 201);
     }
@@ -382,6 +412,40 @@ export class AuthorityGameDurableObject {
         : undefined;
     const isOwner = payload.subjectId === meta.ownerId;
     if (!isOwner && !subjectSeat) return json({ error: "forbidden" }, 403);
+    if (path === "/turn-status") {
+      try {
+        const session = await this.restore(meta);
+        return json({
+          current: session.game.state.current,
+          eventSequence: session.stream.events.length - 1,
+          turnStartedAt: this.turnStartedAt(),
+          botControlled: this.botControlled(session.game.state.current),
+        });
+      } catch {
+        return this.unavailableState();
+      }
+    }
+    if (path === "/bot-control") {
+      if (
+        !isOwner ||
+        !isSeat(payload.seat) ||
+        typeof payload.enabled !== "boolean"
+      )
+        return json({ error: "forbidden" }, 403);
+      this.ctx.storage.transactionSync(() => {
+        if (payload.enabled)
+          this.ctx.storage.sql.exec(
+            "INSERT OR IGNORE INTO bot_controls (seat) VALUES (?)",
+            payload.seat,
+          );
+        else
+          this.ctx.storage.sql.exec(
+            "DELETE FROM bot_controls WHERE seat=?",
+            payload.seat,
+          );
+      });
+      return json({ ok: true });
+    }
     // These routes are deliberately unreachable from the public Worker router and
     // only enabled by the local Miniflare fixture. They prove persistence invariants
     // without adding a client-facing audit or state-mutation API.
@@ -502,6 +566,62 @@ export class AuthorityGameDurableObject {
       });
       return json(response);
     }
+    if (path === "/bot-command") {
+      if (!isOwner || typeof payload.commandId !== "string")
+        return json({ error: "forbidden" }, 403);
+      const duplicate = [
+        ...this.ctx.storage.sql.exec<{ response: string }>(
+          "SELECT response FROM commands WHERE command_id=?",
+          payload.commandId,
+        ),
+      ][0];
+      if (duplicate) return json(JSON.parse(duplicate.response));
+      let session: TableSession;
+      try {
+        session = await this.restore(meta);
+      } catch {
+        return this.unavailableState();
+      }
+      const seat = session.game.state.current;
+      if (!this.botControlled(seat))
+        return json({ error: "bot_not_controlling" }, 409);
+      const action = chooseTableBotAction(session.game);
+      if (!action || action.actor !== seat)
+        return json({ error: "bot_action_unavailable" }, 422);
+      const result = applyTableSessionAction(session, action);
+      if (!result.ok) return json({ error: result.code }, 422);
+      const event = result.session.stream.events.at(-1)!;
+      const response = {
+        acknowledged: true,
+        commandId: payload.commandId,
+        eventSequence: event.sequence,
+      };
+      this.ctx.storage.transactionSync(() => {
+        this.ctx.storage.sql.exec(
+          "INSERT INTO events (sequence, payload) VALUES (?, ?)",
+          event.sequence,
+          JSON.stringify({ kind: "action", action } satisfies StoredEvent),
+        );
+        this.ctx.storage.sql.exec(
+          "INSERT INTO snapshots (event_sequence, payload) VALUES (?, ?)",
+          event.sequence,
+          JSON.stringify({
+            eventSequence: event.sequence,
+            state: view(result.session, "south"),
+          }),
+        );
+        this.ctx.storage.sql.exec(
+          "INSERT INTO commands (command_id, response) VALUES (?, ?)",
+          payload.commandId,
+          JSON.stringify(response),
+        );
+        this.ctx.storage.sql.exec(
+          "UPDATE turn_state SET started_at=? WHERE id=1",
+          payload.now,
+        );
+      });
+      return json(response);
+    }
     if (
       path !== "/command" ||
       typeof payload.commandId !== "string" ||
@@ -522,6 +642,10 @@ export class AuthorityGameDurableObject {
       return this.unavailableState();
     }
     if (!subjectSeat) return json({ error: "forbidden" }, 403);
+    if (this.botControlled(subjectSeat))
+      return json({ error: "seat_under_bot_control" }, 409);
+    if (session.game.state.current !== subjectSeat)
+      return json({ error: "not_your_turn" }, 409);
     if (
       !isOwner &&
       payload.expectedEventSequence !== session.stream.events.length - 1
@@ -533,8 +657,6 @@ export class AuthorityGameDurableObject {
         },
         409,
       );
-    if (session.game.state.current !== subjectSeat)
-      return json({ error: "not_your_turn" }, 409);
     let action: TurnAction | undefined;
     if (payload.kind === "pass") action = { type: "pass", actor: subjectSeat };
     if (
@@ -571,6 +693,10 @@ export class AuthorityGameDurableObject {
         "INSERT INTO commands (command_id, response) VALUES (?, ?)",
         payload.commandId,
         JSON.stringify(response),
+      );
+      this.ctx.storage.sql.exec(
+        "UPDATE turn_state SET started_at=? WHERE id=1",
+        payload.now,
       );
     });
     return json(response);

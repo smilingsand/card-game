@@ -279,7 +279,7 @@ export default {
       }
     }
     const roomMatch =
-      /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/(join|ready|start|view|game-view|actions|seat-requests|seat-requests\/approve)$/u.exec(
+      /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/(join|ready|start|view|game-view|actions|presence|seat-requests|seat-requests\/approve)$/u.exec(
         url.pathname,
       );
     const isRoomCreate =
@@ -301,23 +301,31 @@ export default {
         }
       }
       const room = env.ROOM.get(env.ROOM.idFromName(roomId));
+      const requestNow =
+        env.P3_TEST_MODE === "true" &&
+        typeof body.now === "number" &&
+        Number.isFinite(body.now)
+          ? body.now
+          : Date.now();
       const internalAction =
         action === "seat-requests"
           ? "seat-request"
-            : action === "seat-requests/approve"
-              ? "approve-seat-request"
+          : action === "seat-requests/approve"
+            ? "approve-seat-request"
             : action === "actions"
               ? "authority-command"
               : action === "game-view"
                 ? "authority-view"
-              : action;
+                : action === "presence"
+                  ? "presence"
+                  : action;
       return room.fetch(`https://room.internal/${internalAction}`, {
         method: "POST",
         body: JSON.stringify({
           ...body,
           roomId,
           subjectId: authenticated.subjectId,
-          now: Date.now(),
+          now: requestNow,
         }),
       });
     }

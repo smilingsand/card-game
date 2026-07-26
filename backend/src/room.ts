@@ -36,6 +36,27 @@ interface SeatRow extends Record<string, SqlStorageValue> {
   readonly ready: number;
 }
 
+interface PresenceRow extends Record<string, SqlStorageValue> {
+  readonly subjectId: string;
+  readonly connected: number;
+  readonly connectedAt: number;
+  readonly lastSeenAt: number;
+  readonly disconnectedAt: number | null;
+}
+
+interface TakeoverRow extends Record<string, SqlStorageValue> {
+  readonly seat: Seat;
+  readonly enabled: number;
+  readonly recoverPending: number;
+}
+
+interface TurnStatus {
+  readonly current: Seat;
+  readonly eventSequence: number;
+  readonly turnStartedAt: number;
+  readonly botControlled: boolean;
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -128,6 +149,12 @@ export class RoomDurableObject {
     this.ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS room_events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, payload TEXT NOT NULL)",
     );
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS presence (subject_id TEXT PRIMARY KEY, connected INTEGER NOT NULL, connected_at INTEGER NOT NULL, last_seen_at INTEGER NOT NULL, disconnected_at INTEGER)",
+    );
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS seat_takeovers (seat TEXT PRIMARY KEY, enabled INTEGER NOT NULL, recover_pending INTEGER NOT NULL)",
+    );
   }
 
   private meta(): MetaRow | undefined {
@@ -181,6 +208,252 @@ export class RoomDurableObject {
 
   private subjectSeat(subjectId: string): SeatRow | undefined {
     return this.seats().find((row) => row.subjectId === subjectId);
+  }
+  private presence(subjectId: string): PresenceRow | undefined {
+    return [
+      ...this.ctx.storage.sql.exec<PresenceRow>(
+        "SELECT subject_id as subjectId, connected, connected_at as connectedAt, last_seen_at as lastSeenAt, disconnected_at as disconnectedAt FROM presence WHERE subject_id=?",
+        subjectId,
+      ),
+    ][0];
+  }
+  private takeover(seat: Seat): TakeoverRow | undefined {
+    return [
+      ...this.ctx.storage.sql.exec<TakeoverRow>(
+        "SELECT seat, enabled, recover_pending as recoverPending FROM seat_takeovers WHERE seat=?",
+        seat,
+      ),
+    ][0];
+  }
+  private authority(meta: MetaRow): DurableObjectStub {
+    return this.env.AUTHORITY_GAME.get(
+      this.env.AUTHORITY_GAME.idFromName(meta.roomId),
+    );
+  }
+  private async authorityPost(
+    meta: MetaRow,
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<Response> {
+    return this.authority(meta).fetch(`https://authority.internal/${path}`, {
+      method: "POST",
+      body: JSON.stringify({
+        subjectId: `room:${meta.roomId}`,
+        now: body.now,
+        ...body,
+      }),
+    });
+  }
+  private async setBotControl(
+    meta: MetaRow,
+    seat: Seat,
+    enabled: boolean,
+    now: number,
+  ): Promise<void> {
+    const response = await this.authorityPost(meta, "bot-control", {
+      seat,
+      enabled,
+      now,
+    });
+    if (!response.ok) throw new Error("authority_unavailable");
+    this.ctx.storage.sql.exec(
+      "INSERT INTO seat_takeovers (seat, enabled, recover_pending) VALUES (?, ?, 0) ON CONFLICT(seat) DO UPDATE SET enabled=excluded.enabled, recover_pending=0",
+      seat,
+      enabled ? 1 : 0,
+    );
+  }
+  private scheduleReconcile(
+    meta: MetaRow,
+    now: number,
+    status?: TurnStatus,
+  ): void {
+    // Alarms are the authoritative clock for missed heartbeats, turn deadlines,
+    // and lobby retention. Requests merely bring the same reconciliation forward.
+    // Deterministic local fixtures advance `now` explicitly; real timers would
+    // make those tests wait for wall-clock deadlines rather than exercising the
+    // persisted deadline calculation.
+    if (this.env.P3_TEST_MODE === "true") return;
+    const candidates: number[] = [];
+    for (const presence of [
+      ...this.ctx.storage.sql.exec<PresenceRow>(
+        "SELECT subject_id as subjectId, connected, connected_at as connectedAt, last_seen_at as lastSeenAt, disconnected_at as disconnectedAt FROM presence",
+      ),
+    ]) {
+      if (presence.connected === 1)
+        candidates.push(presence.lastSeenAt + 30_000);
+    }
+    if (meta.phase === "lobby") {
+      const ownerPresence = this.presence(meta.ownerId);
+      if (ownerPresence?.connected === 0) {
+        const disconnectedAt = ownerPresence.disconnectedAt ?? now;
+        candidates.push(disconnectedAt + 60_000, disconnectedAt + 300_000);
+      }
+    } else if (status) {
+      candidates.push(status.turnStartedAt + 30_000);
+      const current = this.seats().find((seat) => seat.seat === status.current);
+      const presence = current?.subjectId
+        ? this.presence(current.subjectId)
+        : undefined;
+      if (presence?.connected === 0)
+        candidates.push((presence.disconnectedAt ?? now) + 10_000);
+    }
+    const next = candidates
+      .filter((time) => time > now)
+      .sort((a, b) => a - b)[0];
+    if (next !== undefined) this.ctx.storage.setAlarm(next);
+  }
+  private markMissedHeartbeats(now: number): void {
+    for (const presence of [
+      ...this.ctx.storage.sql.exec<PresenceRow>(
+        "SELECT subject_id as subjectId, connected, connected_at as connectedAt, last_seen_at as lastSeenAt, disconnected_at as disconnectedAt FROM presence WHERE connected=1",
+      ),
+    ]) {
+      if (now - presence.lastSeenAt < 30_000) continue;
+      this.ctx.storage.sql.exec(
+        "UPDATE presence SET connected=0, disconnected_at=? WHERE subject_id=?",
+        presence.lastSeenAt + 30_000,
+        presence.subjectId,
+      );
+    }
+  }
+  private async reconcile(meta: MetaRow, now: number): Promise<void> {
+    this.markMissedHeartbeats(now);
+    if (meta.phase === "lobby") {
+      const ownerPresence = this.presence(meta.ownerId);
+      if (ownerPresence?.connected === 0) {
+        const disconnectedFor = now - (ownerPresence.disconnectedAt ?? now);
+        const candidates = this.seats()
+          .filter((seat) => seat.subjectId && seat.subjectId !== meta.ownerId)
+          .map((seat) => ({ seat, presence: this.presence(seat.subjectId!) }))
+          .filter(
+            (item): item is { seat: SeatRow; presence: PresenceRow } =>
+              item.presence?.connected === 1,
+          )
+          .sort(
+            (left, right) =>
+              left.presence.connectedAt - right.presence.connectedAt,
+          );
+        if (disconnectedFor >= 60_000 && candidates[0]) {
+          this.ctx.storage.transactionSync(() => {
+            this.ctx.storage.sql.exec(
+              "UPDATE room_meta SET owner_id=? WHERE id=1",
+              candidates[0].seat.subjectId,
+            );
+            this.append({
+              type: "room.host_transferred",
+              seat: candidates[0].seat.seat,
+            });
+          });
+        } else if (disconnectedFor >= 300_000 && candidates.length === 0) {
+          this.ctx.storage.transactionSync(() => {
+            this.ctx.storage.sql.exec("DELETE FROM seat_requests");
+            this.ctx.storage.sql.exec("DELETE FROM presence");
+            this.ctx.storage.sql.exec("DELETE FROM seat_takeovers");
+            this.ctx.storage.sql.exec("DELETE FROM seats");
+            this.ctx.storage.sql.exec("DELETE FROM room_events");
+            this.ctx.storage.sql.exec("DELETE FROM room_meta");
+          });
+        }
+      }
+      this.scheduleReconcile(meta, now);
+      return;
+    }
+    const statusResponse = await this.authorityPost(meta, "turn-status", {
+      now,
+    });
+    if (!statusResponse.ok) throw new Error("authority_unavailable");
+    let status = (await statusResponse.json()) as TurnStatus;
+    for (const seat of this.seats()) {
+      if (!seat.subjectId) {
+        if (!this.takeover(seat.seat)?.enabled)
+          await this.setBotControl(meta, seat.seat, true, now);
+        continue;
+      }
+      const presence = this.presence(seat.subjectId);
+      // A seated human that has not opened a realtime connection is not yet a
+      // disconnect. Otherwise a just-started room would incorrectly hand every
+      // non-host seat to a bot before its first heartbeat.
+      const disconnected = presence?.connected === 0;
+      const elapsed = now - (presence?.disconnectedAt ?? now);
+      const timedOut =
+        status.current === seat.seat && now - status.turnStartedAt >= 30_000;
+      const disconnectDue =
+        disconnected && (status.current !== seat.seat || elapsed >= 10_000);
+      if ((timedOut || disconnectDue) && !this.takeover(seat.seat)?.enabled)
+        await this.setBotControl(meta, seat.seat, true, now);
+    }
+    // A recovered human takes future actions at this boundary.  The only
+    // exception is the current bot action, which is finished before control is
+    // returned (the loop below executes it through Authority).
+    for (const seat of this.seats()) {
+      if (
+        seat.seat !== status.current &&
+        seat.subjectId &&
+        this.presence(seat.subjectId)?.connected === 1 &&
+        this.takeover(seat.seat)?.enabled
+      )
+        await this.setBotControl(meta, seat.seat, false, now);
+    }
+    // A single reconciliation may pass through several bot seats.  Every bot
+    // action remains an idempotent internal Authority command; no rule state is
+    // modified in Room.
+    for (let steps = 0; steps < SEATS.length; steps += 1) {
+      const currentSeat = this.seats().find(
+        (seat) => seat.seat === status.current,
+      )!;
+      const currentTakeover = this.takeover(status.current);
+      // P3-05's permanent empty-seat bots are not P3-08 takeover events. Their
+      // gameplay scheduling remains outside this timeout/recovery path, so the
+      // existing realtime protocol retains its current delivery semantics.
+      if (!currentTakeover?.enabled || !currentSeat.subjectId) break;
+      const currentPresence = currentSeat.subjectId
+        ? this.presence(currentSeat.subjectId)
+        : undefined;
+      const command = await this.authorityPost(meta, "bot-command", {
+        commandId: `bot-${status.current}-${status.eventSequence + 1}`,
+        now,
+      });
+      if (!command.ok) throw new Error("bot_command_unavailable");
+      status = (await (
+        await this.authorityPost(meta, "turn-status", { now })
+      ).json()) as TurnStatus;
+      if (currentPresence?.connected === 1)
+        await this.setBotControl(meta, currentSeat.seat, false, now);
+    }
+    this.scheduleReconcile(meta, now, status);
+  }
+  private markPresence(
+    subjectId: string,
+    connected: boolean,
+    now: number,
+  ): void {
+    const existing = this.presence(subjectId);
+    if (connected)
+      this.ctx.storage.sql.exec(
+        "INSERT INTO presence (subject_id, connected, connected_at, last_seen_at, disconnected_at) VALUES (?, 1, ?, ?, NULL) ON CONFLICT(subject_id) DO UPDATE SET connected=1, connected_at=CASE WHEN presence.connected=1 THEN presence.connected_at ELSE excluded.connected_at END, last_seen_at=excluded.last_seen_at, disconnected_at=NULL",
+        subjectId,
+        now,
+        now,
+      );
+    else if (existing?.connected === 1)
+      this.ctx.storage.sql.exec(
+        "UPDATE presence SET connected=0, last_seen_at=?, disconnected_at=? WHERE subject_id=?",
+        now,
+        now,
+        subjectId,
+      );
+  }
+
+  async alarm(): Promise<void> {
+    this.setup();
+    const meta = this.meta();
+    if (!meta) return;
+    try {
+      await this.reconcile(meta, Date.now());
+    } catch {
+      // The next scheduled reconciliation retries transient Authority failures.
+      this.scheduleReconcile(meta, Date.now());
+    }
   }
 
   private async startAuthority(meta: MetaRow, now: number): Promise<boolean> {
@@ -277,7 +550,8 @@ export class RoomDurableObject {
     if (
       meta.phase === "started" &&
       path !== "/authority-view" &&
-      path !== "/authority-command"
+      path !== "/authority-command" &&
+      path !== "/presence"
     )
       return json({ error: "room_already_started" }, 409);
 
@@ -322,13 +596,32 @@ export class RoomDurableObject {
 
     const ownSeat = this.subjectSeat(subjectId);
     if (!ownSeat) return json({ error: "not_in_room" }, 403);
+    if (path === "/presence") {
+      if (
+        typeof payload.connected !== "boolean" ||
+        typeof payload.now !== "number"
+      )
+        return json({ error: "invalid_payload" }, 422);
+      this.markPresence(subjectId, payload.connected, payload.now);
+      try {
+        await this.reconcile(meta, payload.now);
+      } catch {
+        return json({ error: "authority_unavailable" }, 503);
+      }
+      const currentMeta = this.meta();
+      if (!currentMeta) return json({ error: "room_closed" }, 410);
+      return json({ room: this.projection(currentMeta) });
+    }
     if (path === "/authority-view") {
       if (meta.phase !== "started")
         return json({ error: "room_not_started" }, 409);
-      const authority = this.env.AUTHORITY_GAME.get(
-        this.env.AUTHORITY_GAME.idFromName(meta.roomId),
-      );
-      return authority.fetch("https://authority.internal/view", {
+      this.markPresence(subjectId, true, Number(payload.now));
+      try {
+        await this.reconcile(meta, Number(payload.now));
+      } catch {
+        return json({ error: "authority_unavailable" }, 503);
+      }
+      return this.authority(meta).fetch("https://authority.internal/view", {
         method: "POST",
         body: JSON.stringify({ subjectId, now: payload.now }),
       });
@@ -352,20 +645,34 @@ export class RoomDurableObject {
         cardIds?.length !== payload.cardIds.length
       )
         return json({ error: "invalid_payload" }, 422);
-      const authority = this.env.AUTHORITY_GAME.get(
-        this.env.AUTHORITY_GAME.idFromName(meta.roomId),
+      this.markPresence(subjectId, true, Number(payload.now));
+      try {
+        await this.reconcile(meta, Number(payload.now));
+      } catch {
+        return json({ error: "authority_unavailable" }, 503);
+      }
+      const response = await this.authority(meta).fetch(
+        "https://authority.internal/command",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            subjectId,
+            now: payload.now,
+            commandId: payload.commandId,
+            expectedEventSequence: payload.expectedEventSequence,
+            kind: payload.kind,
+            ...(cardIds ? { cardIds } : {}),
+          }),
+        },
       );
-      return authority.fetch("https://authority.internal/command", {
-        method: "POST",
-        body: JSON.stringify({
-          subjectId,
-          now: payload.now,
-          commandId: payload.commandId,
-          expectedEventSequence: payload.expectedEventSequence,
-          kind: payload.kind,
-          ...(cardIds ? { cardIds } : {}),
-        }),
-      });
+      if (response.ok) {
+        try {
+          await this.reconcile(meta, Number(payload.now));
+        } catch {
+          return json({ error: "authority_unavailable" }, 503);
+        }
+      }
+      return response;
     }
     if (path === "/ready") {
       this.ctx.storage.transactionSync(() => {
@@ -447,6 +754,12 @@ export class RoomDurableObject {
         );
         this.append({ type: "room.started", subjectId });
       });
+      this.markPresence(subjectId, true, Number(payload.now));
+      try {
+        await this.reconcile(this.meta()!, Number(payload.now));
+      } catch {
+        return json({ error: "authority_unavailable" }, 503);
+      }
       return json({ room: this.projection(this.meta()!) });
     }
     return json({ error: "not_found" }, 404);

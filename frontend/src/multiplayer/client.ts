@@ -121,6 +121,7 @@ export function createHttpMultiplayerClient(fetchImpl: FetchLike = fetch): Multi
       const url = new URL(`/v1/rooms/${input.roomId}/realtime`, origin);
       url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
       const socket = new WebSocket(url);
+      let heartbeat: number | undefined;
       socket.addEventListener("open", () => {
         input.onStatus("connected");
         socket.send(
@@ -131,6 +132,17 @@ export function createHttpMultiplayerClient(fetchImpl: FetchLike = fetch): Multi
             payload: { lastEventSequence: input.lastEventSequence }
           })
         );
+        heartbeat = window.setInterval(() => {
+          if (socket.readyState !== WebSocket.OPEN) return;
+          socket.send(
+            JSON.stringify({
+              type: "heartbeat",
+              protocolVersion: MULTIPLAYER_PROTOCOL_VERSION,
+              roomId: input.roomId,
+              payload: {}
+            })
+          );
+        }, 10_000);
       });
       socket.addEventListener("message", (event) => {
         try {
@@ -144,9 +156,15 @@ export function createHttpMultiplayerClient(fetchImpl: FetchLike = fetch): Multi
           input.onStatus("error");
         }
       });
-      socket.addEventListener("close", () => input.onStatus("disconnected"));
+      socket.addEventListener("close", () => {
+        if (heartbeat !== undefined) window.clearInterval(heartbeat);
+        input.onStatus("disconnected");
+      });
       socket.addEventListener("error", () => input.onStatus("error"));
-      return () => socket.close();
+      return () => {
+        if (heartbeat !== undefined) window.clearInterval(heartbeat);
+        socket.close(1000);
+      };
     }
   };
 }

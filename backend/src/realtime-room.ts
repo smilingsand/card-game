@@ -113,6 +113,18 @@ export class RealtimeRoomDurableObject {
     return body.room;
   }
 
+  private async reportPresence(
+    roomId: string,
+    subjectId: string,
+    connected: boolean,
+  ): Promise<void> {
+    const room = this.env.ROOM.get(this.env.ROOM.idFromName(roomId));
+    await room.fetch("https://room.internal/presence", {
+      method: "POST",
+      body: encode({ subjectId, connected, now: Date.now() }),
+    });
+  }
+
   private appendProjection(
     roomId: string,
     projection: Record<string, unknown>,
@@ -170,6 +182,7 @@ export class RealtimeRoomDurableObject {
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ roomId, subjectId });
+    await this.reportPresence(roomId, subjectId, true);
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -187,6 +200,10 @@ export class RealtimeRoomDurableObject {
     if (envelope.protocolVersion !== PROTOCOL_VERSION) {
       this.send(socket, error(identity.roomId, "protocol.unsupported"));
       socket.close(1002, "unsupported_protocol");
+      return;
+    }
+    if (envelope.type === "heartbeat") {
+      await this.reportPresence(identity.roomId, identity.subjectId, true);
       return;
     }
     if (envelope.type === "hello") {
@@ -289,5 +306,13 @@ export class RealtimeRoomDurableObject {
     });
     this.broadcast(event!);
     this.send(socket, acknowledgement);
+  }
+
+  async webSocketClose(socket: WebSocket, code: number): Promise<void> {
+    const identity = this.attachment(socket);
+    // Only a negotiated normal close is immediate.  Network loss relies on the
+    // persisted 10s heartbeat / 30s missed-heartbeat deadline in Room.
+    if (identity && code === 1000)
+      await this.reportPresence(identity.roomId, identity.subjectId, false);
   }
 }
