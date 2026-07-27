@@ -7,7 +7,7 @@ import {
   type TouchEvent
 } from "react";
 import "./App.css";
-import type { Card, Seat } from "@card-game/guandan-core";
+import type { Seat } from "@card-game/guandan-core";
 import { createIndexedDbStorage, type StorageBoundary } from "./platform/storage";
 import {
   chooseTableHintAction,
@@ -49,6 +49,19 @@ import { botThinkDelayMs } from "@card-game/guandan-core";
 import { registerPwaServiceWorker } from "./pwa/service-worker";
 import { MultiplayerApp } from "./multiplayer/MultiplayerApp";
 import type { MultiplayerClient } from "./multiplayer/client";
+import { ActionControls } from "./components/table/ActionControls";
+import { CardFace, PlayerCardCount } from "./components/table/CardFace";
+import { HandView, type HandViewGroup } from "./components/table/HandView";
+import { PublicActions, type PublicActionView } from "./components/table/PublicActions";
+import { SeatView } from "./components/table/SeatView";
+import { TableView } from "./components/table/TableView";
+import { useCardSelection } from "./components/table/useCardSelection";
+import {
+  createDisplayPositions,
+  teammateOf,
+  type TableInteractionCallbacks,
+  type TableViewModel
+} from "./components/table/table-contract";
 
 const HUMAN_SEAT: Seat = "south";
 type BotSeat = "east" | "north" | "west";
@@ -65,7 +78,6 @@ const seatShortName: Record<Seat, string> = {
   west: "西家",
   north: "北家"
 };
-const finishNames = ["头家", "二家", "三家", "末家"] as const;
 
 function levelTeam(seat: Seat): "northSouth" | "eastWest" {
   return seat === "north" || seat === "south" ? "northSouth" : "eastWest";
@@ -88,6 +100,10 @@ function newSeed(): number {
   return Math.floor(Math.random() * 2 ** 31);
 }
 
+function sameCardIds(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((cardId) => right.includes(cardId));
+}
+
 function defaultStorage(): StorageBoundary<TableSave> {
   return createIndexedDbStorage<TableSave>({
     databaseName: "card-game",
@@ -96,58 +112,24 @@ function defaultStorage(): StorageBoundary<TableSave> {
   });
 }
 
-export function CardFace({
-  card,
-  wildcardAs,
-  compact = false,
-  levelRank = "2"
-}: {
-  readonly card: Card;
-  readonly wildcardAs?: { readonly rank: Card["rank"] };
-  readonly compact?: boolean;
-  readonly levelRank?: Card["rank"];
-}) {
-  const suit = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣", joker: "" }[card.suit];
-  const rank =
-    card.rank === "small-joker" ? "小王" : card.rank === "big-joker" ? "大王" : card.rank;
-  const badge = card.rank === levelRank ? (card.suit === "hearts" ? "配" : "级") : undefined;
-  return (
-    <span className={`card-face size-token-card ${card.suit}${compact ? " compact" : ""}`}>
-      {badge ? <span className="card-badge">{badge}</span> : null}
-      <span className="card-rank">{rank}</span>
-      <span className="card-suit">{suit}</span>
-      {wildcardAs ? <span className="wildcard-as">配{wildcardAs.rank}</span> : null}
-    </span>
-  );
-}
+export { CardFace, PlayerCardCount } from "./components/table/CardFace";
 
-export function PlayerCardCount({
-  handSize,
-  finishIndex
+function SoloApp({
+  storage,
+  onSelectMultiplayer
 }: {
-  readonly handSize: number;
-  readonly finishIndex: number;
+  readonly storage?: StorageBoundary<TableSave>;
+  readonly onSelectMultiplayer: () => void;
 }) {
-  const finishName = finishNames[finishIndex];
-  return (
-    <span
-      className={
-        finishName
-          ? "card-count seat-card-count"
-          : handSize < 10
-            ? "card-count seat-card-count urgent"
-            : "card-count seat-card-count"
-      }
-    >
-      {finishName ?? handSize}
-    </span>
-  );
-}
-
-function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> }) {
   const saveStorage = useMemo(() => storage ?? defaultStorage(), [storage]);
   const [session, setSession] = useState<TableSession>(() => createTableSession(newSeed()));
-  const [selectedCardIds, setSelectedCardIds] = useState<readonly string[]>([]);
+  const game: TableGame = session.game;
+  const {
+    selectedCardIds,
+    setSelectedCardIds,
+    clearSelection,
+    toggleCard: updateCardSelection
+  } = useCardSelection(game.state.hands[HUMAN_SEAT]);
   const [message, setMessage] = useState("请选择手牌后出牌。");
   const [rulesOpen, setRulesOpen] = useState(false);
   const [storageReady, setStorageReady] = useState(false);
@@ -157,7 +139,6 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
   const [handLayout, setHandLayout] = useState<HandLayout>("stacked");
   const [applyPwaUpdate, setApplyPwaUpdate] = useState<() => void>();
   const [botThinking, setBotThinking] = useState(false);
-  const game: TableGame = session.game;
   const levelRank = game.levelRank ?? session.match.levelRank;
   const finishIndex = (seat: Seat) => game.state.finished.indexOf(seat);
 
@@ -168,7 +149,7 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
       .then((save) => {
         if (!active || !save) return;
         setSession(restoreTableSession(save));
-        setSelectedCardIds([]);
+        clearSelection();
         setMessage("已继续上次未完成的对局。");
       })
       .catch(() => {
@@ -182,7 +163,7 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
     return () => {
       active = false;
     };
-  }, [saveStorage]);
+  }, [clearSelection, saveStorage]);
 
   useEffect(() => {
     if (!storageReady || saveBlocked) return;
@@ -226,14 +207,14 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
     const timer = window.setTimeout(() => {
       try {
         setSession((current) => prepareNextTableSession(current));
-        setSelectedCardIds([]);
+        clearSelection();
         setMessage("本局已结算，正在准备下一局。");
       } catch {
         setMessage("下一局准备失败，请开始新局。");
       }
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [game.state.completed]);
+  }, [clearSelection, game.state.completed]);
 
   const hand = reconcileHumanDisplayOrder(
     session.humanDisplayOrder,
@@ -244,6 +225,13 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
   const handGroups = session.humanDisplayOrder
     ? groupOrderedDisplayCards(hand, game.cardsById)
     : groupHumanDisplayCards(hand, game.cardsById, levelRank);
+  const handViewGroups: readonly HandViewGroup[] = handGroups.map((group) => ({
+    key: group.key,
+    cards: group.cardIds.flatMap((cardId) => {
+      const card = game.cardsById.get(cardId);
+      return card ? [card] : [];
+    })
+  }));
   const selectedActions = getSelectedPlayActions(game, selectedCardIds);
   const canPass = game.state.current === HUMAN_SEAT && game.state.highest !== undefined;
   const highestPlay = game.state.highestSeat
@@ -262,32 +250,24 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
   const recentActionLayers = latestRecentActionLayerBySeat(game.publicEvents);
   const recentActionsFor = (seat: Seat) => recentActions.filter((action) => action.actor === seat);
 
-  const renderAction = (action: TurnAction, current: boolean) => (
-    <span
-      key={`${action.actor}-${action.type}-${action.type === "play" ? action.cardIds.join("-") : "pass"}`}
-      className="public-action"
-      aria-label={`${seatName[action.actor]}${current ? "当前出牌" : "最近出牌"}`}
-    >
-      {action.type === "pass" ? (
-        <span className="pass-word">不要</span>
-      ) : (
-        sortPlayedCards(action.cardIds, game.cardsById, levelRank, action.interpretation).map(
-          (cardId) => {
-            const card = game.cardsById.get(cardId);
-            if (!card) return null;
-            return (
-              <CardFace
-                key={cardId}
-                card={card}
-                levelRank={levelRank}
-                wildcardAs={action.interpretation.wildcardAs[cardId]}
-              />
-            );
-          }
-        )
-      )}
-    </span>
-  );
+  const publicActionViewsFor = (seat: Seat): readonly PublicActionView[] =>
+    recentActionsFor(seat).map((action) => ({
+      key: `${action.actor}-${action.type}-${action.type === "play" ? action.cardIds.join("-") : "pass"}`,
+      ariaLabel: `${seatName[action.actor]}${action === publicPlay(seat) ? "当前出牌" : "最近出牌"}`,
+      pass: action.type === "pass",
+      cards:
+        action.type === "pass"
+          ? []
+          : sortPlayedCards(
+              action.cardIds,
+              game.cardsById,
+              levelRank,
+              action.interpretation
+            ).flatMap((cardId) => {
+              const card = game.cardsById.get(cardId);
+              return card ? [{ card, wildcardAs: action.interpretation.wildcardAs[cardId] }] : [];
+            })
+    }));
 
   const submit = (action: TurnAction) => {
     const result = applyTableSessionAction(session, action);
@@ -296,7 +276,7 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
       return;
     }
     setSession(result.session);
-    setSelectedCardIds([]);
+    clearSelection();
     setMessage(
       action.type === "pass"
         ? "你选择了过牌。"
@@ -340,7 +320,7 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
     if (!cardId) return;
     try {
       setSession(submitSouthTribute(session, cardId));
-      setSelectedCardIds([]);
+      clearSelection();
       setMessage("已提交进贡牌，正在处理其余贡牌。");
     } catch {
       setMessage("所选牌不符合进贡要求。");
@@ -352,7 +332,7 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
     if (!cardId) return;
     try {
       setSession(submitSouthReturn(session, cardId));
-      setSelectedCardIds([]);
+      clearSelection();
       setMessage("已提交还贡牌，下一局开始。");
     } catch {
       setMessage("所选牌不能用于还贡。");
@@ -362,13 +342,7 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
   const toggleCard = (cardId: string) => {
     const selectable = humanCanAct || southManualChoices.includes(cardId);
     if (!selectable) return;
-    setSelectedCardIds((current) =>
-      current.includes(cardId)
-        ? current.filter((id) => id !== cardId)
-        : humanCanAct
-          ? [...current, cardId]
-          : [cardId]
-    );
+    updateCardSelection(cardId, humanCanAct);
   };
 
   const selectCardWithTouch = (event: TouchEvent<HTMLButtonElement>, cardId: string) => {
@@ -411,14 +385,74 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
   const restartMatch = () => {
     setSaveBlocked(false);
     setSession(createTableSession(newSeed()));
-    setSelectedCardIds([]);
+    clearSelection();
     setMessage("已重新开赛，双方从 2 级开始。");
   };
 
   const restartCurrentRound = () => {
     setSession(restartCurrentTableSession(session, newSeed()));
-    setSelectedCardIds([]);
+    clearSelection();
     setMessage("已重新发当前局手牌，贡牌和先手已重新计算。");
+  };
+
+  const displayPositions = createDisplayPositions(HUMAN_SEAT);
+  const tableViewModel: TableViewModel = {
+    viewerLogicalSeat: HUMAN_SEAT,
+    displayPositions,
+    ownHand: handViewGroups,
+    selectedCardIds,
+    selectableCardIds: humanCanAct ? hand : southManualChoices,
+    remainingCardCounts: {
+      south: game.state.hands.south.length,
+      east: game.state.hands.east.length,
+      north: game.state.hands.north.length,
+      west: game.state.hands.west.length
+    },
+    publicActions: {
+      south: publicActionViewsFor("south"),
+      east: publicActionViewsFor("east"),
+      north: publicActionViewsFor("north"),
+      west: publicActionViewsFor("west")
+    },
+    highestPlay: highestPlay ? publicActionViewsFor(highestPlay.actor).at(0) : undefined,
+    currentActorSeat: game.state.current,
+    teammateSeat: teammateOf(HUMAN_SEAT),
+    canPlay: humanCanAct && selectedActions.length > 0,
+    canPass: humanCanAct && canPass,
+    canHint: humanCanAct,
+    isActionPending: false,
+    playerNames: seatName,
+    gamePhase: game.state.completed
+      ? "completed"
+      : session.match.tributePhase === "ready"
+        ? "playing"
+        : "tribute",
+    handLayout
+  };
+  const tableInteractions: TableInteractionCallbacks = {
+    onToggleCard: toggleCard,
+    onPlay: (cardIds) => {
+      const action = selectedActions.find(
+        (candidate) => candidate.type === "play" && sameCardIds(candidate.cardIds, cardIds)
+      );
+      if (!action) {
+        setMessage("所选牌已失效，请重新选择。");
+        return;
+      }
+      submit(action);
+    },
+    onPass: () => submit({ type: "pass", actor: HUMAN_SEAT }),
+    onHint: () => {
+      const hint = chooseTableHintAction(game);
+      if (!hint || hint.type !== "play") {
+        setMessage("规则引擎没有提供可提示的出牌。");
+        return;
+      }
+      setSelectedCardIds(hint.cardIds);
+      setMessage(`提示：可出${formatInterpretation(hint.interpretation)}。`);
+    },
+    onReorderCard: moveCard,
+    onChangeLayout: setHandLayout
   };
 
   return (
@@ -453,9 +487,14 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
         <button
           type="button"
           aria-pressed={handLayout === "flat"}
-          onClick={() => setHandLayout((layout) => (layout === "stacked" ? "flat" : "stacked"))}
+          onClick={() =>
+            tableInteractions.onChangeLayout(handLayout === "stacked" ? "flat" : "stacked")
+          }
         >
           {handLayout === "stacked" ? "横排" : "竖排"}
+        </button>
+        <button type="button" onClick={onSelectMultiplayer}>
+          多人联机游戏
         </button>
       </header>
       {applyPwaUpdate ? (
@@ -478,10 +517,7 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
           为唯一口径；牌型与跟牌均由规则引擎判定。
         </aside>
       ) : null}
-      <section
-        className={`table responsive-table${showAllHands ? " show-all-hands" : ""}`}
-        aria-label="牌桌"
-      >
+      <TableView showAllHands={showAllHands} model={tableViewModel}>
         <section className="match-scoreboard" aria-label="赛局记分与贡牌">
           <span>我方</span>
           <span className={`match-token${activeLevelTeam === "northSouth" ? "" : " inactive"}`}>
@@ -497,16 +533,14 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
             </span>
           ))}
         </section>
-        <section
+        <SeatView
           className="seat north"
-          aria-label="北家座位"
-          style={{ zIndex: recentActionLayers.get("north") ?? 0 }}
+          ariaLabel="北家座位"
+          zIndex={recentActionLayers.get("north") ?? 0}
+          name={tableViewModel.playerNames.north}
+          handSize={tableViewModel.remainingCardCounts.north}
+          finishIndex={finishIndex("north")}
         >
-          <strong>{seatName.north}</strong>
-          <PlayerCardCount
-            handSize={game.state.hands.north.length}
-            finishIndex={finishIndex("north")}
-          />
           {showAllHands ? (
             <span className={`revealed-hand card-groups ${handLayout}`} aria-label="北家明牌">
               {revealedHand("north").map((group) => (
@@ -526,22 +560,20 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
               ))}
             </span>
           ) : null}
-          <span className="seat-actions">
-            {recentActionsFor("north").map((action) =>
-              renderAction(action, action === publicPlay("north"))
-            )}
-          </span>
-        </section>
-        <section
-          className="seat east"
-          aria-label="东家座位"
-          style={{ zIndex: recentActionLayers.get("east") ?? 0 }}
-        >
-          <strong>{seatName.east}</strong>
-          <PlayerCardCount
-            handSize={game.state.hands.east.length}
-            finishIndex={finishIndex("east")}
+          <PublicActions
+            actions={tableViewModel.publicActions.north}
+            className="seat-actions"
+            levelRank={levelRank}
           />
+        </SeatView>
+        <SeatView
+          className="seat east"
+          ariaLabel="东家座位"
+          zIndex={recentActionLayers.get("east") ?? 0}
+          name={tableViewModel.playerNames.east}
+          handSize={tableViewModel.remainingCardCounts.east}
+          finishIndex={finishIndex("east")}
+        >
           {showAllHands ? (
             <span className={`revealed-hand card-groups ${handLayout}`} aria-label="东家明牌">
               {revealedHand("east").map((group) => (
@@ -561,12 +593,12 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
               ))}
             </span>
           ) : null}
-          <span className="seat-actions east-actions">
-            {recentActionsFor("east").map((action) =>
-              renderAction(action, action === publicPlay("east"))
-            )}
-          </span>
-        </section>
+          <PublicActions
+            actions={tableViewModel.publicActions.east}
+            className="seat-actions east-actions"
+            levelRank={levelRank}
+          />
+        </SeatView>
         <section className="table-info" aria-label="桌面信息">
           <p>轮到：{seatName[game.state.current]}</p>
           <p>
@@ -583,16 +615,14 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
             </p>
           ) : null}
         </section>
-        <section
+        <SeatView
           className="seat west"
-          aria-label="西家座位"
-          style={{ zIndex: recentActionLayers.get("west") ?? 0 }}
+          ariaLabel="西家座位"
+          zIndex={recentActionLayers.get("west") ?? 0}
+          name={tableViewModel.playerNames.west}
+          handSize={tableViewModel.remainingCardCounts.west}
+          finishIndex={finishIndex("west")}
         >
-          <strong>{seatName.west}</strong>
-          <PlayerCardCount
-            handSize={game.state.hands.west.length}
-            finishIndex={finishIndex("west")}
-          />
           {showAllHands ? (
             <span className={`revealed-hand card-groups ${handLayout}`} aria-label="西家明牌">
               {revealedHand("west").map((group) => (
@@ -612,55 +642,38 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
               ))}
             </span>
           ) : null}
-          <span className="seat-actions west-actions">
-            {recentActionsFor("west").map((action) =>
-              renderAction(action, action === publicPlay("west"))
-            )}
-          </span>
-        </section>
-        <span
+          <PublicActions
+            actions={tableViewModel.publicActions.west}
+            className="seat-actions west-actions"
+            levelRank={levelRank}
+          />
+        </SeatView>
+        <PublicActions
+          actions={tableViewModel.publicActions.south}
           className="seat-actions south-actions"
+          levelRank={levelRank}
           style={{ zIndex: recentActionLayers.get(HUMAN_SEAT) ?? 0 }}
-        >
-          {recentActionsFor(HUMAN_SEAT).map((action) =>
-            renderAction(action, action === publicPlay(HUMAN_SEAT))
-          )}
-        </span>
+        />
         {game.state.completed ? null : (
           <section className="human-seat" aria-label="你的手牌">
-            <section aria-label="操作">
-              <button
-                type="button"
-                onClick={() => submit({ type: "pass", actor: HUMAN_SEAT })}
-                disabled={!humanCanAct || !canPass}
-              >
-                过牌
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const hint = chooseTableHintAction(game);
-                  if (!hint || hint.type !== "play") {
-                    setMessage("规则引擎没有提供可提示的出牌。");
-                    return;
-                  }
-                  setSelectedCardIds(hint.cardIds);
-                  setMessage(`提示：可出${formatInterpretation(hint.interpretation)}。`);
-                }}
-                disabled={!humanCanAct}
-              >
-                提示
-              </button>
-              <button
-                type="button"
-                onClick={() => submit(selectedActions[0])}
-                disabled={!humanCanAct || selectedActions.length === 0}
-              >
-                出牌
-                {selectedActions[0]?.type === "play"
-                  ? `（${formatInterpretation(selectedActions[0].interpretation)}）`
-                  : ""}
-              </button>
+            <ActionControls
+              canPass={tableViewModel.canPass}
+              canPlay={tableViewModel.canPlay}
+              canHint={tableViewModel.canHint}
+              isActionPending={tableViewModel.isActionPending}
+              selectedCardIds={tableViewModel.selectedCardIds}
+              onPass={tableInteractions.onPass}
+              onHint={tableInteractions.onHint}
+              onPlay={tableInteractions.onPlay}
+              playLabel={
+                <>
+                  出牌
+                  {selectedActions[0]?.type === "play"
+                    ? `（${formatInterpretation(selectedActions[0].interpretation)}）`
+                    : ""}
+                </>
+              }
+            >
               {awaitingSouthTribute ? (
                 <button
                   type="button"
@@ -679,41 +692,21 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
                   确认还贡
                 </button>
               ) : null}
-            </section>
-            <div className={`card-groups human-hand ${handLayout}`}>
-              {handGroups.map((group) => (
-                <span className="card-stack joined-card-stack" key={group.key}>
-                  {group.cardIds.map((cardId, index) => {
-                    const card = game.cardsById.get(cardId);
-                    if (!card) return null;
-                    const selected = selectedCardIds.includes(cardId);
-                    const compact = handLayout === "stacked" && index > 0;
-                    return (
-                      <button
-                        key={cardId}
-                        type="button"
-                        className={`hand-card${compact ? " compact-card" : ""}`}
-                        aria-pressed={selected}
-                        aria-label={`选择${formatCard(card)}`}
-                        aria-describedby="hand-arrangement-help"
-                        data-card-id={cardId}
-                        disabled={!humanCanAct && !southManualChoices.includes(cardId)}
-                        draggable={humanCanAct}
-                        onClick={() => toggleCard(cardId)}
-                        onTouchEnd={(event) => selectCardWithTouch(event, cardId)}
-                        onDragStart={(event) => dragStart(event, cardId)}
-                        onDragEnd={() => setDraggingCardId(undefined)}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={(event) => dropOnCard(event, cardId)}
-                        onKeyDown={(event) => reorderWithKeyboard(event, cardId)}
-                      >
-                        <CardFace card={card} compact={compact} levelRank={levelRank} />
-                      </button>
-                    );
-                  })}
-                </span>
-              ))}
-            </div>
+            </ActionControls>
+            <HandView
+              groups={tableViewModel.ownHand}
+              handLayout={tableViewModel.handLayout}
+              selectedCardIds={tableViewModel.selectedCardIds}
+              selectableCardIds={tableViewModel.selectableCardIds}
+              draggable={humanCanAct}
+              levelRank={levelRank}
+              onToggleCard={tableInteractions.onToggleCard}
+              onTouchEnd={selectCardWithTouch}
+              onDragStart={dragStart}
+              onDragEnd={() => setDraggingCardId(undefined)}
+              onDrop={dropOnCard}
+              onKeyDown={reorderWithKeyboard}
+            />
             <div className="human-footer">
               <p id="hand-arrangement-help">
                 已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
@@ -722,7 +715,7 @@ function SoloApp({ storage }: { readonly storage?: StorageBoundary<TableSave> })
             </div>
           </section>
         )}
-      </section>
+      </TableView>
     </main>
   );
 }
@@ -757,12 +750,7 @@ export function App({
     );
   return (
     <>
-      <div className="mode-switch">
-        <button type="button" onClick={() => setMode("multiplayer")}>
-          多人联机
-        </button>
-      </div>
-      <SoloApp storage={storage} />
+      <SoloApp storage={storage} onSelectMultiplayer={() => setMode("multiplayer")} />
     </>
   );
 }

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
 import { App, CardFace, PlayerCardCount } from "./App";
+import { ActionControls } from "./components/table/ActionControls";
 import { latestRecentActionLayerBySeat, latestRecentActionsBySeat } from "@card-game/guandan-core";
 import type { StorageBoundary } from "@card-game/guandan-core";
 import {
@@ -36,6 +37,35 @@ function memoryStorage(
 
 describe("App", () => {
   afterEach(() => cleanup());
+
+  it("共享操作区只由适配器提供的可行动状态决定按钮可用性", () => {
+    const onPlay = vi.fn();
+    const onPass = vi.fn();
+    const onHint = vi.fn();
+    render(
+      <ActionControls
+        canPlay={false}
+        canPass={false}
+        isActionPending={false}
+        selectedCardIds={[]}
+        onHint={onHint}
+        onPass={onPass}
+        onPlay={onPlay}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "过牌" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "提示" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "出牌" })).toBeDisabled();
+  });
+
+  it("首页通过多人联机游戏按钮进入多人大厅", async () => {
+    render(<App storage={memoryStorage()} />);
+
+    expect(screen.getByRole("heading", { name: "单人本地掼蛋" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "多人联机游戏" }));
+    expect(await screen.findByLabelText("多人大厅")).toBeInTheDocument();
+  });
 
   it("牌桌只展示 normal-vNext 策略", async () => {
     render(<App storage={memoryStorage()} />);
