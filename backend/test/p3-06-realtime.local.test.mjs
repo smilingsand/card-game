@@ -240,7 +240,14 @@ test("P3-06: Room 绑定真人逻辑座位，Authority 忽略伪造 actor 并按
       (await post(runtime, `/v1/rooms/${roomId}/ready`, {}, south)).status,
     ).toBe(200);
     expect(
-      (await post(runtime, `/v1/rooms/${roomId}/start`, {}, east)).status,
+      (
+        await post(
+          runtime,
+          `/v1/rooms/${roomId}/start`,
+          { initialLeader: "east" },
+          east,
+        )
+      ).status,
     ).toBe(200);
     const eastView = await runtime.dispatchFetch(
       `https://local.test/v1/rooms/${roomId}/game-view`,
@@ -266,20 +273,49 @@ test("P3-06: Room 绑定真人逻辑座位，Authority 忽略伪造 actor 并按
       east,
     );
     expect(action.status).toBe(200);
-    expect((await action.json()).view.seat).toBe("east");
+    const eastAfterFirstPlay = await action.json();
+    expect(eastAfterFirstPlay).toMatchObject({
+      eventSequence: 0,
+      view: { seat: "east", eventSequence: 0 },
+    });
+    expect(eastAfterFirstPlay.view.current).not.toBe("east");
+    const eastCurrentView = await runtime.dispatchFetch(
+      `https://local.test/v1/rooms/${roomId}/game-view`,
+      { headers: { cookie: east } },
+    );
+    const eastProjection = await eastCurrentView.json();
+    expect(eastProjection).toMatchObject({
+      seat: "east",
+      current: "north",
+      // Reading a personal projection cannot dispatch empty-seat bots or
+      // otherwise mutate the Authority stream.
+      eventSequence: 0,
+    });
+    expect(eastProjection.current).not.toBe("east");
     const notTurn = await post(
       runtime,
       `/v1/rooms/${roomId}/actions`,
       {
-        commandId: "south-forged-turn",
-        expectedEventSequence: 0,
+        commandId: "east-forged-current-turn",
+        expectedEventSequence: eastProjection.eventSequence,
         kind: "pass",
-        actor: "east",
+        actor: eastProjection.current,
       },
-      south,
+      east,
     );
     expect(notTurn.status).toBe(409);
     expect(await notTurn.json()).toEqual({ error: "not_your_turn" });
+    const eastAfterRejectedForgery = await runtime.dispatchFetch(
+      `https://local.test/v1/rooms/${roomId}/game-view`,
+      { headers: { cookie: east } },
+    );
+    expect(await eastAfterRejectedForgery.json()).toMatchObject({
+      seat: "east",
+      // The rejected command is still an action boundary, so it may advance
+      // the vacant north/west seats through their Authority bot commands.
+      current: "south",
+      eventSequence: 2,
+    });
     const reconnected = await runtime.dispatchFetch(
       `https://local.test/v1/rooms/${roomId}/game-view`,
       { headers: { cookie: east } },

@@ -44,7 +44,7 @@ export default defineConfig({
     // requests to a locally running Wrangler worker. No Cloudflare account is used.
     proxy: {
       "/v1": {
-        target: process.env.P3_LOCAL_WORKER_ORIGIN ?? "http://127.0.0.1:8787",
+        target: process.env.P3_LOCAL_WORKER_ORIGIN ?? "http://127.0.0.1:8788",
         changeOrigin: true,
         ws: true
       }

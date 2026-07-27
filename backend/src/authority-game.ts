@@ -2,9 +2,11 @@ import {
   applyTableSessionAction,
   createTableSession,
   chooseTableBotAction,
+  getLegalBotActions,
   getSelectedPlayActions,
   parseSecureSeed,
   prepareNextTableSessionWithSecureSeed,
+  restartCurrentTableSession,
   type Seat,
   type TableSession,
   type TurnAction,
@@ -20,6 +22,8 @@ export interface AuthorityEnv {
   readonly ROOM_SEED_ENCRYPTION_KEY?: string;
   /** 仅供 Miniflare 验收夹具使用；生产环境绝不设置。 */
   readonly P3_TEST_MODE?: string;
+  /** 仅供可重现的 Miniflare 固定牌例使用；不可用于生产。 */
+  readonly P3_TEST_SEED?: string;
 }
 
 interface MetaRow extends Record<string, SqlStorageValue> {
@@ -48,6 +52,7 @@ interface CommandRow extends Record<string, SqlStorageValue> {
 type StoredEvent =
   | { readonly kind: "action"; readonly action: TurnAction }
   | { readonly kind: "next-round"; readonly encryptedSeed: string }
+  | { readonly kind: "restart-current-round"; readonly encryptedSeed: string }
   | { readonly kind: "test-complete-fixture" };
 
 function json(value: unknown, status = 200): Response {
@@ -124,7 +129,12 @@ async function decryptSeed(value: string, env: AuthorityEnv): Promise<string> {
   return new TextDecoder().decode(plain);
 }
 
-function view(session: TableSession, seat: Seat) {
+function view(
+  session: TableSession,
+  seat: Seat,
+  includeLegalActions = false,
+  gameId?: string,
+) {
   const downstream: Record<Seat, Seat> = {
     south: "east",
     east: "north",
@@ -140,10 +150,26 @@ function view(session: TableSession, seat: Seat) {
   const cards = session.game.state.hands[seat]
     .map((id) => session.game.cardsById.get(id))
     .filter((card) => card !== undefined);
+  const highestPlay =
+    session.game.state.highestSeat && session.game.state.highest
+      ? {
+          actor: session.game.state.highestSeat,
+          cards: session.game.state.highest.cardIds
+            .map((id) => session.game.cardsById.get(id))
+            .filter((card) => card !== undefined),
+          wildcardAs: session.game.state.highest.wildcardAs,
+        }
+      : undefined;
   return {
+    ...(gameId ? { gameId } : {}),
     seat,
+    // This is a public monotonic authority revision used for optimistic action
+    // submission.  It is deliberately distinct from the relay's per-room
+    // WebSocket sequence and contains no private game data.
+    eventSequence: session.stream.events.length - 1,
     hand: cards,
     current: session.game.state.current,
+    levelRank: session.game.levelRank ?? session.match.levelRank,
     leader: session.game.state.leader,
     passes: session.game.state.passes,
     finished: session.game.state.finished,
@@ -154,6 +180,16 @@ function view(session: TableSession, seat: Seat) {
       ]),
     ),
     publicEvents: session.game.publicEvents,
+    // The current winning play is public table state.  Send its card faces so
+    // clients never have to infer them from a private hand projection.
+    ...(highestPlay ? { highestPlay } : {}),
+    // Legal actions are a personal projection.  Never compute them for another
+    // seat: doing so would disclose card IDs and playable combinations from that
+    // seat's private hand.
+    legalActions:
+      includeLegalActions && session.game.state.current === seat
+        ? getLegalBotActions(session.game)
+        : [],
     positions: {
       bottom: seat,
       left: upstream[seat],
@@ -262,6 +298,13 @@ export class AuthorityGameDurableObject {
           await decryptSeed(stored.encryptedSeed, this.env),
         );
         session = prepareNextTableSessionWithSecureSeed(session, roundSeed);
+        if (session.stream.events.length - 1 !== row.sequence)
+          throw new Error("stored_event_invalid");
+      } else if (stored.kind === "restart-current-round") {
+        const roundSeed = parseSecureSeed(
+          await decryptSeed(stored.encryptedSeed, this.env),
+        );
+        session = restartCurrentTableSession(session, roundSeed);
         if (session.stream.events.length - 1 !== row.sequence)
           throw new Error("stored_event_invalid");
       } else if (
@@ -488,7 +531,14 @@ export class AuthorityGameDurableObject {
             ([seat, subjectId]) => [seat as Seat, subjectId as string] as const,
           )
         : [["south", payload.ownerId] as const];
-      const encryptedSeed = await encryptSeed(secureSeed(), this.env);
+      let seed = secureSeed();
+      if (this.env.P3_TEST_MODE === "true" && this.env.P3_TEST_SEED)
+        try {
+          seed = parseSecureSeed(this.env.P3_TEST_SEED);
+        } catch {
+          return json({ error: "invalid_test_seed" }, 422);
+        }
+      const encryptedSeed = await encryptSeed(seed, this.env);
       const gameId = opaqueId();
       this.ctx.storage.transactionSync(() => {
         this.ctx.storage.sql.exec(
@@ -538,6 +588,7 @@ export class AuthorityGameDurableObject {
           eventSequence: session.stream.events.length - 1,
           turnStartedAt: this.turnStartedAt(),
           botControlled: this.botControlled(session.game.state.current),
+          completed: session.game.state.completed,
         });
       } catch {
         return this.unavailableState();
@@ -642,23 +693,159 @@ export class AuthorityGameDurableObject {
       return json({ ok: true });
     }
     if (path === "/new-game") {
-      const encryptedSeed = await encryptSeed(secureSeed(), this.env);
+      if (
+        !isOwner ||
+        typeof payload.commandId !== "string" ||
+        !Number.isInteger(payload.expectedEventSequence)
+      )
+        return json({ error: "forbidden" }, 403);
+      const duplicate = [
+        ...this.ctx.storage.sql.exec<{ response: string }>(
+          "SELECT response FROM commands WHERE command_id=?",
+          payload.commandId,
+        ),
+      ][0];
+      if (duplicate) return json(JSON.parse(duplicate.response));
+      let current: TableSession;
+      try {
+        current = await this.restore(meta);
+      } catch {
+        return this.unavailableState();
+      }
+      if (payload.expectedEventSequence !== current.stream.events.length - 1)
+        return json(
+          {
+            error: "event_sequence_conflict",
+            eventSequence: current.stream.events.length - 1,
+          },
+          409,
+        );
+      const initialLeader = isSeat(payload.initialLeader)
+        ? payload.initialLeader
+        : meta.initialLeader;
+      const seed = secureSeed();
+      const encryptedSeed = await encryptSeed(seed, this.env);
       const gameId = opaqueId();
+      const restarted = createTableSession(parseSecureSeed(seed), {
+        initialLeader,
+      });
+      const response = {
+        acknowledged: true,
+        commandId: payload.commandId,
+        gameId,
+        eventSequence: restarted.stream.events.length - 1,
+      };
       this.ctx.storage.transactionSync(() => {
         this.ctx.storage.sql.exec("DELETE FROM commands");
         this.ctx.storage.sql.exec("DELETE FROM snapshots");
         this.ctx.storage.sql.exec("DELETE FROM events");
         this.ctx.storage.sql.exec(
-          "UPDATE meta SET game_id=?, encrypted_seed=? WHERE id=1",
+          "UPDATE meta SET game_id=?, encrypted_seed=?, initial_leader=? WHERE id=1",
           gameId,
           encryptedSeed,
+          initialLeader,
+        );
+        this.ctx.storage.sql.exec(
+          "INSERT INTO commands (command_id, response) VALUES (?, ?)",
+          payload.commandId,
+          JSON.stringify(response),
+        );
+        this.ctx.storage.sql.exec(
+          "UPDATE turn_state SET started_at=? WHERE id=1",
+          payload.now,
         );
       });
-      return json({ ok: true, gameId });
+      return json(response);
+    }
+    if (path === "/restart-current-round") {
+      if (
+        !isOwner ||
+        typeof payload.commandId !== "string" ||
+        !Number.isInteger(payload.expectedEventSequence)
+      )
+        return json({ error: "forbidden" }, 403);
+      const duplicate = [
+        ...this.ctx.storage.sql.exec<{ response: string }>(
+          "SELECT response FROM commands WHERE command_id=?",
+          payload.commandId,
+        ),
+      ][0];
+      if (duplicate) return json(JSON.parse(duplicate.response));
+      let session: TableSession;
+      try {
+        session = await this.restore(meta);
+      } catch {
+        return this.unavailableState();
+      }
+      if (payload.expectedEventSequence !== session.stream.events.length - 1)
+        return json(
+          {
+            error: "event_sequence_conflict",
+            eventSequence: session.stream.events.length - 1,
+          },
+          409,
+        );
+      const roundSeed = parseSecureSeed(secureSeed());
+      let restarted: TableSession;
+      try {
+        restarted = restartCurrentTableSession(session, roundSeed);
+      } catch {
+        return json({ error: "round_restart_rejected" }, 422);
+      }
+      const event = restarted.stream.events.at(-1)!;
+      const gameId = opaqueId();
+      const encryptedSeed = await encryptSeed(roundSeed, this.env);
+      const response = {
+        acknowledged: true,
+        commandId: payload.commandId,
+        gameId,
+        eventSequence: event.sequence,
+      };
+      this.ctx.storage.transactionSync(() => {
+        this.ctx.storage.sql.exec("DELETE FROM commands");
+        this.ctx.storage.sql.exec("DELETE FROM snapshots");
+        this.ctx.storage.sql.exec(
+          "INSERT INTO events (sequence, payload) VALUES (?, ?)",
+          event.sequence,
+          JSON.stringify({
+            kind: "restart-current-round",
+            encryptedSeed,
+          } satisfies StoredEvent),
+        );
+        this.ctx.storage.sql.exec(
+          "UPDATE meta SET game_id=? WHERE id=1",
+          gameId,
+        );
+        this.ctx.storage.sql.exec(
+          "INSERT INTO snapshots (event_sequence, payload) VALUES (?, ?)",
+          event.sequence,
+          JSON.stringify({
+            eventSequence: event.sequence,
+            state: view(restarted, "south"),
+          }),
+        );
+        this.ctx.storage.sql.exec(
+          "INSERT INTO commands (command_id, response) VALUES (?, ?)",
+          payload.commandId,
+          JSON.stringify(response),
+        );
+        this.ctx.storage.sql.exec(
+          "UPDATE turn_state SET started_at=? WHERE id=1",
+          payload.now,
+        );
+      });
+      return json(response);
     }
     if (path === "/view") {
       try {
-        return json(view(await this.restore(meta), subjectSeat ?? "south"));
+        return json(
+          view(
+            await this.restore(meta),
+            subjectSeat ?? "south",
+            true,
+            meta.gameId,
+          ),
+        );
       } catch {
         return this.unavailableState();
       }
@@ -842,7 +1029,7 @@ export class AuthorityGameDurableObject {
       acknowledged: true,
       commandId: payload.commandId,
       eventSequence: event.sequence,
-      view: view(result.session, subjectSeat),
+      view: view(result.session, subjectSeat, false, meta.gameId),
     };
     this.ctx.storage.transactionSync(() => {
       this.ctx.storage.sql.exec(

@@ -35,6 +35,26 @@ header {
 .game-title h1 {
   margin: 0;
 }
+.game-mode-picker select {
+  min-width: 12rem;
+  border: 0;
+  color: #0d3355;
+  background: transparent;
+  font: inherit;
+  font-size: clamp(1.45rem, 4vw, 2rem);
+  font-weight: 900;
+  cursor: pointer;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .pwa-update {
   display: flex;
   align-items: center;
@@ -412,6 +432,29 @@ button:disabled {
   align-content: end;
   padding: 0.75rem;
 }
+.selected-play-status {
+  min-height: 1.25rem;
+  margin: 0;
+  color: #173d52;
+  text-align: center;
+  font-size: 0.9rem;
+}
+.human-seat-identity {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.15rem 0 0;
+}
+.human-seat-identity .seat-card-count {
+  position: static;
+}
+#multiplayer-hand-help {
+  align-self: flex-start;
+  margin: 0;
+  color: #405b67;
+  font-size: 0.9rem;
+}
 .south-actions {
   position: absolute;
   bottom: 18rem;
@@ -732,9 +775,18 @@ button:disabled {
 }
 .mode-switch {
   position: fixed;
-  z-index: 2;
+  z-index: 10;
   right: 1rem;
   bottom: 1rem;
+}
+
+.mode-switch button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  color: #fff;
+  background: #1b5778;
+  box-shadow: inset 0 -3px rgba(0, 0, 0, 0.25);
 }
 
 .multiplayer-app,
@@ -746,9 +798,14 @@ button:disabled {
 }
 
 .multiplayer-app {
-  max-width: 62rem;
-  margin: 0 auto;
-  padding: 1rem;
+  /* Keep the formal multiplayer table on the same canvas as the solo table. */
+  max-width: 1180px;
+}
+
+.multiplayer-table-game {
+  /* The shared table primitives below own every seat/action anchor.  Do not
+     introduce a second multiplayer-specific coordinate system here. */
+  gap: 0;
 }
 
 .multiplayer-lobby label {

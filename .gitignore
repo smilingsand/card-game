@@ -10,6 +10,8 @@ frontend/.vite/
 frontend/coverage/
 backend/dist/
 backend/coverage/
+backend/temp/backups/
+backend/.wrangler/
 **/*.tsbuildinfo
 
 # Test and diagnostic output

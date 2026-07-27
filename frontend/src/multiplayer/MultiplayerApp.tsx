@@ -1,5 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Seat } from "@card-game/guandan-core";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type KeyboardEvent
+} from "react";
+import {
+  actionFromPublicEvent,
+  formatCard,
+  groupHumanDisplayCards,
+  groupOrderedDisplayCards,
+  moveHumanDisplayCard,
+  reconcileHumanDisplayOrder,
+  type Card,
+  type Seat
+} from "@card-game/guandan-core";
 import {
   createHttpMultiplayerClient,
   type GameProjection,
@@ -24,8 +41,23 @@ const PRESET_NAMES = [
 const SEATS: readonly Seat[] = ["south", "east", "north", "west"];
 const SEAT_LABEL: Record<Seat, string> = { south: "南", east: "东", north: "北", west: "西" };
 
+function botName(seat: Seat, seats: RoomProjection["seats"]): string {
+  const index = seats
+    .filter((item) => item.controller === "bot")
+    .findIndex((item) => item.seat === seat);
+  return `机器人${String.fromCharCode("A".charCodeAt(0) + Math.max(index, 0))}`;
+}
+
 function messageFor(error: unknown): string {
-  return error instanceof Error ? error.message : "network_request_failed";
+  const code = error instanceof Error ? error.message : "network_request_failed";
+  const messages: Record<string, string> = {
+    event_sequence_conflict: "动作未提交：牌局状态已更新，已同步最新牌桌，请重新选择。",
+    invalid_action: "所选牌组不是当前可出的合法牌，请重新选择。",
+    not_your_turn: "动作未提交：现在还没轮到你出牌。",
+    seat_under_bot_control: "动作未提交：该座位正由机器人托管，本动作结束后会自动恢复。",
+    network_request_failed: "提交失败：无法连接权威服务端。"
+  };
+  return messages[code] ?? `操作失败：${code}`;
 }
 
 export function MultiplayerApp({
@@ -52,8 +84,17 @@ export function MultiplayerApp({
   );
   const [connectionEpoch, setConnectionEpoch] = useState(0);
   const [eventSequence, setEventSequence] = useState(0);
+  const [actionPending, setActionPending] = useState(false);
   const eventSequenceRef = useRef(0);
+  const latestGameProjectionRef = useRef<{
+    readonly gameId?: string;
+    readonly eventSequence: number;
+  }>({
+    eventSequence: -1
+  });
   const [notice, setNotice] = useState("请选择名称后创建或加入房间。");
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [handLayout, setHandLayout] = useState<"stacked" | "flat">("stacked");
   const name = displayName === "custom" ? customName.trim() : displayName;
   const viewerSeat =
     game?.seat ??
@@ -61,14 +102,39 @@ export function MultiplayerApp({
     seat;
   const hasRoom = Boolean(room);
   const positions = projectSeatsForViewer(viewerSeat);
+  const isHost = room?.seats.find((item) => item.seat === viewerSeat)?.isHost === true;
+
+  const applyGameProjection = useCallback((nextGame: GameProjection) => {
+    const latest = latestGameProjectionRef.current;
+    const sameGame = latest.gameId === nextGame.gameId;
+    // A realtime notification can start a projection read just before an action
+    // completes. Never let that older read overwrite the acknowledged action.
+    if (sameGame && nextGame.eventSequence < latest.eventSequence) return;
+    latestGameProjectionRef.current = {
+      gameId: nextGame.gameId,
+      eventSequence: nextGame.eventSequence
+    };
+    eventSequenceRef.current = nextGame.eventSequence;
+    setGame(nextGame);
+    setEventSequence(nextGame.eventSequence);
+  }, []);
 
   const refreshRoom = useCallback(
     async (id: string) => {
       const next = await client.getRoom(id);
-      setRoom(next);
-      if (next.phase === "started") setGame(await client.getGameView(id));
+      // A delayed lobby projection from a selection refresh must not take an
+      // already-started room back to the lobby screen.
+      setRoom((current) =>
+        current?.roomId === next.roomId && current.phase === "started" && next.phase === "lobby"
+          ? current
+          : next
+      );
+      if (next.phase === "started") {
+        const nextGame = await client.getGameView(id);
+        applyGameProjection(nextGame);
+      }
     },
-    [client]
+    [applyGameProjection, client]
   );
 
   useEffect(() => {
@@ -88,7 +154,7 @@ export function MultiplayerApp({
       lastEventSequence: eventSequenceRef.current,
       onStatus: setConnection,
       onEvent: (sequence) => {
-        setEventSequence(sequence);
+        if (Number.isInteger(sequence)) setEventSequence(sequence as number);
         void refreshRoom(roomId).catch((error) => setNotice(messageFor(error)));
       }
     });
@@ -123,25 +189,47 @@ export function MultiplayerApp({
 
   const run = (operation: () => Promise<RoomProjection>, success: string) =>
     void operation()
-      .then((next) => {
+      .then(async (next) => {
         setRoom(next);
+        if (next.phase === "started") {
+          const nextGame = await client.getGameView(next.roomId);
+          applyGameProjection(nextGame);
+        }
         setNotice(success);
       })
       .catch((error) => setNotice(messageFor(error)));
 
-  const submit = (kind: "pass" | "play") => {
-    if (!roomId || !game) return;
+  const submit = (kind: "pass" | "play", cardIds?: readonly string[]) => {
+    if (!roomId || !game || actionPending) return;
+    setActionPending(true);
     void client
       .submitAction({
         roomId,
         commandId: crypto.randomUUID(),
-        expectedEventSequence: eventSequence,
+        expectedEventSequence: game.eventSequence,
         kind,
-        ...(kind === "play" ? { cardIds: [game.hand[0]?.id].filter(Boolean) } : {})
+        ...(kind === "play" ? { cardIds } : {})
       })
       .then((result) => {
-        setEventSequence(result.eventSequence);
-        setGame(result.view);
+        applyGameProjection(result.view);
+        setNotice(kind === "pass" ? "已过牌。" : "已出牌。");
+      })
+      .catch((error) => setNotice(messageFor(error)))
+      .finally(() => setActionPending(false));
+  };
+  const restart = (kind: "match" | "round") => {
+    if (!roomId || !game || !isHost) return;
+    const input = {
+      roomId,
+      clientCommandId: crypto.randomUUID(),
+      expectedEventSequence: game.eventSequence
+    };
+    void (kind === "match" ? client.restartMatch(input) : client.restartRound(input))
+      .then(async (next) => {
+        setRoom(next);
+        const nextGame = await client.getGameView(roomId);
+        applyGameProjection(nextGame);
+        setNotice(kind === "match" ? "已重新开赛。" : "已重开本局。");
       })
       .catch((error) => setNotice(messageFor(error)));
   };
@@ -152,13 +240,41 @@ export function MultiplayerApp({
         <div className="game-title">
           <h1>多人联网掼蛋</h1>
         </div>
+        <button
+          type="button"
+          onClick={() => setRulesOpen((open) => !open)}
+          aria-expanded={rulesOpen}
+        >
+          规则
+        </button>
+        <button type="button" onClick={() => restart("match")} disabled={!game || !isHost}>
+          重新开赛
+        </button>
+        <button type="button" onClick={() => restart("round")} disabled={!game || !isHost}>
+          重开本局
+        </button>
+        <button
+          type="button"
+          aria-pressed={handLayout === "flat"}
+          onClick={() => setHandLayout((layout) => (layout === "stacked" ? "flat" : "stacked"))}
+        >
+          {handLayout === "stacked" ? "横排" : "竖排"}
+        </button>
         <button type="button" onClick={onExit}>
-          返回单机
+          单人本地掼蛋
         </button>
       </header>
-      <p role="status">
-        {notice} 连接：{connection}
-      </p>
+      {rulesOpen ? (
+        <aside aria-label="规则入口">
+          本局规则以项目的 <code>docs/resolved-rules.md</code>{" "}
+          为唯一口径；牌型与跟牌均由权威服务端判定。
+        </aside>
+      ) : null}
+      {!game ? (
+        <p role="status">
+          {notice} 连接：{connection}
+        </p>
+      ) : null}
       {!room ? (
         <section aria-label="多人大厅" className="multiplayer-lobby">
           <label>
@@ -211,7 +327,7 @@ export function MultiplayerApp({
             加入房间
           </button>
         </section>
-      ) : (
+      ) : room.phase === "lobby" ? (
         <section aria-label="多人房间" className="multiplayer-room">
           <p>房间：{room.roomId}</p>
           {inviteCode ? (
@@ -227,8 +343,9 @@ export function MultiplayerApp({
           <div className="multiplayer-seats" aria-label="逻辑座位">
             {room.seats.map((item) => (
               <article key={item.seat} data-seat={item.seat}>
-                <strong>{SEAT_LABEL[item.seat]}家</strong>：
-                {item.controller === "bot" ? `机器人（${item.strategy}）` : item.displayName}
+                <strong>
+                  {item.controller === "bot" ? botName(item.seat, room.seats) : item.displayName}
+                </strong>
                 <span>{item.ready ? " 已准备" : " 未准备"}</span>
               </article>
             ))}
@@ -243,16 +360,23 @@ export function MultiplayerApp({
               </button>
             </>
           ) : null}
-          {game ? (
-            <GameView
-              game={game}
-              positions={positions}
-              onPass={() => submit("pass")}
-              onPlay={() => submit("play")}
-            />
-          ) : null}
         </section>
-      )}
+      ) : game ? (
+        <GameView
+          game={game}
+          positions={positions}
+          seats={room.seats}
+          onPass={() => submit("pass")}
+          onPlay={(cardIds) => submit("play", cardIds)}
+          onStaleLeadingSelection={() => {
+            setNotice("正在同步服务端提供的当前合法出牌。");
+            return refreshRoom(roomId).catch((error) => setNotice(messageFor(error)));
+          }}
+          handLayout={handLayout}
+          actionPending={actionPending}
+          notice={notice}
+        />
+      ) : null}
     </main>
   );
 }
@@ -260,43 +384,291 @@ export function MultiplayerApp({
 function GameView({
   game,
   positions,
+  seats,
   onPass,
-  onPlay
+  onPlay,
+  onStaleLeadingSelection,
+  handLayout,
+  actionPending,
+  notice
 }: {
   readonly game: GameProjection;
   readonly positions: Record<TablePosition, Seat>;
+  readonly seats: RoomProjection["seats"];
   readonly onPass: () => void;
-  readonly onPlay: () => void;
+  readonly onPlay: (cardIds: readonly string[]) => void;
+  readonly onStaleLeadingSelection: () => Promise<void>;
+  readonly handLayout: "stacked" | "flat";
+  readonly actionPending: boolean;
+  readonly notice: string;
 }) {
+  const [selectedCardIds, setSelectedCardIds] = useState<readonly string[]>([]);
+  const [displayOrder, setDisplayOrder] = useState<readonly string[]>();
+  const [draggingCardId, setDraggingCardId] = useState<string>();
+  const staleLeadingSelectionRef = useRef<string | undefined>(undefined);
+  const canAct = game.current === game.seat;
+  const cardsById = useMemo(() => new Map(game.hand.map((card) => [card.id, card])), [game.hand]);
+  const hand = useMemo(
+    () =>
+      reconcileHumanDisplayOrder(
+        displayOrder,
+        game.hand.map((card) => card.id),
+        cardsById,
+        game.levelRank ?? "2"
+      ),
+    [cardsById, displayOrder, game.hand, game.levelRank]
+  );
+  const handGroups = displayOrder
+    ? groupOrderedDisplayCards(hand, cardsById)
+    : groupHumanDisplayCards(hand, cardsById, game.levelRank ?? "2");
+  useEffect(() => {
+    setSelectedCardIds((current) =>
+      current.filter((cardId) => game.hand.some((card) => card.id === cardId))
+    );
+  }, [game.hand]);
+  // Legal actions are personal and are empty whenever this seat does not own
+  // the turn.  Do not leave an old highlighted selection on the table after
+  // Authority advances to another player.
+  useEffect(() => {
+    if (!canAct) setSelectedCardIds([]);
+  }, [canAct, game.eventSequence]);
+  useEffect(() => {
+    setDisplayOrder(undefined);
+  }, [game.gameId]);
+  const selectedPlay = game.legalActions?.find(
+    (action) => action.type === "play" && sameCards(action.cardIds, selectedCardIds)
+  );
+  const leadingSingleSelection =
+    canAct && game.current === game.leader && selectedCardIds.length === 1 && !selectedPlay;
+  useEffect(() => {
+    if (!leadingSingleSelection) return;
+    const key = `${game.gameId ?? "current"}:${game.eventSequence}:${selectedCardIds[0]}`;
+    if (staleLeadingSelectionRef.current === key) return;
+    staleLeadingSelectionRef.current = key;
+    void onStaleLeadingSelection();
+  }, [
+    game.eventSequence,
+    game.gameId,
+    leadingSingleSelection,
+    onStaleLeadingSelection,
+    selectedCardIds
+  ]);
+  const recentActions = new Map(
+    (game.publicEvents ?? [])
+      .map(actionFromPublicEvent)
+      .filter((action): action is NonNullable<typeof action> => action !== undefined)
+      .slice(-4)
+      .map((action) => [action.actor, action])
+  );
+  const displayName = (logicalSeat: Seat) => {
+    const entry = seats.find((item) => item.seat === logicalSeat);
+    return entry?.controller === "human"
+      ? (entry.displayName ?? "玩家")
+      : botName(logicalSeat, seats);
+  };
+  const toggleCard = (cardId: string) => {
+    if (!canAct) return;
+    setSelectedCardIds((current) =>
+      current.includes(cardId) ? current.filter((id) => id !== cardId) : [...current, cardId]
+    );
+  };
+  const moveCard = (movingCardId: string, targetCardId: string) => {
+    const next = moveHumanDisplayCard(hand, movingCardId, targetCardId);
+    if (next !== hand) setDisplayOrder(next);
+  };
+  const dragStart = (event: DragEvent<HTMLButtonElement>, cardId: string) => {
+    event.dataTransfer.setData("text/plain", cardId);
+    event.dataTransfer.effectAllowed = "move";
+    setDraggingCardId(cardId);
+  };
+  const dropOnCard = (event: DragEvent<HTMLButtonElement>, targetCardId: string) => {
+    event.preventDefault();
+    const movingCardId = event.dataTransfer.getData("text/plain") || draggingCardId;
+    if (movingCardId) moveCard(movingCardId, targetCardId);
+    setDraggingCardId(undefined);
+  };
+  const reorderWithKeyboard = (event: KeyboardEvent<HTMLButtonElement>, cardId: string) => {
+    if (!event.altKey || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
+    const index = hand.indexOf(cardId);
+    const targetIndex = event.key === "ArrowLeft" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= hand.length) return;
+    event.preventDefault();
+    const next = [...hand];
+    [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+    setDisplayOrder(next);
+  };
+
   return (
-    <section aria-label="个人牌局视图" className="multiplayer-game">
-      <p>
-        你的逻辑座位：{game.seat}；当前行动：{game.current}
-      </p>
-      <div className="multiplayer-table" aria-label="视觉座位投影">
-        {(Object.entries(positions) as [TablePosition, Seat][]).map(([position, logicalSeat]) => (
-          <span key={position} data-position={position}>
-            {position}: {logicalSeat}（剩余 {game.remainingCardCounts[logicalSeat]} 张）
-          </span>
-        ))}
-      </div>
-      <div aria-label="你的手牌">
-        {game.hand.map((card) => (
-          <span key={card.id}>
-            {card.rank}-{card.suit}{" "}
-          </span>
-        ))}
-      </div>
-      <button type="button" onClick={onPass} disabled={game.current !== game.seat}>
-        过牌
-      </button>
-      <button
-        type="button"
-        onClick={onPlay}
-        disabled={game.current !== game.seat || game.hand.length === 0}
-      >
-        出第一张牌
-      </button>
+    <section aria-label="个人牌局视图" className="multiplayer-game multiplayer-table-game">
+      <section className="table responsive-table" aria-label="多人牌桌">
+        {(["top", "left", "right"] as const).map((position) => {
+          const logicalSeat = positions[position];
+          return (
+            <section
+              className={`seat ${position === "top" ? "north" : position === "left" ? "west" : "east"}`}
+              key={position}
+              aria-label={`${position} 座位`}
+            >
+              <strong>{displayName(logicalSeat)}</strong>
+              <span className="card-count seat-card-count">
+                {game.remainingCardCounts[logicalSeat]}
+              </span>
+              <PublicAction
+                action={recentActions.get(logicalSeat)}
+                highestPlay={game.highestPlay?.actor === logicalSeat ? game.highestPlay : undefined}
+              />
+            </section>
+          );
+        })}
+        <section className="table-info" aria-label="桌面信息">
+          <p>轮到：{displayName(game.current)}</p>
+          <p>
+            {game.highestPlay ? `${displayName(game.highestPlay.actor)}当前领出` : "等待牌局开始"}
+          </p>
+          <p className="table-status" role="status">
+            {notice}
+          </p>
+        </section>
+        <span className="seat-actions south-actions">
+          <PublicAction
+            action={recentActions.get(game.seat)}
+            highestPlay={game.highestPlay?.actor === game.seat ? game.highestPlay : undefined}
+          />
+        </span>
+        <section className="human-seat" aria-label="你的手牌">
+          <section aria-label="操作">
+            <button
+              type="button"
+              onClick={onPass}
+              disabled={
+                actionPending ||
+                !canAct ||
+                !game.legalActions?.some((action) => action.type === "pass")
+              }
+            >
+              过牌
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                onPlay(selectedPlay?.type === "play" ? selectedPlay.cardIds : selectedCardIds)
+              }
+              disabled={actionPending || !canAct || !selectedPlay}
+            >
+              出牌
+            </button>
+          </section>
+          <p className="selected-play-status" aria-live="polite">
+            {!canAct
+              ? `等待${displayName(game.current)}出牌。`
+              : selectedCardIds.length === 0
+                ? "请选择要出的牌。"
+                : selectedPlay
+                  ? `已选择 ${selectedCardIds.length} 张牌，可以出牌。`
+                  : `已选择 ${selectedCardIds.length} 张牌；这不是当前可出的合法牌型。`}
+          </p>
+          <div className={`card-groups human-hand ${handLayout}`}>
+            {handGroups.map((group) => (
+              <span className="card-stack joined-card-stack" key={group.key}>
+                {group.cardIds.map((cardId, index) => {
+                  const card = cardsById.get(cardId);
+                  if (!card) return null;
+                  const compact = handLayout === "stacked" && index > 0;
+                  return (
+                    <button
+                      key={card.id}
+                      type="button"
+                      className={`hand-card${compact ? " compact-card" : ""}`}
+                      aria-label={`选择${formatCard(card)}`}
+                      aria-pressed={canAct && selectedCardIds.includes(card.id)}
+                      aria-disabled={!canAct}
+                      aria-describedby="multiplayer-hand-help"
+                      draggable
+                      onClick={() => toggleCard(card.id)}
+                      onDragStart={(event) => dragStart(event, card.id)}
+                      onDragEnd={() => setDraggingCardId(undefined)}
+                      onDragOver={(event) => event.preventDefault()}
+                      onDrop={(event) => dropOnCard(event, card.id)}
+                      onKeyDown={(event) => reorderWithKeyboard(event, card.id)}
+                    >
+                      <MultiplayerCardFace
+                        card={card}
+                        compact={compact}
+                        levelRank={game.levelRank}
+                      />
+                    </button>
+                  );
+                })}
+              </span>
+            ))}
+          </div>
+          <p className="human-seat-identity">
+            <strong className="human-seat-name">{displayName(game.seat)}</strong>
+            <span className="card-count seat-card-count">{game.hand.length}</span>
+          </p>
+          <p id="multiplayer-hand-help">
+            已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
+          </p>
+        </section>
+      </section>
     </section>
+  );
+}
+
+function sameCards(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((cardId) => right.includes(cardId));
+}
+
+function PublicAction({
+  action,
+  highestPlay
+}: {
+  readonly action: ReturnType<typeof actionFromPublicEvent>;
+  readonly highestPlay?: NonNullable<GameProjection["highestPlay"]>;
+}) {
+  if (!action && !highestPlay) return null;
+  return (
+    <span className="public-action">
+      {highestPlay ? (
+        highestPlay.cards.map((card) => (
+          <MultiplayerCardFace
+            key={card.id}
+            card={card}
+            levelRank={undefined}
+            wildcardAs={highestPlay.wildcardAs[card.id]}
+          />
+        ))
+      ) : action?.type === "pass" ? (
+        <span className="pass-word">过</span>
+      ) : (
+        <span>已出</span>
+      )}
+    </span>
+  );
+}
+
+function MultiplayerCardFace({
+  card,
+  compact = false,
+  levelRank,
+  wildcardAs
+}: {
+  readonly card: Card;
+  readonly compact?: boolean;
+  readonly levelRank?: Card["rank"];
+  readonly wildcardAs?: { readonly rank: Card["rank"] };
+}) {
+  const suit = { spades: "♠", hearts: "♥", diamonds: "♦", clubs: "♣", joker: "" }[card.suit];
+  const rank =
+    card.rank === "small-joker" ? "小王" : card.rank === "big-joker" ? "大王" : card.rank;
+  return (
+    <span className={`card-face ${card.suit}${compact ? " compact" : ""}`}>
+      {card.rank === levelRank ? (
+        <span className="card-badge">{card.suit === "hearts" ? "配" : "级"}</span>
+      ) : null}
+      <span className="card-rank">{rank}</span>
+      <span className="card-suit">{suit}</span>
+      {wildcardAs ? <span className="wildcard-as">配{wildcardAs.rank}</span> : null}
+    </span>
   );
 }

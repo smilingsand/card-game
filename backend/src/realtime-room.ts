@@ -168,11 +168,24 @@ export class RealtimeRoomDurableObject {
 
   async fetch(request: Request): Promise<Response> {
     this.setup();
-    if (new URL(request.url).pathname !== "/connect")
+    const url = new URL(request.url);
+    if (url.pathname === "/room-changed") {
+      const roomId = request.headers.get("x-p3-internal-room-id");
+      if (!roomId || request.method !== "POST")
+        return new Response("forbidden", { status: 403 });
+      this.broadcast({
+        type: "roomChanged",
+        protocolVersion: PROTOCOL_VERSION,
+        roomId,
+        payload: {},
+      });
+      return new Response(null, { status: 204 });
+    }
+    if (url.pathname !== "/connect")
       return new Response("not found", { status: 404 });
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket")
       return new Response("upgrade required", { status: 426 });
-    const roomId = new URL(request.url).searchParams.get("roomId");
+    const roomId = url.searchParams.get("roomId");
     const subjectId = request.headers.get("x-p3-internal-subject");
     if (!roomId || !subjectId)
       return new Response("invalid payload", { status: 400 });

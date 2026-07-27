@@ -5,6 +5,7 @@ import {
   chooseTableHintAction,
   chooseTableBotAction,
   createTableGame,
+  getLegalBotActions,
   getSelectedPlayActions,
   submitTableAction,
   type TableGame,
@@ -78,6 +79,115 @@ test("东家领出后，北家有可压制单张时会接牌", () => {
     type: "play",
     actor: "north",
     cardIds: [north.id],
+  });
+});
+
+test("33377 领出后，下家 TTT44 是完整合法动作并可经统一提交路径压制", () => {
+  const leadCards = [
+    card("west-3a", "3", "spades"),
+    card("west-3b", "3", "hearts"),
+    card("west-3c", "3", "clubs"),
+    card("west-7a", "7", "spades"),
+    card("west-7b", "7", "hearts"),
+  ];
+  const responseCards = [
+    card("south-10a", "10", "spades"),
+    card("south-10b", "10", "hearts"),
+    card("south-10c", "10", "clubs"),
+    card("south-4a", "4", "spades"),
+    card("south-4b", "4", "hearts"),
+  ];
+  const game: TableGame = {
+    cardsById: new Map(
+      [...leadCards, ...responseCards].map((item) => [item.id, item]),
+    ),
+    state: {
+      hands: {
+        east: ["east-other"],
+        north: ["north-other"],
+        west: leadCards.map((item) => item.id),
+        south: responseCards.map((item) => item.id),
+      },
+      current: "west",
+      leader: "west",
+      passes: 0,
+      finished: [],
+    },
+    publicEvents: [],
+  };
+  const leading = getSelectedPlayActions(
+    game,
+    leadCards.map((item) => item.id),
+  )[0];
+  expect(leading).toMatchObject({
+    interpretation: { type: "three-with-pair" },
+  });
+  if (!leading) return;
+  const afterLead = submitTableAction(game, leading);
+  expect(afterLead).toMatchObject({ ok: true, state: { current: "south" } });
+  if (!afterLead.ok) return;
+
+  const responseGame = { ...game, state: afterLead.state };
+  const selected = getSelectedPlayActions(
+    responseGame,
+    responseCards.map((item) => item.id),
+  )[0];
+  expect(selected).toMatchObject({
+    interpretation: { type: "three-with-pair" },
+  });
+  expect(getLegalBotActions(responseGame)).toContainEqual(selected);
+  if (!selected) return;
+  expect(submitTableAction(responseGame, selected)).toMatchObject({
+    ok: true,
+    state: { current: "east", highestSeat: "south" },
+  });
+});
+
+test("55 领出后，下家 QQ 是完整合法动作并可经统一提交路径压制", () => {
+  const leadCards = [
+    card("west-5a", "5", "spades"),
+    card("west-5b", "5", "hearts"),
+  ];
+  const responseCards = [
+    card("south-qa", "Q", "spades"),
+    card("south-qb", "Q", "hearts"),
+  ];
+  const game: TableGame = {
+    cardsById: new Map(
+      [...leadCards, ...responseCards].map((item) => [item.id, item]),
+    ),
+    state: {
+      hands: {
+        east: ["east-other"],
+        north: ["north-other"],
+        west: leadCards.map((item) => item.id),
+        south: responseCards.map((item) => item.id),
+      },
+      current: "west",
+      leader: "west",
+      passes: 0,
+      finished: [],
+    },
+    publicEvents: [],
+  };
+  const leading = getSelectedPlayActions(
+    game,
+    leadCards.map((item) => item.id),
+  )[0];
+  if (!leading) return;
+  const afterLead = submitTableAction(game, leading);
+  if (!afterLead.ok) return;
+  const responseGame = { ...game, state: afterLead.state };
+  const selected = getSelectedPlayActions(
+    responseGame,
+    responseCards.map((item) => item.id),
+  )[0];
+  expect(selected).toMatchObject({ interpretation: { type: "pair" } });
+  expect(getLegalBotActions(responseGame)).toContainEqual(selected);
+  if (!selected) return;
+  expect(submitTableAction(responseGame, selected)).toMatchObject({
+    ok: true,
+    state: { current: "east", highestSeat: "south" },
   });
 });
 
