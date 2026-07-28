@@ -17,6 +17,8 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $ports = @(5173, 8788)
 $processStatePath = Join-Path $repositoryRoot 'backend\.wrangler\p4-dev-process.json'
+$backendLogPath = Join-Path $repositoryRoot 'temp\p4-backend-dev.log'
+$backendErrorLogPath = Join-Path $repositoryRoot 'temp\p4-backend-dev.err.log'
 
 function Get-ListeningProcessIds {
   param([Parameter(Mandatory = $true)][int]$Port)
@@ -164,12 +166,15 @@ try {
   # Wrangler enables Local Explorer automatically when it detects an AI agent.
   # That explorer starts a second workerd which can consume a CPU core and
   # stall the actual local Worker.  The P4 runtime has no dependency on it.
-  $backend = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/d', '/c', 'set "X_LOCAL_EXPLORER=false" && npm.cmd run dev') -WorkingDirectory (Join-Path $repositoryRoot 'backend') -NoNewWindow -PassThru
+  New-Item -ItemType Directory -Path (Split-Path -Parent $backendLogPath) -Force | Out-Null
+  Remove-Item -LiteralPath $backendLogPath, $backendErrorLogPath -Force -ErrorAction SilentlyContinue
+  $backend = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/d', '/c', 'set "X_LOCAL_EXPLORER=false" && npm.cmd run dev') -WorkingDirectory (Join-Path $repositoryRoot 'backend') -RedirectStandardOutput $backendLogPath -RedirectStandardError $backendErrorLogPath -PassThru
   @{ backendProcessId = $backend.Id; startedAt = [DateTime]::UtcNow.ToString('o') } |
     ConvertTo-Json -Compress |
     Set-Content -LiteralPath $processStatePath -Encoding utf8
 
   Write-Host 'P4 local services are starting: frontend http://127.0.0.1:5173, backend http://127.0.0.1:8788.'
+  Write-Host "Backend logs: $backendLogPath (errors: $backendErrorLogPath)."
   Write-Host 'Vite runs in this foreground terminal. Ctrl+C stops Vite, then this script stops the backend process tree.'
   Write-Host 'Use -StopOnly only after a forced terminal close.'
 

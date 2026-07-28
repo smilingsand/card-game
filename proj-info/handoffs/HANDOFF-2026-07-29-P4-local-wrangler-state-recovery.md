@@ -92,3 +92,27 @@ Two scheduling defects were corrected:
 production-timer regression test: an opening bot task must advance the
 authority event sequence without another HTTP request waking the room. It
 passed together with backend typecheck on 2026-07-29.
+
+## Follow-up: local Wrangler 4.114.0 recovery
+
+Wrangler 4.113.0 continued to exhibit an unhealthy local runtime after active
+websocket/alarm traffic: `POST /ready` took 11.8 seconds, room projection reads
+took 15--19 seconds, and the logs contained `SQLite alarm overdue`. Requests
+were accepted (200/201), but queued long enough to appear unresponsive.
+
+With user approval, the workspace Wrangler dependency was upgraded to 4.114.0
+and the previous local-only state was moved to the recoverable ignored backup
+`temp/p4-wrangler-state-backup-20260729-0245`.
+
+Fresh browser verification with the upgraded runtime:
+
+- health: 92 ms client-side (8 ms in Worker log);
+- room creation: 644 ms;
+- ready: 264 ms;
+- start: 1.086 s;
+- subsequent personal projections: 39--143 ms.
+
+`tools/start-p3-local.ps1` now writes backend stdout/stderr to ignored
+`temp/p4-backend-dev.log` and `temp/p4-backend-dev.err.log`, so future local
+request status and timing can be inspected without relying on a hidden process
+console.
