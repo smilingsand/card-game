@@ -1,6 +1,10 @@
 {
   "name": "card-game-workspace",
   "private": true,
+  "scripts": {
+    "p3:dev": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\tools\\start-p3-local.ps1",
+    "p3:stop": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\tools\\start-p3-local.ps1 -StopOnly"
+  },
   "workspaces": [
     "frontend",
     "backend",
