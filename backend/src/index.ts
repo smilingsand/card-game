@@ -326,7 +326,7 @@ export default {
       }
     }
     const roomMatch =
-      /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/(join|ready|start|restart-match|restart-round|view|game-view|actions|presence|seat-requests|seat-requests\/approve|diagnostics)$/u.exec(
+      /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/(join|ready|start|restart-match|restart-round|view|game-view|actions|presence|seat-requests|seat-requests\/approve|diagnostics|complete-round)$/u.exec(
         url.pathname,
       );
     const isRoomCreate =
@@ -361,7 +361,9 @@ export default {
                   ? "presence"
                   : action === "diagnostics" && env.P3_TEST_MODE === "true"
                     ? "internal-diagnostics"
-                    : action;
+                    : action === "complete-round" && env.P3_TEST_MODE === "true"
+                      ? "internal-complete-round"
+                      : action;
       return room.fetch(`https://room.internal/${internalAction}`, {
         method: "POST",
         body: JSON.stringify({

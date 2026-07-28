@@ -341,8 +341,8 @@ export class RoomDurableObject {
     now: number,
     status?: TurnStatus,
   ): void {
-    // Alarms are the authoritative clock for missed heartbeats, turn deadlines,
-    // and lobby retention. Requests merely bring the same reconciliation forward.
+    // Alarms are the authoritative clock for missed heartbeats, bot tasks, and
+    // lobby retention. Requests merely bring the same reconciliation forward.
     // Deterministic local fixtures advance `now` explicitly; real timers would
     // make those tests wait for wall-clock deadlines rather than exercising the
     // persisted deadline calculation.
@@ -363,7 +363,6 @@ export class RoomDurableObject {
         candidates.push(disconnectedAt + 60_000, disconnectedAt + 300_000);
       }
     } else if (status) {
-      candidates.push(status.turnStartedAt + 30_000);
       const task = this.botTask();
       if (
         task?.gameId === status.gameId &&
@@ -443,7 +442,27 @@ export class RoomDurableObject {
     });
     if (!statusResponse.ok) throw new Error("authority_unavailable");
     let status = (await statusResponse.json()) as TurnStatus;
-    if (status.completed) return;
+    if (status.completed) {
+      // The Authority owns the full completed session and has the only secure
+      // next-round entry point. Keep the room and its identities alive, then
+      // re-enter reconciliation for the newly dealt authority game.
+      this.clearBotTask();
+      const commandId = `next-round-${status.gameId}-${status.eventSequence}`;
+      const nextRound = await this.authorityPost(meta, "next-round", {
+        commandId,
+        now,
+      });
+      this.diagnostic(meta, "round.next", {
+        gameId: status.gameId,
+        commandId,
+        expectedEventSequence: status.eventSequence,
+        acknowledgementStatus: nextRound.status,
+        at: now,
+      });
+      if (!nextRound.ok) throw new Error("next_round_unavailable");
+      await this.reconcile(meta, now);
+      return;
+    }
     const currentSeat = this.seats().find(
       (seat) => seat.seat === status.current,
     )!;
@@ -469,11 +488,9 @@ export class RoomDurableObject {
       // non-host seat to a bot before its first heartbeat.
       const disconnected = presence?.connected === 0;
       const elapsed = now - (presence?.disconnectedAt ?? now);
-      const timedOut =
-        status.current === seat.seat && now - status.turnStartedAt >= 30_000;
       const disconnectDue =
         disconnected && (status.current !== seat.seat || elapsed >= 10_000);
-      if ((timedOut || disconnectDue) && !this.takeover(seat.seat)?.enabled)
+      if (disconnectDue && !this.takeover(seat.seat)?.enabled)
         await this.setBotControl(meta, seat.seat, true, now);
     }
     // A recovered human takes future actions at this boundary.  The only
@@ -711,6 +728,7 @@ export class RoomDurableObject {
       path !== "/authority-command" &&
       path !== "/presence" &&
       path !== "/internal-diagnostics" &&
+      path !== "/internal-complete-round" &&
       path !== "/restart-match" &&
       path !== "/restart-round"
     )
@@ -799,6 +817,22 @@ export class RoomDurableObject {
           ...JSON.parse(row.payload),
         })),
       });
+    }
+    if (path === "/internal-complete-round") {
+      if (this.env.P3_TEST_MODE !== "true")
+        return json({ error: "not_found" }, 404);
+      if (subjectId !== meta.ownerId) return json({ error: "forbidden" }, 403);
+      const completed = await this.authorityPost(
+        meta,
+        "internal-complete-round",
+        {
+          now: Number(payload.now),
+        },
+      );
+      if (!completed.ok) return completed;
+      await this.reconcile(meta, Number(payload.now));
+      await this.notifyRealtime(meta.roomId).catch(() => undefined);
+      return json({ room: this.projection(this.meta()!) });
     }
     if (path === "/authority-command") {
       if (meta.phase !== "started")

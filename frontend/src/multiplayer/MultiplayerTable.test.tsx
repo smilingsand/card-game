@@ -175,4 +175,31 @@ describe("共享多人牌桌适配器", () => {
     expect(screen.getByText(/当前牌由机器人C压住/)).toBeInTheDocument();
     expect(screen.queryByText(/机器人C领出/)).not.toBeInTheDocument();
   });
+
+  it("renders the explicit public match summary without requiring a session or hidden hands", () => {
+    render(
+      <MultiplayerTable
+        game={{
+          ...game,
+          match: {
+            roundNumber: 2,
+            levels: { northSouth: "2", eastWest: "3" },
+            activeLevelTeam: "eastWest",
+            previousFinish: ["east", "south", "north", "west"],
+            tributeSummary: ["西家贡小王"],
+            tributeHint: "下一局已准备完成"
+          }
+        }}
+        seats={seats}
+        handLayout="stacked"
+        actionPending={false}
+        notice=""
+        onPlay={vi.fn()}
+        onPass={vi.fn()}
+      />
+    );
+    const scoreboard = screen.getByLabelText("赛局记分与贡牌");
+    expect(scoreboard).toHaveTextContent("我方2对方3西家贡小王");
+    expect(scoreboard.querySelectorAll(".match-token")).toHaveLength(2);
+  });
 });

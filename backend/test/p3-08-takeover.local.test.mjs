@@ -250,7 +250,7 @@ test("P3-08: WebSocket 正常关闭立即断线，十秒宽限后由 Authority �
   }
 }, 30_000);
 
-test("P3-08: 十秒心跳延后异常失联；三十秒无心跳会在同一回合超时时由机器人接管", async () => {
+test("P3-08: 在线真人没有回合超时；断线后才会在动作边界由机器人接管", async () => {
   const runtime = await createRuntime();
   try {
     const base = Date.now();
@@ -301,8 +301,8 @@ test("P3-08: 十秒心跳延后异常失联；三十秒无心跳会在同一回�
       ).status,
     ).toBe(200);
 
-    // The last heartbeat prevents an earlier abnormal-disconnect decision, but
-    // the independent 30-second authoritative turn deadline still takes over.
+    // A still-online player remains in control after the former 30-second
+    // deadline. Only an actual disconnect may enable temporary bot control.
     expect(
       (
         await post(
@@ -323,12 +323,12 @@ test("P3-08: 十秒心跳延后异常失联；三十秒无心跳会在同一回�
         )
       ).status,
     ).toBe(200);
-    const timedOut = await runtime.dispatchFetch(
+    const stillHuman = await runtime.dispatchFetch(
       `https://local.test/v1/rooms/${roomId}/game-view`,
       { headers: { cookie: east } },
     );
-    expect(timedOut.status).toBe(200);
-    expect((await timedOut.json()).hand.length).toBeLessThan(27);
+    expect(stillHuman.status).toBe(200);
+    expect((await stillHuman.json()).hand).toHaveLength(27);
   } finally {
     await runtime.dispose();
   }

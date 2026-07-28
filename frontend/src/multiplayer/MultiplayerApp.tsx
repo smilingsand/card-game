@@ -104,6 +104,13 @@ export function MultiplayerApp({
     seat;
   const hasRoom = Boolean(room);
   const isHost = room?.seats.find((item) => item.seat === viewerSeat)?.isHost === true;
+  const matchSeatName = (logicalSeat: Seat) => {
+    if (logicalSeat === viewerSeat) return `${SEAT_LABEL[logicalSeat]}（你）`;
+    const seated = room?.seats.find((item) => item.seat === logicalSeat);
+    return `${SEAT_LABEL[logicalSeat]}（${
+      seated?.controller === "bot" ? "机器人" : (seated?.displayName ?? "玩家")
+    }）`;
+  };
 
   const applyGameProjection = useCallback((nextGame: GameProjection) => {
     const latest = latestGameProjectionRef.current;
@@ -133,6 +140,7 @@ export function MultiplayerApp({
       if (next.phase === "started") {
         const nextGame = await client.getGameView(id);
         applyGameProjection(nextGame);
+        setNotice((current) => (current.includes("创建或加入房间") ? "已恢复房间连接。" : current));
       }
     },
     [applyGameProjection, client]
@@ -292,6 +300,12 @@ export function MultiplayerApp({
           单人本地掼蛋
         </button>
       </header>
+      {game?.match?.previousFinish ? (
+        <section className="round-announcement" aria-label="本局结算与下一局提示">
+          <span>完成顺序：{game.match.previousFinish.map(matchSeatName).join("、")}。</span>
+          <strong>{game.match.tributeHint}</strong>
+        </section>
+      ) : null}
       {rulesOpen ? (
         <aside aria-label="规则入口">
           本局规则以项目的 <code>docs/resolved-rules.md</code>{" "}

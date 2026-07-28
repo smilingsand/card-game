@@ -25,6 +25,18 @@ export interface GameProjection {
   readonly current: Seat;
   readonly remainingCardCounts: Readonly<Record<Seat, number>>;
   readonly levelRank?: Card["rank"];
+  /** Explicitly public match facts; never a TableSession or another seat's hand. */
+  readonly match?: {
+    readonly roundNumber: number;
+    readonly levels: Readonly<{
+      readonly northSouth: Card["rank"];
+      readonly eastWest: Card["rank"];
+    }>;
+    readonly activeLevelTeam: "northSouth" | "eastWest";
+    readonly previousFinish?: readonly Seat[];
+    readonly tributeSummary: readonly string[];
+    readonly tributeHint: string;
+  };
   readonly positions?: Readonly<Record<"bottom" | "left" | "top" | "right", Seat>>;
   readonly leader?: Seat;
   readonly passes?: readonly Seat[];

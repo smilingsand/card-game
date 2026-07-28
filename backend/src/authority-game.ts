@@ -2,6 +2,7 @@ import {
   applyTableSessionAction,
   createTableSession,
   chooseTableBotAction,
+  formatCard,
   getLegalBotActions,
   getSelectedPlayActions,
   latestRecentActionsBySeat,
@@ -174,6 +175,32 @@ function view(
         : [],
     wildcardAs: action.type === "play" ? action.interpretation.wildcardAs : {},
   }));
+  const activeLevelTeam =
+    (session.match.previousFinish?.[0] ?? session.match.leader) === "south" ||
+    (session.match.previousFinish?.[0] ?? session.match.leader) === "north"
+      ? "northSouth"
+      : "eastWest";
+  const tributeSummary = session.match.tributePlan.antiTribute
+    ? ["抗贡"]
+    : session.match.tributePlan.obligations.map((obligation) => {
+        const card = session.game.cardsById.get(obligation.cardId);
+        const seatName: Record<Seat, string> = {
+          south: "南家",
+          east: "东家",
+          north: "北家",
+          west: "西家",
+        };
+        // Tribute is an explicitly public table exchange. This projection only
+        // exposes that exchanged card, never a player's remaining hand.
+        return `${seatName[obligation.from]}贡${card ? formatCard(card) : "牌"}`;
+      });
+  const tributeHint = session.match.previousFinish
+    ? session.match.tributePlan.antiTribute
+      ? "本局抗贡，无需进贡"
+      : session.match.tributePhase === "ready"
+        ? "下一局已准备完成"
+        : "正在准备进贡"
+    : "首局由南家先出";
   return {
     ...(gameId ? { gameId } : {}),
     seat,
@@ -184,6 +211,14 @@ function view(
     hand: cards,
     current: session.game.state.current,
     levelRank: session.game.levelRank ?? session.match.levelRank,
+    match: {
+      roundNumber: session.match.roundNumber,
+      levels: session.match.levels,
+      activeLevelTeam,
+      previousFinish: session.match.previousFinish,
+      tributeSummary,
+      tributeHint,
+    },
     leader: session.game.state.leader,
     passes: session.game.state.passes,
     finished: session.game.state.finished,

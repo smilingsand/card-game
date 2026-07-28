@@ -39,9 +39,35 @@ export function MultiplayerTable({
   });
   const { model, callbacks } = adapter;
   const positionClass = { top: "north", left: "west", right: "east" } as const;
+  const viewerTeam =
+    model.viewerLogicalSeat === "south" || model.viewerLogicalSeat === "north"
+      ? "northSouth"
+      : "eastWest";
+  const opponentTeam = viewerTeam === "northSouth" ? "eastWest" : "northSouth";
   return (
     <section aria-label="个人牌局视图" className="multiplayer-game multiplayer-table-game">
       <TableView showAllHands={false} model={model} ariaLabel="多人牌桌">
+        {game.match ? (
+          <section className="match-scoreboard" aria-label="赛局记分与贡牌">
+            <span>我方</span>
+            <span
+              className={`match-token${game.match.activeLevelTeam === viewerTeam ? "" : " inactive"}`}
+            >
+              {game.match.levels[viewerTeam]}
+            </span>
+            <span>对方</span>
+            <span
+              className={`match-token${game.match.activeLevelTeam === opponentTeam ? "" : " inactive"}`}
+            >
+              {game.match.levels[opponentTeam]}
+            </span>
+            {game.match.tributeSummary.map((summary) => (
+              <span className="tribute-token" key={summary}>
+                {summary}
+              </span>
+            ))}
+          </section>
+        ) : null}
         {(["top", "left", "right"] as const).map((position) => {
           const logicalSeat = Object.entries(model.displayPositions).find(
             ([, display]) => display === position

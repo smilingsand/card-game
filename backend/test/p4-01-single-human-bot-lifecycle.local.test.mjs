@@ -466,3 +466,59 @@ test("P4-01: 人类动作后的下家 bot 使用独立短思考延迟而非三�
     await instance.dispose();
   }
 }, 60_000);
+
+test("P4-01: 完成一局后保留房间并由 Room 自动进入带公开赛局摘要的新局", async () => {
+  const instance = await runtime(fixtureSeeds[0][1]);
+  try {
+    const now = Date.now();
+    const { roomId, cookie } = await startSouthHuman(instance, now);
+    const before = await (
+      await instance.dispatchFetch(
+        `https://local.test/v1/rooms/${roomId}/game-view`,
+        {
+          headers: { cookie },
+        },
+      )
+    ).json();
+    const completed = await post(
+      instance,
+      `/v1/rooms/${roomId}/complete-round`,
+      { now: now + 1 },
+      cookie,
+    );
+    expect(completed.status).toBe(200);
+    const room = await (await completed.clone().json()).room;
+    expect(room.phase).toBe("started");
+    const next = await (
+      await instance.dispatchFetch(
+        `https://local.test/v1/rooms/${roomId}/game-view`,
+        {
+          headers: { cookie },
+        },
+      )
+    ).json();
+    expect(next.gameId).toBe(before.gameId);
+    expect(next.eventSequence).toBeGreaterThan(before.eventSequence);
+    expect(next.match.roundNumber).toBe(2);
+    expect(next.match.previousFinish).toEqual([
+      "south",
+      "north",
+      "east",
+      "west",
+    ]);
+    expect(next.match.levels).toEqual({ northSouth: "5", eastWest: "2" });
+    expect(next.match.tributeHint).toBeTruthy();
+    expect(JSON.stringify(next)).not.toMatch(/seed|cardsById|reasons/i);
+    const log = await diagnostics(instance, roomId, cookie);
+    expect(log.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: "round.next",
+          acknowledgementStatus: 200,
+        }),
+      ]),
+    );
+  } finally {
+    await instance.dispose();
+  }
+}, 60_000);
