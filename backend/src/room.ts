@@ -1,4 +1,4 @@
-import type { Seat } from "@card-game/guandan-core";
+import { botThinkDelayMs, type Seat } from "@card-game/guandan-core";
 
 export interface RoomEnv {
   readonly AUTHORITY_GAME: DurableObjectNamespace;
@@ -58,6 +58,13 @@ interface TurnStatus {
   readonly turnStartedAt: number;
   readonly botControlled: boolean;
   readonly completed: boolean;
+}
+
+interface BotTaskRow extends Record<string, SqlStorageValue> {
+  readonly gameId: string;
+  readonly turnGeneration: string;
+  readonly seat: Seat;
+  readonly scheduledAt: number;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -159,7 +166,7 @@ export class RoomDurableObject {
       "CREATE TABLE IF NOT EXISTS seat_takeovers (seat TEXT PRIMARY KEY, enabled INTEGER NOT NULL, recover_pending INTEGER NOT NULL)",
     );
     this.ctx.storage.sql.exec(
-      "CREATE TABLE IF NOT EXISTS bot_dispatch_clock (id INTEGER PRIMARY KEY CHECK(id=1), dispatched_at INTEGER NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS bot_tasks (id INTEGER PRIMARY KEY CHECK(id=1), game_id TEXT NOT NULL, turn_generation TEXT NOT NULL, seat TEXT NOT NULL, scheduled_at INTEGER NOT NULL)",
     );
     this.ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS diagnostic_events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, payload TEXT NOT NULL)",
@@ -260,20 +267,31 @@ export class RoomDurableObject {
       ),
     ][0];
   }
-  private botDispatchedAt(): number | undefined {
+  private botTask(): BotTaskRow | undefined {
     return [
-      ...this.ctx.storage.sql.exec<
-        { dispatchedAt: number } & Record<string, SqlStorageValue>
-      >(
-        "SELECT dispatched_at as dispatchedAt FROM bot_dispatch_clock WHERE id=1",
+      ...this.ctx.storage.sql.exec<BotTaskRow>(
+        "SELECT game_id as gameId, turn_generation as turnGeneration, seat, scheduled_at as scheduledAt FROM bot_tasks WHERE id=1",
       ),
-    ][0]?.dispatchedAt;
+    ][0];
   }
-  private markBotDispatchedAt(now: number): void {
+  private scheduleBotTask(status: TurnStatus, scheduledAt: number): BotTaskRow {
+    const turnGeneration = this.diagnosticTurnGeneration(status);
     this.ctx.storage.sql.exec(
-      "INSERT INTO bot_dispatch_clock (id, dispatched_at) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET dispatched_at=excluded.dispatched_at",
-      now,
+      "INSERT INTO bot_tasks (id, game_id, turn_generation, seat, scheduled_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET game_id=excluded.game_id, turn_generation=excluded.turn_generation, seat=excluded.seat, scheduled_at=excluded.scheduled_at",
+      status.gameId,
+      turnGeneration,
+      status.current,
+      scheduledAt,
     );
+    return {
+      gameId: status.gameId,
+      turnGeneration,
+      seat: status.current,
+      scheduledAt,
+    };
+  }
+  private clearBotTask(): void {
+    this.ctx.storage.sql.exec("DELETE FROM bot_tasks");
   }
   private authority(meta: MetaRow): DurableObjectStub {
     return this.env.AUTHORITY_GAME.get(
@@ -346,6 +364,12 @@ export class RoomDurableObject {
       }
     } else if (status) {
       candidates.push(status.turnStartedAt + 30_000);
+      const task = this.botTask();
+      if (
+        task?.gameId === status.gameId &&
+        task.turnGeneration === this.diagnosticTurnGeneration(status)
+      )
+        candidates.push(task.scheduledAt);
       const current = this.seats().find((seat) => seat.seat === status.current);
       const presence = current?.subjectId
         ? this.presence(current.subjectId)
@@ -464,62 +488,90 @@ export class RoomDurableObject {
       )
         await this.setBotControl(meta, seat.seat, false, now);
     }
-    // A single reconciliation may pass through several bot seats.  Every bot
-    // action remains an idempotent internal Authority command; no rule state is
-    // modified in Room.
-    if ((this.botDispatchedAt() ?? Number.NEGATIVE_INFINITY) >= now) {
-      this.diagnostic(meta, "bot.dispatch.suppressed", {
+    // A durable task is scoped to exactly one authority turn.  A reconciliation
+    // can execute at most that task; it must never chain several bot seats in a
+    // single request.  The next authority event creates the next task.
+    const turnGeneration = this.diagnosticTurnGeneration(status);
+    const currentTakeover = this.takeover(status.current);
+    if (!currentTakeover?.enabled) {
+      this.clearBotTask();
+      this.scheduleReconcile(meta, now, status);
+      return;
+    }
+    let task = this.botTask();
+    if (
+      task?.gameId !== status.gameId ||
+      task?.turnGeneration !== turnGeneration ||
+      task?.seat !== status.current
+    ) {
+      if (task) {
+        this.diagnostic(meta, "bot.dispatch.stale", {
+          gameId: task.gameId,
+          turnGeneration: task.turnGeneration,
+          currentActorSeat: task.seat,
+          scheduledAt: task.scheduledAt,
+          at: now,
+        });
+        this.clearBotTask();
+      }
+      task = this.scheduleBotTask(
+        status,
+        now + botThinkDelayMs(status.eventSequence),
+      );
+      this.diagnostic(meta, "bot.dispatch.scheduled", {
+        gameId: status.gameId,
+        turnGeneration,
+        currentActorSeat: status.current,
+        authorityEventSequence: status.eventSequence,
+        scheduledAt: task.scheduledAt,
+        at: now,
+      });
+    }
+    if (now < task.scheduledAt) {
+      this.scheduleReconcile(meta, now, status);
+      return;
+    }
+    const botSeat = this.seats().find((seat) => seat.seat === status.current)!;
+    const currentPresence = botSeat.subjectId
+      ? this.presence(botSeat.subjectId)
+      : undefined;
+    const commandId = `bot-${status.current}-${status.eventSequence + 1}`;
+    const command = await this.authorityPost(meta, "bot-command", {
+      commandId,
+      now,
+    });
+    this.diagnostic(meta, "bot.dispatch.executed", {
+      gameId: status.gameId,
+      turnGeneration,
+      currentActorSeat: status.current,
+      controllerMode: "bot",
+      controllerSubjectId: botSeat.subjectId,
+      commandId,
+      expectedEventSequence: status.eventSequence,
+      scheduledAt: task.scheduledAt,
+      executedAt: now,
+      acknowledgementStatus: command.status,
+    });
+    if (!command.ok) throw new Error("bot_command_unavailable");
+    this.clearBotTask();
+    status = (await (
+      await this.authorityPost(meta, "turn-status", { now })
+    ).json()) as TurnStatus;
+    if (!status.completed && currentPresence?.connected === 1)
+      await this.setBotControl(meta, botSeat.seat, false, now);
+    if (!status.completed && this.takeover(status.current)?.enabled) {
+      const nextTask = this.scheduleBotTask(
+        status,
+        now + botThinkDelayMs(status.eventSequence),
+      );
+      this.diagnostic(meta, "bot.dispatch.scheduled", {
         gameId: status.gameId,
         turnGeneration: this.diagnosticTurnGeneration(status),
         currentActorSeat: status.current,
         authorityEventSequence: status.eventSequence,
-        botDispatchedAt: this.botDispatchedAt(),
-        scheduledAt: status.turnStartedAt + 30_000,
+        scheduledAt: nextTask.scheduledAt,
         at: now,
       });
-      this.scheduleReconcile(meta, now, status);
-      return;
-    }
-    for (let steps = 0; steps < SEATS.length; steps += 1) {
-      const currentSeat = this.seats().find(
-        (seat) => seat.seat === status.current,
-      )!;
-      const currentTakeover = this.takeover(status.current);
-      // Empty seats are permanent normal-vNext controllers. Like temporary
-      // takeovers, they advance only through the internal Authority command
-      // path; this keeps 1–3 human rooms playable to settlement.
-      if (!currentTakeover?.enabled) break;
-      const currentPresence = currentSeat.subjectId
-        ? this.presence(currentSeat.subjectId)
-        : undefined;
-      const command = await this.authorityPost(meta, "bot-command", {
-        commandId: `bot-${status.current}-${status.eventSequence + 1}`,
-        now,
-      });
-      this.diagnostic(meta, "bot.dispatch.executed", {
-        gameId: status.gameId,
-        turnGeneration: this.diagnosticTurnGeneration(status),
-        currentActorSeat: status.current,
-        controllerMode: "bot",
-        controllerSubjectId: currentSeat.subjectId,
-        commandId: `bot-${status.current}-${status.eventSequence + 1}`,
-        expectedEventSequence: status.eventSequence,
-        scheduledAt: now,
-        executedAt: now,
-        acknowledgementStatus: command.status,
-      });
-      if (!command.ok) throw new Error("bot_command_unavailable");
-      this.markBotDispatchedAt(now);
-      status = (await (
-        await this.authorityPost(meta, "turn-status", { now })
-      ).json()) as TurnStatus;
-      if (status.completed) break;
-      if (currentPresence?.connected === 1)
-        await this.setBotControl(meta, currentSeat.seat, false, now);
-      // A temporary human takeover is one action boundary.  Permanent empty
-      // seats may still chain within a reconciliation so short-handed rooms
-      // reach the next human without a stalled table.
-      if (currentSeat.subjectId) break;
     }
     this.scheduleReconcile(meta, now, status);
   }
@@ -807,6 +859,9 @@ export class RoomDurableObject {
           acknowledgementStatus: response.status,
           at: Number(payload.now),
         });
+        // The Authority event has crossed the turn boundary.  No delayed task
+        // created for the former generation may survive this human action.
+        this.clearBotTask();
         // A human command must be acknowledged as soon as Authority has made
         // it durable.  Running normal-vNext for each following bot seat in
         // this same HTTP request can leave the browser action permanently
@@ -887,6 +942,9 @@ export class RoomDurableObject {
         acknowledgementStatus: response.status,
         at: Number(payload.now),
       });
+      // A new Authority game/round invalidates every delayed task from the
+      // previous event stream before reconciliation observes the new turn.
+      this.clearBotTask();
       try {
         await this.reconcile(meta, Number(payload.now));
       } catch {

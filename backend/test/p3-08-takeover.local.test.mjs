@@ -146,6 +146,16 @@ test("P3-08: 本回合断线满十秒只在动作边界由 normal-vNext 托管�
     expect(concurrentTakeover.map((response) => response.status)).toEqual([
       200, 200,
     ]);
+    expect(
+      (
+        await post(
+          runtime,
+          `/v1/rooms/${roomId}/presence`,
+          { connected: false, now: base + 13_000 },
+          east,
+        )
+      ).status,
+    ).toBe(200);
 
     const recovered = await runtime.dispatchFetch(
       `https://local.test/v1/rooms/${roomId}/game-view`,
@@ -214,6 +224,16 @@ test("P3-08: WebSocket 正常关闭立即断线，十秒宽限后由 Authority �
           runtime,
           `/v1/rooms/${roomId}/presence`,
           { connected: true, now: base + 20_000 },
+          south,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await post(
+          runtime,
+          `/v1/rooms/${roomId}/presence`,
+          { connected: true, now: base + 22_000 },
           south,
         )
       ).status,
@@ -289,6 +309,16 @@ test("P3-08: 十秒心跳延后异常失联；三十秒无心跳会在同一回�
           runtime,
           `/v1/rooms/${roomId}/presence`,
           { connected: true, now: base + 39_999 },
+          south,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await post(
+          runtime,
+          `/v1/rooms/${roomId}/presence`,
+          { connected: true, now: base + 42_000 },
           south,
         )
       ).status,

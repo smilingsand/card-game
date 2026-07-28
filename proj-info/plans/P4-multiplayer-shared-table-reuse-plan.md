@@ -31,3 +31,9 @@ Replace duplicated multiplayer table presentation and interaction with the valid
 - 2026-07-28: diagnostics are persisted only in local Durable Object SQLite and exposed solely when `P3_TEST_MODE=true` through test endpoints. They include room/game IDs, derived generation, current actor, mode/controller subject, command and expected sequence, submitted/applied entity IDs, Authority sequence, takeover deadline, bot scheduling/execution timestamps, and restart ACK/rejection. They never include seed text, cookies, invite codes, full hands, or `cardsById`.
 - 2026-07-28 verification: backend typecheck; `test:p4-01` (1/1); `test:p3-08` (4/4); `test:p3-11` (6/6, 215 s); frontend `format:check`; targeted Prettier; and `git diff --check` passed. A root `npm run format:check` command is unavailable because the workspace root intentionally has no scripts.
 - 2026-07-28: active-trick display correction is recorded separately in `P4-02-current-trick-public-projection.md`. Authority now supplies only current-trick public card faces via `publicActions`; the shared table shows each seat's actual play or pass and distinguishes the leader from the current highest play.
+- 2026-07-28: Room reconciliation now persists one bot task scoped to
+  `gameId:eventSequence:currentSeat`. A reconciliation executes at most one due
+  task, then schedules the next bot only after Authority has produced its next
+  event. The task uses the existing short `botThinkDelayMs` cadence, not the
+  human 30-second takeover deadline; stale tasks are cleared on accepted human
+  commands and restart acknowledgements.

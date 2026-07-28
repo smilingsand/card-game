@@ -146,6 +146,25 @@ async function actionTrace(instance, roomId, cookie) {
   return response.json();
 }
 
+async function advanceOneScheduledBot(instance, roomId, cookie) {
+  const before = await diagnostics(instance, roomId, cookie);
+  const scheduled = [...before.entries]
+    .reverse()
+    .find((entry) => entry.event === "bot.dispatch.scheduled");
+  expect(scheduled).toBeDefined();
+  expect(
+    (
+      await post(
+        instance,
+        `/v1/rooms/${roomId}/presence`,
+        { connected: true, now: scheduled.scheduledAt },
+        cookie,
+      )
+    ).status,
+  ).toBe(200);
+  return scheduled;
+}
+
 afterEach(async () =>
   Promise.all(
     temporaryPaths
@@ -154,7 +173,7 @@ afterEach(async () =>
   ),
 );
 
-test("P4-01: 固定一人三机器人牌局记录真人 99 命令、权威动作及即时连续 bot 调度", async () => {
+test("P4-01: 固定一人三机器人牌局记录真人 99 命令、权威动作及逐个 bot 调度", async () => {
   let selected;
   for (const [fixtureId, seed] of fixtureSeeds) {
     const instance = await runtime(seed);
@@ -216,6 +235,9 @@ test("P4-01: 固定一人三机器人牌局记录真人 99 命令、权威动作
         )
       ).status,
     ).toBe(200);
+    await advanceOneScheduledBot(instance, roomId, cookie);
+    await advanceOneScheduledBot(instance, roomId, cookie);
+    await advanceOneScheduledBot(instance, roomId, cookie);
     const trace = await actionTrace(instance, roomId, cookie);
     const diagnosticsLog = await diagnostics(instance, roomId, cookie);
     const humanEvent = trace.actions.find(
@@ -228,11 +250,14 @@ test("P4-01: 固定一人三机器人牌局记录真人 99 命令、权威动作
     expect(trace.gameId).toBe(acknowledged.view.gameId);
     expect(humanEvent.appliedCardIds).toEqual(action.cardIds);
     expect(botEvents.length).toBeGreaterThanOrEqual(3);
-    expect(botEvents.slice(-3).map((entry) => entry.executedAt)).toEqual([
-      now + 2,
-      now + 2,
-      now + 2,
-    ]);
+    expect(botEvents.slice(-3).map((entry) => entry.executedAt)).toEqual(
+      expect.arrayContaining(
+        botEvents.slice(-3).map((entry) => entry.scheduledAt),
+      ),
+    );
+    expect(
+      new Set(botEvents.slice(-3).map((entry) => entry.executedAt)).size,
+    ).toBe(3);
     expect(botEvents.slice(-3).map((entry) => entry.currentActorSeat)).toEqual([
       "east",
       "north",
@@ -288,6 +313,9 @@ test("P4-01: 固定一人三机器人牌局记录真人 99 命令、权威动作
         )
       ).status,
     ).toBe(200);
+    // Temporary takeover completes exactly one bot action before the recovered
+    // human controller is restored at the following action boundary.
+    await advanceOneScheduledBot(instance, roomId, cookie);
     const takeoverLog = await diagnostics(instance, roomId, cookie);
     expect(takeoverLog.entries).toEqual(
       expect.arrayContaining([
@@ -367,11 +395,11 @@ test("P4-01: 固定一人三机器人牌局记录真人 99 命令、权威动作
   }
 }, 60_000);
 
-test("P4-01: 同毫秒 bot 去重会将下家机器人推迟到三十秒回合截止", async () => {
+test("P4-01: 人类动作后的下家 bot 使用独立短思考延迟而非三十秒截止", async () => {
   const instance = await runtime(fixtureSeeds[2][1]);
   try {
     const now = Date.now();
-    const { roomId, cookie } = await startSouthHuman(instance, now, "east");
+    const { roomId, cookie } = await startSouthHuman(instance, now);
     const viewResponse = await instance.dispatchFetch(
       `https://local.test/v1/rooms/${roomId}/game-view`,
       { headers: { cookie } },
@@ -410,18 +438,18 @@ test("P4-01: 同毫秒 bot 去重会将下家机器人推迟到三十秒回合�
       ).status,
     ).toBe(200);
     const log = await diagnostics(instance, roomId, cookie);
-    const suppressed = log.entries.find(
+    const scheduled = log.entries.find(
       (entry) =>
-        entry.event === "bot.dispatch.suppressed" &&
+        entry.event === "bot.dispatch.scheduled" &&
         entry.currentActorSeat === "east",
     );
-    expect(suppressed).toEqual(
+    expect(scheduled).toEqual(
       expect.objectContaining({
-        botDispatchedAt: now,
         at: now,
-        scheduledAt: now + 30_000,
       }),
     );
+    expect(scheduled.scheduledAt).toBeGreaterThan(now);
+    expect(scheduled.scheduledAt).toBeLessThan(now + 2_000);
   } finally {
     await instance.dispose();
   }
