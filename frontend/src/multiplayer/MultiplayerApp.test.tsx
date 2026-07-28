@@ -201,6 +201,27 @@ describe("多人前端", () => {
     });
   });
 
+  it("重开遇到过期事件序号时刷新个人投影并仅重试一次", async () => {
+    const client = fakeClient();
+    const currentGame = { ...startedGame, eventSequence: 4 };
+    vi.mocked(client.createRoom).mockResolvedValue({ room, inviteCode: "invite-123" });
+    vi.mocked(client.start).mockResolvedValue(startedRoom);
+    vi.mocked(client.getGameView).mockResolvedValueOnce(startedGame).mockResolvedValue(currentGame);
+    vi.mocked(client.restartRound)
+      .mockRejectedValueOnce(new Error("event_sequence_conflict"))
+      .mockResolvedValueOnce(startedRoom);
+    render(<MultiplayerApp client={client} onExit={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
+    await screen.findByLabelText("多人房间");
+    fireEvent.click(screen.getByRole("button", { name: "开始牌局" }));
+    await screen.findByLabelText("你的手牌");
+    fireEvent.click(screen.getByRole("button", { name: "重开本局" }));
+    await waitFor(() => expect(client.restartRound).toHaveBeenCalledTimes(2));
+    expect(
+      vi.mocked(client.restartRound).mock.calls.map(([input]) => input.expectedEventSequence)
+    ).toEqual([0, 4]);
+  });
+
   it("非房主的重开控制始终禁用", async () => {
     const client = fakeClient();
     const guestRoom: RoomProjection = {

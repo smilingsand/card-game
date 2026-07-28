@@ -43,55 +43,17 @@ function Stop-ProcessTree {
   & taskkill.exe /PID $ProcessId /T /F | Out-Host
 }
 
-function Get-LocalP3DevRootProcessId {
-  param([Parameter(Mandatory = $true)][int]$ProcessId)
-
-  $processById = @{}
-  Get-CimInstance Win32_Process | ForEach-Object {
-    $processById[[int]$_.ProcessId] = $_
-  }
-
-  $current = $processById[$ProcessId]
-  if (-not $current) {
-    return $ProcessId
-  }
-
-  $rootProcessId = $ProcessId
-  while ($current) {
-    $commandLine = [string]$current.CommandLine
-    if (
-      $current.Name -in @('cmd.exe', 'node.exe') -and
-      $commandLine -match '(?i)npm(?:\.cmd|\\npm-cli\.js).*\brun\s+dev|wrangler(?:\.js)?\s+dev\s+--local\s+--port\s+8788|vite(?:\.js)?\s+--host\s+127\.0\.0\.1\s+--port\s+5173'
-    ) {
-      $rootProcessId = [int]$current.ProcessId
-    }
-
-    $current = $processById[[int]$current.ParentProcessId]
-  }
-
-  return $rootProcessId
-}
-
 function Clear-LocalP3Ports {
-  $rootProcessIds = @{}
+  $listenerProcessIds = @{}
   foreach ($port in $ports) {
     foreach ($processId in Get-ListeningProcessIds -Port $port) {
-      $rootProcessIds[(Get-LocalP3DevRootProcessId -ProcessId $processId)] = $true
+      # Do not inspect Win32_Process here: that WMI class is unavailable to
+      # standard Windows users in some environments.  The port is the explicit
+      # ownership boundary of this tool, and taskkill /T clears its child tree.
+      $listenerProcessIds[$processId] = $true
     }
   }
-
-  $workspacePattern = [regex]::Escape($repositoryRoot)
-  Get-CimInstance Win32_Process |
-    Where-Object {
-      $_.Name -in @('cmd.exe', 'node.exe') -and
-      $_.CommandLine -match $workspacePattern -and
-      $_.CommandLine -match '(?i)node_modules\\(?:\.bin\\\.\.\\)?(?:wrangler|vite)\\|(?:wrangler|vite)(?:\.js)?\s+(?:dev|--host)'
-    } |
-    ForEach-Object {
-      $rootProcessIds[(Get-LocalP3DevRootProcessId -ProcessId ([int]$_.ProcessId))] = $true
-    }
-
-  foreach ($processId in $rootProcessIds.Keys) {
+  foreach ($processId in $listenerProcessIds.Keys) {
     Stop-ProcessTree -ProcessId $processId
   }
 

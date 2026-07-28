@@ -263,14 +263,31 @@ export function MultiplayerApp({
   };
   const restart = (kind: "match" | "round") => {
     if (!roomId || !game || !isHost || restartPending) return;
-    const input = {
-      roomId,
-      clientCommandId: crypto.randomUUID(),
-      expectedEventSequence: game.eventSequence
-    };
     setRestartPending(true);
     setNotice(kind === "match" ? "正在重新开赛。" : "正在重开本局。");
-    void (kind === "match" ? client.restartMatch(input) : client.restartRound(input))
+    const submitRestart = (expectedEventSequence: number) => {
+      const input = {
+        roomId,
+        clientCommandId: crypto.randomUUID(),
+        expectedEventSequence
+      };
+      return kind === "match" ? client.restartMatch(input) : client.restartRound(input);
+    };
+    // A bot event can advance the authority sequence in the short interval
+    // between rendering the host control and clicking it.  Refresh the public
+    // personal projection and retry that *host command* once with the current
+    // revision; never silently reuse a stale revision.
+    const restartWithFreshRevision = async () => {
+      try {
+        return await submitRestart(game.eventSequence);
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== "event_sequence_conflict") throw error;
+        const current = await client.getGameView(roomId);
+        applyGameProjection(current);
+        return submitRestart(current.eventSequence);
+      }
+    };
+    void restartWithFreshRevision()
       .then(async (next) => {
         setRoom(next);
         const nextGame = await client.getGameView(roomId);

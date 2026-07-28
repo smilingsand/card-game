@@ -574,6 +574,13 @@ export class RoomDurableObject {
     status = (await (
       await this.authorityPost(meta, "turn-status", { now })
     ).json()) as TurnStatus;
+    // A bot can finish the round.  This is still an Authority action boundary,
+    // so take the same completed-round path as a human action instead of
+    // scheduling an inert reconciliation against the completed game.
+    if (status.completed) {
+      await this.reconcile(meta, now);
+      return;
+    }
     if (!status.completed && currentPresence?.connected === 1)
       await this.setBotControl(meta, botSeat.seat, false, now);
     if (!status.completed && this.takeover(status.current)?.enabled) {

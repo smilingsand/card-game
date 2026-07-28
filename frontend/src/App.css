@@ -374,6 +374,16 @@ button:disabled {
   max-width: 22rem;
 }
 
+/* Keep the top seat's public action above the centre status region.  The
+   bottom half intentionally has more room because it also contains the
+   human hand and the action controls. */
+.north .seat-actions {
+  position: absolute;
+  top: 5.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 .revealed-hand .card-face {
   --card-width: 1.45rem;
   --card-height: 2rem;
@@ -434,7 +444,7 @@ button:disabled {
 }
 .human-seat > section[aria-label="操作"] {
   position: absolute;
-  bottom: 14rem;
+  bottom: 11.5rem;
   left: 50%;
   z-index: 2;
   transform: translateX(-50%);
@@ -464,7 +474,7 @@ button:disabled {
 }
 .south-actions {
   position: absolute;
-  bottom: 18rem;
+  bottom: 15.5rem;
   left: 50%;
   transform: translateX(-50%);
 }
