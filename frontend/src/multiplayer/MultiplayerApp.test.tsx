@@ -152,6 +152,20 @@ describe("多人前端", () => {
     });
   });
 
+  it("将非 JSON 的后端错误显示为可诊断 HTTP 错误", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response("Your worker encountered an internal error", {
+        status: 503,
+        headers: { "content-type": "text/plain" }
+      })
+    );
+    const client = createHttpMultiplayerClient(fetchImpl);
+
+    await expect(client.createSession()).rejects.toThrow(
+      "http_503: Your worker encountered an internal error"
+    );
+  });
+
   it("房主开局后立即读取个人投影并渲染可玩的四方牌桌", async () => {
     const client = fakeClient();
     vi.mocked(client.createRoom).mockResolvedValue({ room, inviteCode: "invite-123" });

@@ -12,7 +12,7 @@
 - 本地版本已包含：尾局下家阻断、合法动作兜底、自然中小结构争牌、控制资源保护，以及明牌时按出牌先后显示覆盖关系。
 - P2.7 已部署到 Vercel Production 并完成用户人工试玩验收；正式入口为 `https://card-game-wentop.vercel.app/`。未来的移动端/PWA 风险变更按需单独复测。
 
-P3-01 至 P3-07 已在本地 `P3-development` 分支完成验收；下一项任务为 P3-08（超时、断线等待、机器人托管与安全交接）。任务顺序和验收门槛以 [P1-P3 执行计划](proj-info/phases/P1-P3-execution-plan.md) 为准。当前 P3 仅在本地 Vite、Wrangler/Miniflare 与 SQLite-backed Durable Object 中验证，尚未部署 Cloudflare。
+P3-01 至 P3-07 已在本地 `P3-development` 分支完成验收。当前 P4 工作在 `codex/p3-11-singleplayer-table-modularization` 分支继续多人牌桌复用、动作生命周期和本地运行时稳定性收口；尚未完成最终人工验收或部署。当前多人版本仅在本地 Vite、Wrangler/Miniflare 与 SQLite-backed Durable Object 中验证，尚未部署 Cloudflare；最新交接与本地恢复说明见 [P4 handoff](proj-info/handoffs/HANDOFF-2026-07-29-P4-runtime-recovery-and-table-layout.md)。
 
 ## 文档入口
 

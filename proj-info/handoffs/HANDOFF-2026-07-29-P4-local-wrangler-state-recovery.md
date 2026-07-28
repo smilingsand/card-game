@@ -154,3 +154,24 @@ arrangement help now uses the same centred maximum width as the hand area, so
 its left edge tracks the hand instead of the full table edge. This remains a
 desktop-only presentation adjustment and does not change game state,
 multiplayer callbacks, bot scheduling or responsive behaviour.
+
+## 2026-07-29: recurring local state stall
+
+The local browser report of a transient reconnect button, slow lobby actions,
+and `Unexpected token ... is not valid JSON` was reproduced in the backend
+logs. The latter is a client-side symptom: Wrangler returned a plain-text 503
+page after the local worker stalled, while the HTTP client assumed every
+response was JSON.
+
+Evidence:
+
+- stale local state: `/health` took 22.294 seconds; `/v1/session` took
+  7.5--9.1 seconds; `/v1/rooms` returned 503 after about 9--11 seconds;
+- fresh temporary `--persist-to` state, same code and Wrangler 4.113.0:
+  `/health` returned 200 in 69 ms;
+- after archiving the stale state and starting the standard P4 script,
+  `/health` returned 200 in 367 ms and room creation returned 201 in 607 ms.
+
+The old directory was moved, not deleted, to the ignored recoverable backup
+`temp/p4-wrangler-state-backup-20260729-0413`. It contains only local test
+rooms and must not be restored while the normal P4 server is running.

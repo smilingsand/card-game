@@ -114,8 +114,22 @@ function apiOrigin(): string {
 }
 
 async function responseJson<T>(response: Response): Promise<T> {
-  const body = (await response.json()) as T & { readonly error?: string };
-  if (!response.ok) throw new Error(body.error ?? "network_request_failed");
+  const rawBody = await response.text();
+  let body: T;
+  try {
+    body = rawBody ? (JSON.parse(rawBody) as T) : ({} as T);
+  } catch {
+    const detail = rawBody.replace(/\s+/gu, " ").trim().slice(0, 160);
+    throw new Error(
+      response.ok
+        ? "invalid_server_response"
+        : `http_${response.status}${detail ? `: ${detail}` : ""}`
+    );
+  }
+  if (!response.ok) {
+    const error = (body as T & { readonly error?: string }).error;
+    throw new Error(error ?? `http_${response.status}`);
+  }
   return body;
 }
 
