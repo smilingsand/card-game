@@ -71,3 +71,24 @@ from the repository root.  Do not separately run `wrangler dev` or `vite`;
 doing so can leave an independent `workerd` tree and reintroduce SQLite/state
 contention.  If the idle CPU or `/health` delay recurs, stop first and archive
 the local-only state again before investigating it.
+
+## Follow-up: bot alarm lifecycle diagnosis
+
+A local one-human/three-bot game showed that a bot could remain pending far
+past its normal 0.8--1.34 second think delay. The persisted `bot_tasks` row
+was overdue, while the Room Durable Object's next alarm had been replaced by
+the 30-second human heartbeat.
+
+Two scheduling defects were corrected:
+
+1. `DurableObjectStorage.setAlarm()` is asynchronous. The Room now awaits it;
+   a detached call can be cancelled by Miniflare when its request finishes.
+2. When `Room.alarm()` retries a transient Authority failure, scheduling now
+   preserves the current persisted bot task even when a `TurnStatus` is not
+   available. The retry is bounded to one second, preventing a zero-delay
+   alarm spin loop while ensuring it cannot degrade to the human heartbeat.
+
+`backend/test/p4-01-single-human-bot-lifecycle.local.test.mjs` contains a
+production-timer regression test: an opening bot task must advance the
+authority event sequence without another HTTP request waking the room. It
+passed together with backend typecheck on 2026-07-29.

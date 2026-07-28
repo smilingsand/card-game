@@ -31,7 +31,7 @@ const fixtureSeeds = [
   ],
 ];
 
-async function runtime(seed, rateLimitPerMinute = "1000") {
+async function runtime(seed, rateLimitPerMinute = "1000", testMode = true) {
   const directory = await mkdtemp(join(tmpdir(), "p4-01-lifecycle-"));
   temporaryPaths.push(directory);
   const scriptPath = join(directory, "worker.mjs");
@@ -67,7 +67,7 @@ async function runtime(seed, rateLimitPerMinute = "1000") {
       RATE_LIMIT_PER_MINUTE: rateLimitPerMinute,
       ROOM_SEED_ENCRYPTION_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       ROOM_INVITE_HASH_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-      P3_TEST_MODE: "true",
+      ...(testMode ? { P3_TEST_MODE: "true" } : {}),
       P3_TEST_SEED: seed,
     },
   });
@@ -165,6 +165,9 @@ async function advanceOneScheduledBot(instance, roomId, cookie) {
   return scheduled;
 }
 
+const wait = (milliseconds) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
 afterEach(async () =>
   Promise.all(
     temporaryPaths
@@ -172,6 +175,40 @@ afterEach(async () =>
       .map((path) => rm(path, { recursive: true, force: true })),
   ),
 );
+
+test("P4-01: 实际 alarm 在短思考到期后消费单个机器人任务", async () => {
+  const instance = await runtime("alarm-persistence", "1000", false);
+  try {
+    // Production selects the opening leader randomly.  Create a few isolated
+    // rooms until one has an opening bot turn, then prove its persisted task
+    // advances without any intervening request to wake the room.
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const { roomId, cookie } = await startSouthHuman(instance, Date.now());
+      const initialResponse = await instance.dispatchFetch(
+        `https://local.test/v1/rooms/${roomId}/game-view`,
+        { headers: { cookie } },
+      );
+      expect(initialResponse.status).toBe(200);
+      const initial = await initialResponse.json();
+      if (initial.current === "south") continue;
+
+      // The regular delay is at most 1.34 s.  A persisted alarm must execute
+      // one bot action without a later HTTP request waking the room up.
+      await wait(2_500);
+      const advancedResponse = await instance.dispatchFetch(
+        `https://local.test/v1/rooms/${roomId}/game-view`,
+        { headers: { cookie } },
+      );
+      expect(advancedResponse.status).toBe(200);
+      const advanced = await advancedResponse.json();
+      expect(advanced.eventSequence).toBeGreaterThan(initial.eventSequence);
+      return;
+    }
+    throw new Error("unable_to_create_opening_bot_turn");
+  } finally {
+    await instance.dispose();
+  }
+}, 20_000);
 
 test("P4-01: 固定一人三机器人牌局记录真人 99 命令、权威动作及逐个 bot 调度", async () => {
   let selected;

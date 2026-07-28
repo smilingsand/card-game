@@ -336,11 +336,11 @@ export class RoomDurableObject {
       at: now,
     });
   }
-  private scheduleReconcile(
+  private async scheduleReconcile(
     meta: MetaRow,
     now: number,
     status?: TurnStatus,
-  ): void {
+  ): Promise<void> {
     // Alarms are the authoritative clock for missed heartbeats, bot tasks, and
     // lobby retention. Requests merely bring the same reconciliation forward.
     // Deterministic local fixtures advance `now` explicitly; real timers would
@@ -362,14 +362,22 @@ export class RoomDurableObject {
         const disconnectedAt = ownerPresence.disconnectedAt ?? now;
         candidates.push(disconnectedAt + 60_000, disconnectedAt + 300_000);
       }
-    } else if (status) {
+    } else {
       const task = this.botTask();
       if (
-        task?.gameId === status.gameId &&
-        task.turnGeneration === this.diagnosticTurnGeneration(status)
+        (status === undefined ||
+          (task?.gameId === status.gameId &&
+            task.turnGeneration === this.diagnosticTurnGeneration(status))) &&
+        task
       )
-        candidates.push(task.scheduledAt);
-      const current = this.seats().find((seat) => seat.seat === status.current);
+        // A local runtime may have cancelled a previously persisted alarm.
+        // Never let an overdue, still-current bot task fall through to the
+        // human heartbeat.  Keep a bounded retry delay so a transient
+        // Authority failure cannot create a zero-delay alarm spin loop.
+        candidates.push(Math.max(task.scheduledAt, now + 1_000));
+      const current = status
+        ? this.seats().find((seat) => seat.seat === status.current)
+        : undefined;
       const presence = current?.subjectId
         ? this.presence(current.subjectId)
         : undefined;
@@ -379,7 +387,11 @@ export class RoomDurableObject {
     const next = candidates
       .filter((time) => time > now)
       .sort((a, b) => a - b)[0];
-    if (next !== undefined) this.ctx.storage.setAlarm(next);
+    // DurableObjectStorage.setAlarm() persists asynchronously.  Do not leave
+    // that promise detached: Miniflare can cancel a detached alarm when the
+    // request finishes, stranding an already-recorded bot task until a later
+    // unrelated request happens to reconcile the room.
+    if (next !== undefined) await this.ctx.storage.setAlarm(next);
   }
   private markMissedHeartbeats(now: number): void {
     for (const presence of [
@@ -434,7 +446,7 @@ export class RoomDurableObject {
           });
         }
       }
-      this.scheduleReconcile(meta, now);
+      await this.scheduleReconcile(meta, now);
       return;
     }
     const statusResponse = await this.authorityPost(meta, "turn-status", {
@@ -512,7 +524,7 @@ export class RoomDurableObject {
     const currentTakeover = this.takeover(status.current);
     if (!currentTakeover?.enabled) {
       this.clearBotTask();
-      this.scheduleReconcile(meta, now, status);
+      await this.scheduleReconcile(meta, now, status);
       return;
     }
     let task = this.botTask();
@@ -545,7 +557,7 @@ export class RoomDurableObject {
       });
     }
     if (now < task.scheduledAt) {
-      this.scheduleReconcile(meta, now, status);
+      await this.scheduleReconcile(meta, now, status);
       return;
     }
     const botSeat = this.seats().find((seat) => seat.seat === status.current)!;
@@ -605,7 +617,7 @@ export class RoomDurableObject {
         at: now,
       });
     }
-    this.scheduleReconcile(meta, now, status);
+    await this.scheduleReconcile(meta, now, status);
   }
   private markPresence(
     subjectId: string,
@@ -636,9 +648,19 @@ export class RoomDurableObject {
     try {
       await this.reconcile(meta, Date.now());
       await this.notifyRealtime(meta.roomId).catch(() => undefined);
-    } catch {
+    } catch (error) {
+      // Preserve the persisted bot-task deadline on a transient Authority
+      // failure.  Calling scheduleReconcile without this task used to replace
+      // the short bot alarm with the 30-second human heartbeat.
+      console.warn(
+        JSON.stringify({
+          event: "room_alarm_reconcile_retry",
+          hasBotTask: Boolean(this.botTask()),
+          reason: error instanceof Error ? error.message : "unknown_error",
+        }),
+      );
       // The next scheduled reconciliation retries transient Authority failures.
-      this.scheduleReconcile(meta, Date.now());
+      await this.scheduleReconcile(meta, Date.now());
     }
   }
 

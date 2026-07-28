@@ -53,7 +53,11 @@ function Stop-ProcessTree {
   $previousErrorActionPreference = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
   try {
-    $taskkillOutput = & taskkill.exe /PID $ProcessId /T /F 2>&1
+    # A preceding parent-tree stop can win the race after our existence check.
+    # Keep that benign "process not found" message out of the normal stop path;
+    # the post-command existence check below still turns a real failure into an
+    # actionable error.
+    $taskkillOutput = & taskkill.exe /PID $ProcessId /T /F 2>$null
     $taskkillExitCode = $LASTEXITCODE
   }
   finally {
