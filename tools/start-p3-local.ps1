@@ -107,7 +107,7 @@ function Clear-LocalP3Ports {
 Clear-LocalP3Ports
 
 if ($StopOnly) {
-  Write-Host 'Local P3 development ports are clean.'
+  Write-Host 'Local P4 development ports are clean.'
   exit 0
 }
 
@@ -117,7 +117,7 @@ try {
   $backend = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/d', '/c', 'npm.cmd run dev') -WorkingDirectory (Join-Path $repositoryRoot 'backend') -NoNewWindow -PassThru
   $frontend = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/d', '/c', 'npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort') -WorkingDirectory (Join-Path $repositoryRoot 'frontend') -NoNewWindow -PassThru
 
-  Write-Host 'P3 local services are starting: frontend http://127.0.0.1:5173, backend http://127.0.0.1:8788.'
+  Write-Host 'P4 local services are starting: frontend http://127.0.0.1:5173, backend http://127.0.0.1:8788.'
   Write-Host 'Press Ctrl+C in this window to stop both process trees. Use -StopOnly after a forced terminal close.'
 
   while (-not $backend.HasExited -and -not $frontend.HasExited) {
