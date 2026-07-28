@@ -86,6 +86,7 @@ export function MultiplayerApp({
   const [connectionEpoch, setConnectionEpoch] = useState(0);
   const [eventSequence, setEventSequence] = useState(0);
   const [actionPending, setActionPending] = useState(false);
+  const [restartPending, setRestartPending] = useState(false);
   const eventSequenceRef = useRef(0);
   const latestGameProjectionRef = useRef<{
     readonly gameId?: string;
@@ -201,16 +202,28 @@ export function MultiplayerApp({
 
   const submit = (kind: "pass" | "play", cardIds?: readonly string[]) => {
     if (!roomId || !game || actionPending) return;
+    const commandId = crypto.randomUUID();
+    const submittedCardIds = kind === "play" ? [...(cardIds ?? [])] : [];
     setActionPending(true);
     void client
       .submitAction({
         roomId,
-        commandId: crypto.randomUUID(),
+        commandId,
         expectedEventSequence: game.eventSequence,
         kind,
-        ...(kind === "play" ? { cardIds } : {})
+        ...(kind === "play" ? { cardIds: submittedCardIds } : {})
       })
       .then((result) => {
+        if (
+          result.commandId !== commandId ||
+          !result.accepted ||
+          result.appliedEventSequence !== result.eventSequence ||
+          result.appliedCardIds.length !== submittedCardIds.length ||
+          !result.appliedCardIds.every((cardId) => submittedCardIds.includes(cardId))
+        ) {
+          setNotice("严重一致性错误：权威动作与本次提交不一致，已停止将其视为成功。");
+          return;
+        }
         applyGameProjection(result.view);
         setNotice(kind === "pass" ? "已过牌。" : "已出牌。");
       })
@@ -218,12 +231,13 @@ export function MultiplayerApp({
       .finally(() => setActionPending(false));
   };
   const restart = (kind: "match" | "round") => {
-    if (!roomId || !game || !isHost) return;
+    if (!roomId || !game || !isHost || restartPending) return;
     const input = {
       roomId,
       clientCommandId: crypto.randomUUID(),
       expectedEventSequence: game.eventSequence
     };
+    setRestartPending(true);
     void (kind === "match" ? client.restartMatch(input) : client.restartRound(input))
       .then(async (next) => {
         setRoom(next);
@@ -231,7 +245,11 @@ export function MultiplayerApp({
         applyGameProjection(nextGame);
         setNotice(kind === "match" ? "已重新开赛。" : "已重开本局。");
       })
-      .catch((error) => setNotice(messageFor(error)));
+      .catch((error) => setNotice(messageFor(error)))
+      .finally(() => {
+        setActionPending(false);
+        setRestartPending(false);
+      });
   };
 
   return (
@@ -247,10 +265,18 @@ export function MultiplayerApp({
         >
           规则
         </button>
-        <button type="button" onClick={() => restart("match")} disabled={!game || !isHost}>
+        <button
+          type="button"
+          onClick={() => restart("match")}
+          disabled={!game || !isHost || restartPending}
+        >
           重新开赛
         </button>
-        <button type="button" onClick={() => restart("round")} disabled={!game || !isHost}>
+        <button
+          type="button"
+          onClick={() => restart("round")}
+          disabled={!game || !isHost || restartPending}
+        >
           重开本局
         </button>
         <button

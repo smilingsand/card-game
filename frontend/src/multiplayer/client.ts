@@ -79,7 +79,14 @@ export interface MultiplayerClient {
     readonly expectedEventSequence: number;
     readonly kind: "pass" | "play";
     readonly cardIds?: readonly string[];
-  }): Promise<{ readonly eventSequence: number; readonly view: GameProjection }>;
+  }): Promise<{
+    readonly accepted: true;
+    readonly commandId: string;
+    readonly eventSequence: number;
+    readonly appliedEventSequence: number;
+    readonly appliedCardIds: readonly string[];
+    readonly view: GameProjection;
+  }>;
   connect(input: {
     readonly roomId: string;
     readonly lastEventSequence: number;
@@ -159,10 +166,14 @@ export function createHttpMultiplayerClient(fetchImpl: FetchLike = fetch): Multi
     },
     submitAction(input) {
       const { roomId, ...body } = input;
-      return post<{ readonly eventSequence: number; readonly view: GameProjection }>(
-        `/v1/rooms/${roomId}/actions`,
-        body
-      );
+      return post<{
+        readonly accepted: true;
+        readonly commandId: string;
+        readonly eventSequence: number;
+        readonly appliedEventSequence: number;
+        readonly appliedCardIds: readonly string[];
+        readonly view: GameProjection;
+      }>(`/v1/rooms/${roomId}/actions`, body);
     },
     connect(input) {
       const origin = apiOrigin() || window.location.origin;

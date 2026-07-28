@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHttpMultiplayerClient, type MultiplayerClient, type RoomProjection } from "./client";
 import { MultiplayerApp } from "./MultiplayerApp";
 import { projectSeatsForViewer } from "./seat-projection";
@@ -16,6 +16,7 @@ const room: RoomProjection = {
 };
 
 const startedRoom: RoomProjection = { ...room, phase: "started" };
+const testCommandId = "00000000-0000-4000-8000-000000000001";
 const startedGame = {
   seat: "south" as const,
   eventSequence: 0,
@@ -57,6 +58,14 @@ function fakeClient(): MultiplayerClient {
     connect: vi.fn().mockReturnValue(() => undefined)
   };
 }
+
+beforeEach(() => {
+  vi.spyOn(crypto, "randomUUID").mockReturnValue(testCommandId);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("多人前端", () => {
   it("创建房间仅发送名称和逻辑座位，并展示机器人空座", async () => {
@@ -270,7 +279,14 @@ describe("多人前端", () => {
     vi.mocked(client.createRoom).mockResolvedValue({ room, inviteCode: "invite-123" });
     vi.mocked(client.start).mockResolvedValue(startedRoom);
     vi.mocked(client.getGameView).mockResolvedValue(pairGame);
-    vi.mocked(client.submitAction).mockResolvedValue({ eventSequence: 1, view: afterPairGame });
+    vi.mocked(client.submitAction).mockResolvedValue({
+      accepted: true,
+      commandId: testCommandId,
+      eventSequence: 1,
+      appliedEventSequence: 1,
+      appliedCardIds: ["card-1", "card-2"],
+      view: afterPairGame
+    });
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findByLabelText("多人房间");
@@ -327,7 +343,14 @@ describe("多人前端", () => {
     vi.mocked(client.createRoom).mockResolvedValue({ room, inviteCode: "invite-123" });
     vi.mocked(client.start).mockResolvedValue(startedRoom);
     vi.mocked(client.getGameView).mockResolvedValue(responseGame);
-    vi.mocked(client.submitAction).mockResolvedValue({ eventSequence: 1, view: afterResponseGame });
+    vi.mocked(client.submitAction).mockResolvedValue({
+      accepted: true,
+      commandId: testCommandId,
+      eventSequence: 1,
+      appliedEventSequence: 1,
+      appliedCardIds: ["card-1", "card-2"],
+      view: afterResponseGame
+    });
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findByLabelText("多人房间");
@@ -360,6 +383,34 @@ describe("多人前端", () => {
         "动作未提交：牌局状态已更新，已同步最新牌桌，请重新选择。"
       )
     );
+  });
+
+  it("does not treat an ACK with different applied card IDs as a successful human play", async () => {
+    const client = fakeClient();
+    vi.mocked(client.createRoom).mockResolvedValue({ room, inviteCode: "invite-123" });
+    vi.mocked(client.start).mockResolvedValue(startedRoom);
+    vi.mocked(client.getGameView).mockResolvedValue(startedGame);
+    vi.mocked(client.submitAction).mockResolvedValue({
+      accepted: true,
+      commandId: testCommandId,
+      eventSequence: 1,
+      appliedEventSequence: 1,
+      appliedCardIds: ["card-2"],
+      view: { ...startedGame, eventSequence: 1, hand: [], current: "east", legalActions: [] }
+    });
+    render(<MultiplayerApp client={client} onExit={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
+    await screen.findByLabelText("多人房间");
+    fireEvent.click(screen.getByRole("button", { name: "开始牌局" }));
+    await screen.findByLabelText("你的手牌");
+    fireEvent.click(screen.getByRole("button", { name: "选择♠A" }));
+    fireEvent.click(screen.getByRole("button", { name: "出牌" }));
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "严重一致性错误：权威动作与本次提交不一致"
+      )
+    );
+    expect(screen.getByLabelText("你的手牌").querySelectorAll(".card-face")).toHaveLength(2);
   });
 
   it("clears a prior selection and disables turn controls after Authority advances to another seat", async () => {
@@ -416,7 +467,14 @@ describe("多人前端", () => {
     vi.mocked(client.getGameView)
       .mockResolvedValueOnce(staleGame)
       .mockResolvedValueOnce(refreshedGame);
-    vi.mocked(client.submitAction).mockResolvedValue({ eventSequence: 1, view: refreshedGame });
+    vi.mocked(client.submitAction).mockResolvedValue({
+      accepted: true,
+      commandId: testCommandId,
+      eventSequence: 1,
+      appliedEventSequence: 1,
+      appliedCardIds: ["card-2"],
+      view: refreshedGame
+    });
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findByLabelText("多人房间");

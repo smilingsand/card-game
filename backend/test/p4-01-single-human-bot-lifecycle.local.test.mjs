@@ -222,6 +222,18 @@ test("P4-01: 固定一人三机器人牌局记录真人 99 命令、权威动作
     expect(submitted.status).toBe(200);
     const acknowledged = await submitted.json();
     expect(acknowledged.view.eventSequence).toBe(view.eventSequence + 1);
+    const staleOwnerCommand = await post(
+      instance,
+      `/v1/rooms/${roomId}/actions`,
+      {
+        commandId: "p4-01-stale-owner-command",
+        expectedEventSequence: view.eventSequence,
+        kind: "pass",
+        now: now + 1,
+      },
+      cookie,
+    );
+    expect(staleOwnerCommand.status).toBe(409);
 
     // P3 test mode has no timer; advancing the controlled clock deliberately
     // exposes the current reconciliation behaviour without browser timing.

@@ -161,19 +161,19 @@ function view(
           wildcardAs: session.game.state.highest.wildcardAs,
         }
       : undefined;
-  const publicActions = latestRecentActionsBySeat(session.game.publicEvents).map(
-    (action) => ({
-      actor: action.actor,
-      type: action.type,
-      cards:
-        action.type === "play"
-          ? action.cardIds
-              .map((id) => session.game.cardsById.get(id))
-              .filter((card) => card !== undefined)
-          : [],
-      wildcardAs: action.type === "play" ? action.interpretation.wildcardAs : {},
-    }),
-  );
+  const publicActions = latestRecentActionsBySeat(
+    session.game.publicEvents,
+  ).map((action) => ({
+    actor: action.actor,
+    type: action.type,
+    cards:
+      action.type === "play"
+        ? action.cardIds
+            .map((id) => session.game.cardsById.get(id))
+            .filter((card) => card !== undefined)
+        : [],
+    wildcardAs: action.type === "play" ? action.interpretation.wildcardAs : {},
+  }));
   return {
     ...(gameId ? { gameId } : {}),
     seat,
@@ -1052,10 +1052,7 @@ export class AuthorityGameDurableObject {
       return json({ error: "seat_under_bot_control" }, 409);
     if (session.game.state.current !== subjectSeat)
       return json({ error: "not_your_turn" }, 409);
-    if (
-      !isOwner &&
-      payload.expectedEventSequence !== session.stream.events.length - 1
-    )
+    if (payload.expectedEventSequence !== session.stream.events.length - 1)
       return json(
         {
           error: "event_sequence_conflict",
@@ -1077,8 +1074,11 @@ export class AuthorityGameDurableObject {
     const event = result.session.stream.events.at(-1)!;
     const response = {
       acknowledged: true,
+      accepted: true,
       commandId: payload.commandId,
       eventSequence: event.sequence,
+      appliedEventSequence: event.sequence,
+      appliedCardIds: action.type === "play" ? action.cardIds : [],
       view: view(result.session, subjectSeat, false, meta.gameId),
     };
     this.ctx.storage.transactionSync(() => {

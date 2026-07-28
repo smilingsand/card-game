@@ -37,3 +37,7 @@ Replace duplicated multiplayer table presentation and interaction with the valid
   event. The task uses the existing short `botThinkDelayMs` cadence, not the
   human 30-second takeover deadline; stale tasks are cleared on accepted human
   commands and restart acknowledgements.
+- 2026-07-28: Authority ACKs now include accepted command ID, applied event
+  sequence and applied entity card IDs. The owner is no longer exempt from
+  `expectedEventSequence`; the multiplayer client clears pending on every
+  resolved request and refuses to present mismatched applied IDs as success.
