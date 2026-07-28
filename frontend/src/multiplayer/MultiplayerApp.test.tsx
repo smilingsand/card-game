@@ -72,7 +72,11 @@ describe("多人前端", () => {
     expect(screen.getByText(/邀请码：/)).toBeInTheDocument();
     const initialConnects = vi.mocked(client.connect).mock.calls.length;
     fireEvent.click(screen.getByRole("button", { name: "重新连接" }));
-    await waitFor(() => expect(client.connect).toHaveBeenCalledTimes(initialConnects + 1));
+    await waitFor(() =>
+      expect(vi.mocked(client.connect).mock.calls.length).toBeGreaterThanOrEqual(
+        initialConnects + 1
+      )
+    );
   });
 
   it("支持预设与自定义名称，且联机页面不接收本地存档", () => {
@@ -145,7 +149,15 @@ describe("多人前端", () => {
         actor: "west",
         cards: [{ id: "public-west-10", deckIndex: 1, rank: "10", suit: "hearts" }],
         wildcardAs: {}
-      }
+      },
+      publicActions: [
+        {
+          actor: "west",
+          type: "play",
+          cards: [{ id: "public-west-10", deckIndex: 1, rank: "10", suit: "hearts" }],
+          wildcardAs: {}
+        }
+      ]
     });
     render(<MultiplayerApp client={client} initialRoomId="room-123" onExit={() => undefined} />);
     await screen.findByLabelText("多人牌桌");
@@ -274,7 +286,7 @@ describe("多人前端", () => {
       kind: "play",
       cardIds: ["card-1", "card-2"]
     });
-    await waitFor(() => expect(screen.getByLabelText("你的手牌")).toHaveTextContent("0"));
+    await waitFor(() => expect(screen.getByLabelText("你的手牌")).toHaveTextContent("25"));
     expect(screen.getByLabelText("你的手牌").querySelectorAll(".card-face")).toHaveLength(0);
     expect(screen.getByText("轮到：机器人A")).toBeInTheDocument();
   });

@@ -4,6 +4,7 @@ import {
   chooseTableBotAction,
   getLegalBotActions,
   getSelectedPlayActions,
+  latestRecentActionsBySeat,
   parseSecureSeed,
   prepareNextTableSessionWithSecureSeed,
   restartCurrentTableSession,
@@ -160,6 +161,19 @@ function view(
           wildcardAs: session.game.state.highest.wildcardAs,
         }
       : undefined;
+  const publicActions = latestRecentActionsBySeat(session.game.publicEvents).map(
+    (action) => ({
+      actor: action.actor,
+      type: action.type,
+      cards:
+        action.type === "play"
+          ? action.cardIds
+              .map((id) => session.game.cardsById.get(id))
+              .filter((card) => card !== undefined)
+          : [],
+      wildcardAs: action.type === "play" ? action.interpretation.wildcardAs : {},
+    }),
+  );
   return {
     ...(gameId ? { gameId } : {}),
     seat,
@@ -179,7 +193,7 @@ function view(
         session.game.state.hands[s].length,
       ]),
     ),
-    publicEvents: session.game.publicEvents,
+    publicActions,
     // The current winning play is public table state.  Send its card faces so
     // clients never have to infer them from a private hand projection.
     ...(highestPlay ? { highestPlay } : {}),

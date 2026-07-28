@@ -1,22 +1,21 @@
 import type { Seat } from "@card-game/guandan-core";
+import { createDisplayPositions, logicalSeatOrder } from "../components/table/table-contract";
 
 export type TablePosition = "bottom" | "left" | "top" | "right";
 
-export const LOGICAL_SEAT_ORDER: readonly Seat[] = ["south", "east", "north", "west"];
+export const LOGICAL_SEAT_ORDER = logicalSeatOrder;
 
 /**
- * Converts a viewer's fixed logical seat into display-only table positions.
- * It must never be used to rewrite action actors or the server event order.
+ * Compatibility helper for lobby/tests. The active multiplayer table consumes
+ * createDisplayPositions directly through useMultiplayerTableAdapter.
  */
 export function projectSeatsForViewer(viewerSeat: Seat): Record<TablePosition, Seat> {
-  const index = LOGICAL_SEAT_ORDER.indexOf(viewerSeat);
-  if (index < 0) throw new Error("invalid_viewer_seat");
-  const at = (offset: number) =>
-    LOGICAL_SEAT_ORDER[(index + offset + LOGICAL_SEAT_ORDER.length) % LOGICAL_SEAT_ORDER.length]!;
-  return {
-    bottom: at(0),
-    left: at(-1),
-    top: at(2),
-    right: at(1)
-  };
+  const positions = createDisplayPositions(viewerSeat);
+  return Object.fromEntries(
+    (["bottom", "left", "top", "right"] as const).map((position) => [
+      position,
+      (Object.entries(positions).find(([, display]) => display === position)?.[0] ??
+        viewerSeat) as Seat
+    ])
+  ) as Record<TablePosition, Seat>;
 }

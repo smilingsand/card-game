@@ -1,0 +1,33 @@
+# P4 multiplayer shared table reuse
+
+## Goal
+
+Replace duplicated multiplayer table presentation and interaction with the validated shared table contract, while preserving P3 room, WebSocket, Authority, reconnect, takeover, and personal-projection boundaries.
+
+## Status
+
+- **in progress**: `16a62e2` was merged as `b744f25 P4 - integrate P3 multiplayer baseline` after user approval. The active multiplayer table now renders through `MultiplayerTable` and `useMultiplayerTableAdapter` with the shared table contract.
+- **P4 lifecycle diagnosis / phase 1 complete**: only local `P3_TEST_MODE` observability and a fixed-seed one-human/three-bot fixture were added. No scheduler, takeover, command, restart, or UI behavior has been changed yet.
+
+## Audit findings
+
+- `MultiplayerApp.tsx` currently renders textual seats and hand cards, and play always submits `game.hand[0]`.
+- `seat-projection.ts` duplicates display-position mapping already supplied by `createDisplayPositions`.
+- There is no current multiplayer projection for legal actions, public action history, highest play, hint, arrangement, or pending-command completion.
+
+## Next step after approval
+
+1. Preserve `LegacyGameView` until a separate proof-of-no-reference change is requested.
+2. Complete automated frontend and P3 backend verification.
+3. Pause for the required four-client manual acceptance.
+
+## Progress log
+
+- 2026-07-28: added `useMultiplayerTableAdapter` and `MultiplayerTable`; active rendering uses `TableView`, `SeatView`, `HandView`, `ActionControls`, and `PublicActions`.
+- 2026-07-28: `seat-projection` now delegates to `createDisplayPositions`; targeted UI suite is 14/14 and adapter suite is 3/3.
+- 2026-07-28: frontend format, lint, typecheck, build, and targeted suites pass. One full-suite run hit the pre-existing reconnect-test race (`connect` observed twice); an immediate isolated rerun passed 14/14. Backend typecheck plus P3-05, P3-06, and P3-08 all pass.
+- 2026-07-28: one-human/three-bot diagnosis started without code changes. Confirmed: `Room.reconcile()` can execute multiple empty-seat bot commands in one reconciliation (`steps < SEATS.length`) with no think delay. The human action route forwards submitted card IDs unchanged to Authority; Authority uses `getSelectedPlayActions(...)[0]`, whose returned actions retain the submitted entity IDs. Remaining symptoms require per-command/turn-generation telemetry around Room reconciliation, presence takeover, and ACK completion before a root-cause claim.
+- 2026-07-28: phase-1 diagnostic fixture added in `backend/test/p4-01-single-human-bot-lifecycle.local.test.mjs`. Fixed seed label `fixture-c` yields a legal south `99` pair. The private test-only trace proves `submittedCardIds === appliedCardIds` for `p4-01-human-99`; therefore this path does not replace `99` with `KK`. It also records east, north and west bot commands with identical `scheduledAt` and `executedAt`, proving the current one-call multi-bot loop. `turnGeneration` in this phase is a derived diagnostic key (`gameId:eventSequence:currentSeat`), not yet a persisted scheduling token.
+- 2026-07-28: diagnostics are persisted only in local Durable Object SQLite and exposed solely when `P3_TEST_MODE=true` through test endpoints. They include room/game IDs, derived generation, current actor, mode/controller subject, command and expected sequence, submitted/applied entity IDs, Authority sequence, takeover deadline, bot scheduling/execution timestamps, and restart ACK/rejection. They never include seed text, cookies, invite codes, full hands, or `cardsById`.
+- 2026-07-28 verification: backend typecheck; `test:p4-01` (1/1); `test:p3-08` (4/4); `test:p3-11` (6/6, 215 s); frontend `format:check`; targeted Prettier; and `git diff --check` passed. A root `npm run format:check` command is unavailable because the workspace root intentionally has no scripts.
+- 2026-07-28: active-trick display correction is recorded separately in `P4-02-current-trick-public-projection.md`. Authority now supplies only current-trick public card faces via `publicActions`; the shared table shows each seat's actual play or pass and distinguishes the leader from the current highest play.

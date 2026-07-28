@@ -23,7 +23,8 @@ import {
   type MultiplayerClient,
   type RoomProjection
 } from "./client";
-import { projectSeatsForViewer, type TablePosition } from "./seat-projection";
+import { MultiplayerTable } from "./MultiplayerTable";
+import type { TablePosition } from "./seat-projection";
 
 const PRESET_NAMES = [
   "曹操",
@@ -101,7 +102,6 @@ export function MultiplayerApp({
     room?.seats.find((item) => item.controller === "human" && item.isHost)?.seat ??
     seat;
   const hasRoom = Boolean(room);
-  const positions = projectSeatsForViewer(viewerSeat);
   const isHost = room?.seats.find((item) => item.seat === viewerSeat)?.isHost === true;
 
   const applyGameProjection = useCallback((nextGame: GameProjection) => {
@@ -362,9 +362,8 @@ export function MultiplayerApp({
           ) : null}
         </section>
       ) : game ? (
-        <GameView
+        <MultiplayerTable
           game={game}
-          positions={positions}
           seats={room.seats}
           onPass={() => submit("pass")}
           onPlay={(cardIds) => submit("play", cardIds)}
@@ -381,7 +380,7 @@ export function MultiplayerApp({
   );
 }
 
-function GameView({
+export function LegacyGameView({
   game,
   positions,
   seats,

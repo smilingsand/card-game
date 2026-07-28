@@ -29,7 +29,14 @@ export interface GameProjection {
   readonly leader?: Seat;
   readonly passes?: readonly Seat[];
   readonly finished?: readonly Seat[];
+  /** 仅供尚未删除的 LegacyGameView 兼容；活跃多人牌桌不使用它。 */
   readonly publicEvents?: readonly Event[];
+  readonly publicActions?: readonly {
+    readonly actor: Seat;
+    readonly type: "play" | "pass";
+    readonly cards: readonly Card[];
+    readonly wildcardAs: Readonly<Record<string, { readonly rank: Card["rank"] }>>;
+  }[];
   /** The currently winning public play; never a private hand projection. */
   readonly highestPlay?: {
     readonly actor: Seat;

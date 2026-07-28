@@ -49,6 +49,7 @@ export function HandView({
                 aria-describedby="hand-arrangement-help"
                 data-card-id={card.id}
                 disabled={!selectableCardIds.includes(card.id)}
+                aria-disabled={!selectableCardIds.includes(card.id)}
                 draggable={draggable}
                 onClick={() => onToggleCard(card.id)}
                 onTouchEnd={(event) => onTouchEnd(event, card.id)}

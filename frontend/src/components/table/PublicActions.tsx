@@ -22,11 +22,11 @@ export function PublicActions({
         <span key={action.key} className="public-action" aria-label={action.ariaLabel}>
           {action.pass ? (
             <span className="pass-word">不要</span>
-          ) : (
+          ) : action.cards.length > 0 ? (
             action.cards.map(({ card, wildcardAs }) => (
               <CardFace key={card.id} card={card} levelRank={levelRank} wildcardAs={wildcardAs} />
             ))
-          )}
+          ) : null}
         </span>
       ))}
     </span>
