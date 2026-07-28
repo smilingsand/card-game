@@ -116,3 +116,13 @@ Fresh browser verification with the upgraded runtime:
 `temp/p4-backend-dev.log` and `temp/p4-backend-dev.err.log`, so future local
 request status and timing can be inspected without relying on a hidden process
 console.
+
+### Rollback of 4.114.0
+
+The 4.114.0 performance smoke was successful, but a later real browser
+`POST /start` caused Wrangler's own ProxyWorker to terminate. The client
+received non-JSON text (`Error: internal error...`) and disconnected; Wrangler
+recorded only an internal reference rather than a project stack trace. The
+registry offered no later patch release, so the dependency was returned to
+4.113.0. Do not use 4.114.0 for this local Durable Object workflow until a
+Wrangler release fixes that ProxyWorker crash.
