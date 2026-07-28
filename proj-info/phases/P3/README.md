@@ -2,7 +2,7 @@
 
 ## 状态
 
-P3-01 至 P3-09 已验收，P3-10 的可观测性与受控恢复等待主 agent 综合验收。目标是在不改变 `guandan-v5` 规则的前提下，提供一间房间 1–4 名真人、其余空座由 `normal-vNext` 控制的权威多人游戏；本阶段仅使用本地 Vite/Miniflare/SQLite Durable Object，不部署 Cloudflare。
+P3-01 至 P3-10 已验收；P3-07 与 P3-11 已完成自动验证，等待本地浏览器人工验收。目标是在不改变 `guandan-v5` 规则的前提下，提供一间房间 1–4 名真人、其余空座由 `normal-vNext` 控制的权威多人游戏；本阶段仅使用本地 Vite/Miniflare/SQLite Durable Object，不部署 Cloudflare。
 
 ## 入口
 

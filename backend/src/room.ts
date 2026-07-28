@@ -2,6 +2,7 @@ import type { Seat } from "@card-game/guandan-core";
 
 export interface RoomEnv {
   readonly AUTHORITY_GAME: DurableObjectNamespace;
+  readonly REALTIME_ROOM: DurableObjectNamespace;
   readonly ROOM_INVITE_HASH_KEY?: string;
   readonly P3_TEST_MODE?: string;
 }
@@ -55,6 +56,7 @@ interface TurnStatus {
   readonly eventSequence: number;
   readonly turnStartedAt: number;
   readonly botControlled: boolean;
+  readonly completed: boolean;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -155,6 +157,9 @@ export class RoomDurableObject {
     this.ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS seat_takeovers (seat TEXT PRIMARY KEY, enabled INTEGER NOT NULL, recover_pending INTEGER NOT NULL)",
     );
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS bot_dispatch_clock (id INTEGER PRIMARY KEY CHECK(id=1), dispatched_at INTEGER NOT NULL)",
+    );
   }
 
   private meta(): MetaRow | undefined {
@@ -181,6 +186,17 @@ export class RoomDurableObject {
       "INSERT INTO room_events (payload) VALUES (?)",
       JSON.stringify(event),
     );
+  }
+
+  /** Broadcasts only a public invalidation signal; each socket reloads its own projection. */
+  private async notifyRealtime(roomId: string): Promise<void> {
+    const realtime = this.env.REALTIME_ROOM.get(
+      this.env.REALTIME_ROOM.idFromName(roomId),
+    );
+    await realtime.fetch("https://realtime.internal/room-changed", {
+      method: "POST",
+      headers: { "x-p3-internal-room-id": roomId },
+    });
   }
 
   private projection(meta: MetaRow): Record<string, unknown> {
@@ -224,6 +240,21 @@ export class RoomDurableObject {
         seat,
       ),
     ][0];
+  }
+  private botDispatchedAt(): number | undefined {
+    return [
+      ...this.ctx.storage.sql.exec<
+        { dispatchedAt: number } & Record<string, SqlStorageValue>
+      >(
+        "SELECT dispatched_at as dispatchedAt FROM bot_dispatch_clock WHERE id=1",
+      ),
+    ][0]?.dispatchedAt;
+  }
+  private markBotDispatchedAt(now: number): void {
+    this.ctx.storage.sql.exec(
+      "INSERT INTO bot_dispatch_clock (id, dispatched_at) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET dispatched_at=excluded.dispatched_at",
+      now,
+    );
   }
   private authority(meta: MetaRow): DurableObjectStub {
     return this.env.AUTHORITY_GAME.get(
@@ -363,6 +394,7 @@ export class RoomDurableObject {
     });
     if (!statusResponse.ok) throw new Error("authority_unavailable");
     let status = (await statusResponse.json()) as TurnStatus;
+    if (status.completed) return;
     for (const seat of this.seats()) {
       if (!seat.subjectId) {
         if (!this.takeover(seat.seat)?.enabled)
@@ -397,15 +429,19 @@ export class RoomDurableObject {
     // A single reconciliation may pass through several bot seats.  Every bot
     // action remains an idempotent internal Authority command; no rule state is
     // modified in Room.
+    if ((this.botDispatchedAt() ?? Number.NEGATIVE_INFINITY) >= now) {
+      this.scheduleReconcile(meta, now, status);
+      return;
+    }
     for (let steps = 0; steps < SEATS.length; steps += 1) {
       const currentSeat = this.seats().find(
         (seat) => seat.seat === status.current,
       )!;
       const currentTakeover = this.takeover(status.current);
-      // P3-05's permanent empty-seat bots are not P3-08 takeover events. Their
-      // gameplay scheduling remains outside this timeout/recovery path, so the
-      // existing realtime protocol retains its current delivery semantics.
-      if (!currentTakeover?.enabled || !currentSeat.subjectId) break;
+      // Empty seats are permanent normal-vNext controllers. Like temporary
+      // takeovers, they advance only through the internal Authority command
+      // path; this keeps 1–3 human rooms playable to settlement.
+      if (!currentTakeover?.enabled) break;
       const currentPresence = currentSeat.subjectId
         ? this.presence(currentSeat.subjectId)
         : undefined;
@@ -414,11 +450,17 @@ export class RoomDurableObject {
         now,
       });
       if (!command.ok) throw new Error("bot_command_unavailable");
+      this.markBotDispatchedAt(now);
       status = (await (
         await this.authorityPost(meta, "turn-status", { now })
       ).json()) as TurnStatus;
+      if (status.completed) break;
       if (currentPresence?.connected === 1)
         await this.setBotControl(meta, currentSeat.seat, false, now);
+      // A temporary human takeover is one action boundary.  Permanent empty
+      // seats may still chain within a reconciliation so short-handed rooms
+      // reach the next human without a stalled table.
+      if (currentSeat.subjectId) break;
     }
     this.scheduleReconcile(meta, now, status);
   }
@@ -450,13 +492,18 @@ export class RoomDurableObject {
     if (!meta) return;
     try {
       await this.reconcile(meta, Date.now());
+      await this.notifyRealtime(meta.roomId).catch(() => undefined);
     } catch {
       // The next scheduled reconciliation retries transient Authority failures.
       this.scheduleReconcile(meta, Date.now());
     }
   }
 
-  private async startAuthority(meta: MetaRow, now: number): Promise<boolean> {
+  private async startAuthority(
+    meta: MetaRow,
+    now: number,
+    testInitialLeader?: Seat,
+  ): Promise<boolean> {
     const controllers = Object.fromEntries(
       this.seats()
         .filter((seat): seat is SeatRow & { readonly subjectId: string } =>
@@ -466,7 +513,7 @@ export class RoomDurableObject {
     );
     const initialLeader =
       this.env.P3_TEST_MODE === "true"
-        ? "east"
+        ? (testInitialLeader ?? "east")
         : SEATS[crypto.getRandomValues(new Uint32Array(1))[0] % SEATS.length];
     const stub = this.env.AUTHORITY_GAME.get(
       this.env.AUTHORITY_GAME.idFromName(meta.roomId),
@@ -551,7 +598,9 @@ export class RoomDurableObject {
       meta.phase === "started" &&
       path !== "/authority-view" &&
       path !== "/authority-command" &&
-      path !== "/presence"
+      path !== "/presence" &&
+      path !== "/restart-match" &&
+      path !== "/restart-round"
     )
       return json({ error: "room_already_started" }, 409);
 
@@ -615,12 +664,11 @@ export class RoomDurableObject {
     if (path === "/authority-view") {
       if (meta.phase !== "started")
         return json({ error: "room_not_started" }, 409);
-      this.markPresence(subjectId, true, Number(payload.now));
-      try {
-        await this.reconcile(meta, Number(payload.now));
-      } catch {
-        return json({ error: "authority_unavailable" }, 503);
-      }
+      // A personal projection is a read.  In particular it must not turn a
+      // wall-clock GET into a timeout/takeover transition: callers can read at
+      // any time, while connection liveness is driven by realtime heartbeats,
+      // explicit presence updates, and the Room alarm.  Advancing here also
+      // made deterministic fixtures race their controlled `now` with Date.now.
       return this.authority(meta).fetch("https://authority.internal/view", {
         method: "POST",
         body: JSON.stringify({ subjectId, now: payload.now }),
@@ -666,13 +714,65 @@ export class RoomDurableObject {
         },
       );
       if (response.ok) {
-        try {
-          await this.reconcile(meta, Number(payload.now));
-        } catch {
-          return json({ error: "authority_unavailable" }, 503);
+        // A human command must be acknowledged as soon as Authority has made
+        // it durable.  Running normal-vNext for each following bot seat in
+        // this same HTTP request can leave the browser action permanently
+        // pending on a costly position.  The alarm keeps the bot work on the
+        // same Room/Authority command path, but after this acknowledgement.
+        // Local fixtures own time explicitly.  Scheduling a Durable Object
+        // alarm with their logical timestamp would otherwise fire against the
+        // host wall clock and silently inject a P3-08 timeout takeover.
+        if (this.env.P3_TEST_MODE !== "true") {
+          // Keep the acknowledgement independent from bot thinking, but do not
+          // make a real player wait for the platform's alarm scheduling
+          // granularity. `waitUntil` executes the same durable Room ->
+          // Authority internal-command path after the response has been made
+          // durable. The alarm remains a retry/failover mechanism if this
+          // isolate is interrupted before the background reconciliation runs.
+          this.ctx.waitUntil(
+            this.reconcile(meta, Number(payload.now))
+              .then(() => this.notifyRealtime(meta.roomId))
+              .catch(() => {
+                this.ctx.storage.setAlarm(Date.now() + 1_000);
+              }),
+          );
+          this.ctx.storage.setAlarm(Number(payload.now) + 1_000);
         }
+        await this.notifyRealtime(meta.roomId).catch(() => undefined);
       }
       return response;
+    }
+    if (path === "/restart-match" || path === "/restart-round") {
+      if (meta.phase !== "started")
+        return json({ error: "room_not_started" }, 409);
+      if (subjectId !== meta.ownerId) return json({ error: "forbidden" }, 403);
+      if (
+        typeof payload.clientCommandId !== "string" ||
+        !Number.isInteger(payload.expectedEventSequence)
+      )
+        return json({ error: "invalid_payload" }, 422);
+      const initialLeader =
+        path === "/restart-match"
+          ? SEATS[crypto.getRandomValues(new Uint32Array(1))[0] % SEATS.length]
+          : undefined;
+      const response = await this.authorityPost(
+        meta,
+        path === "/restart-match" ? "new-game" : "restart-current-round",
+        {
+          commandId: payload.clientCommandId,
+          expectedEventSequence: payload.expectedEventSequence,
+          ...(initialLeader ? { initialLeader } : {}),
+          now: payload.now,
+        },
+      );
+      if (!response.ok) return response;
+      try {
+        await this.reconcile(meta, Number(payload.now));
+      } catch {
+        return json({ error: "authority_unavailable" }, 503);
+      }
+      await this.notifyRealtime(meta.roomId).catch(() => undefined);
+      return json({ room: this.projection(this.meta()!) });
     }
     if (path === "/ready") {
       this.ctx.storage.transactionSync(() => {
@@ -682,6 +782,7 @@ export class RoomDurableObject {
         );
         this.append({ type: "room.ready", subjectId, seat: ownSeat.seat });
       });
+      await this.notifyRealtime(meta.roomId).catch(() => undefined);
       return json({ room: this.projection(meta) });
     }
     if (path === "/seat-request") {
@@ -746,7 +847,17 @@ export class RoomDurableObject {
       if (subjectId !== meta.ownerId) return json({ error: "forbidden" }, 403);
       if (this.seats().some((seat) => seat.subjectId && seat.ready !== 1))
         return json({ error: "players_not_ready" }, 422);
-      if (!(await this.startAuthority(meta, Number(payload.now))))
+      const testInitialLeader =
+        this.env.P3_TEST_MODE === "true" && isSeat(payload.initialLeader)
+          ? payload.initialLeader
+          : undefined;
+      if (
+        !(await this.startAuthority(
+          meta,
+          Number(payload.now),
+          testInitialLeader,
+        ))
+      )
         return json({ error: "authority_unavailable" }, 503);
       this.ctx.storage.transactionSync(() => {
         this.ctx.storage.sql.exec(
@@ -760,6 +871,7 @@ export class RoomDurableObject {
       } catch {
         return json({ error: "authority_unavailable" }, 503);
       }
+      await this.notifyRealtime(meta.roomId).catch(() => undefined);
       return json({ room: this.projection(this.meta()!) });
     }
     return json({ error: "not_found" }, 404);

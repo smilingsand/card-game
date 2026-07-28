@@ -236,6 +236,112 @@ test("P3-05: 重复加入、越权准备/开始和未获批准换座均被拒绝
   }
 }, 30_000);
 
+test("P3-07: 只有房主可在不重新准备的情况下重开赛局或本局，旧序号不能污染新局", async () => {
+  const runtime = await createRuntime();
+  try {
+    const host = await identity(runtime, "10.0.7.1");
+    const guest = await identity(runtime, "10.0.7.2");
+    const created = await post(
+      runtime,
+      "/v1/rooms",
+      { displayName: "曹操", seat: "south" },
+      host,
+    );
+    const { roomId, inviteCode } = await created.json();
+    expect(
+      (
+        await post(
+          runtime,
+          `/v1/rooms/${roomId}/join`,
+          { displayName: "刘备", inviteCode, seat: "east" },
+          guest,
+        )
+      ).status,
+    ).toBe(200);
+    for (const cookie of [host, guest])
+      expect(
+        (await post(runtime, `/v1/rooms/${roomId}/ready`, {}, cookie)).status,
+      ).toBe(200);
+    expect(
+      (await post(runtime, `/v1/rooms/${roomId}/start`, {}, host)).status,
+    ).toBe(200);
+
+    const initialView = await runtime.dispatchFetch(
+      `https://local.test/v1/rooms/${roomId}/game-view`,
+      { headers: { cookie: host } },
+    );
+    const initial = await initialView.json();
+    const initialSequence = initial.eventSequence;
+    expect(
+      (
+        await post(
+          runtime,
+          `/v1/rooms/${roomId}/restart-match`,
+          {
+            clientCommandId: "guest-restart",
+            expectedEventSequence: initialSequence,
+          },
+          guest,
+        )
+      ).status,
+    ).toBe(403);
+
+    expect(
+      (
+        await post(
+          runtime,
+          `/v1/rooms/${roomId}/restart-match`,
+          {
+            clientCommandId: "host-restart-match",
+            expectedEventSequence: initialSequence,
+          },
+          host,
+        )
+      ).status,
+    ).toBe(200);
+    const afterMatch = await runtime.dispatchFetch(
+      `https://local.test/v1/rooms/${roomId}/game-view`,
+      { headers: { cookie: host } },
+    );
+    const matchView = await afterMatch.json();
+    expect(matchView.hand).toHaveLength(27);
+    expect(
+      (
+        await post(
+          runtime,
+          `/v1/rooms/${roomId}/restart-round`,
+          {
+            clientCommandId: "guest-restart-round",
+            expectedEventSequence: matchView.eventSequence,
+          },
+          guest,
+        )
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await post(
+          runtime,
+          `/v1/rooms/${roomId}/restart-round`,
+          {
+            clientCommandId: "host-restart-round",
+            expectedEventSequence: matchView.eventSequence,
+          },
+          host,
+        )
+      ).status,
+    ).toBe(200);
+    const afterRound = await runtime.dispatchFetch(
+      `https://local.test/v1/rooms/${roomId}/game-view`,
+      { headers: { cookie: host } },
+    );
+    expect(afterRound.status).toBe(200);
+    expect((await afterRound.json()).hand).toHaveLength(27);
+  } finally {
+    await runtime.dispose();
+  }
+}, 30_000);
+
 test("P3-05: 开始矩阵覆盖 1、2、3、4 名真人", async () => {
   const runtime = await createRuntime();
   try {

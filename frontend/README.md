@@ -31,7 +31,7 @@ cd ..\frontend
 npm.cmd run dev
 ```
 
-Vite 会把同源 `/v1` HTTP 和 WebSocket 请求代理到 `http://127.0.0.1:8787`；可用 `P3_LOCAL_WORKER_ORIGIN` 改为其他本机 Worker 地址。此流程只使用本地 SQLite-backed Durable Object，不需要 Cloudflare 账号或部署。
+Vite 会把同源 `/v1` HTTP 和 WebSocket 请求代理到 `http://127.0.0.1:8788`；`backend` 的 `npm.cmd run dev` 固定使用该端口。仅当 Worker 明确以其他端口启动时，才在启动 Vite 前设置 `P3_LOCAL_WORKER_ORIGIN`。此流程只使用本地 SQLite-backed Durable Object，不需要 Cloudflare 账号或部署。
 
 ## Vercel 预案
 
