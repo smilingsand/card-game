@@ -41,3 +41,11 @@ Replace duplicated multiplayer table presentation and interaction with the valid
   sequence and applied entity card IDs. The owner is no longer exempt from
   `expectedEventSequence`; the multiplayer client clears pending on every
   resolved request and refuses to present mismatched applied IDs as success.
+- 2026-07-28: browser diagnosis of a south leading `♦7` proved the action
+  button was disabled before its click handler because the Authority-projected
+  `legalActions` candidate catalogue did not contain that physical selection.
+  The shared multiplayer adapter now forwards any non-empty current selection
+  unchanged to Authority, which remains the sole legality decision point.
+  Browser Network evidence: `POST /actions` carried the selected 7 ID and the
+  200 ACK returned the identical `appliedCardIds`; both restart routes also
+  produced 200 ACKs and refreshed the new projection.

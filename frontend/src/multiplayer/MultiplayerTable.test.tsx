@@ -110,6 +110,25 @@ describe("共享多人牌桌适配器", () => {
     expect(onPlay).not.toHaveBeenCalled();
   });
 
+  it("领出时不把不完整的候选 legalActions 当作本地禁止出牌的规则裁决", () => {
+    const onPlay = vi.fn();
+    render(
+      <MultiplayerTable
+        game={{ ...game, legalActions: [] }}
+        seats={seats}
+        handLayout="stacked"
+        actionPending={false}
+        notice=""
+        onPlay={onPlay}
+        onPass={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "选择♠9" }));
+    expect(screen.getByRole("button", { name: "出牌" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "出牌" }));
+    expect(onPlay).toHaveBeenCalledWith(["nine-spade"]);
+  });
+
   it("renders every public action in the active trick and names only the highest play", () => {
     const botSeats: RoomProjection["seats"] = [
       { seat: "south", controller: "human", displayName: "曹操", ready: true },

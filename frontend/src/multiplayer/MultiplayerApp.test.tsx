@@ -294,7 +294,7 @@ describe("多人前端", () => {
     await screen.findByLabelText("你的手牌");
     fireEvent.click(screen.getByRole("button", { name: "选择♠A" }));
     fireEvent.click(screen.getByRole("button", { name: "选择♥A" }));
-    expect(screen.getByText("已选择 2 张牌，可以出牌。")).toBeInTheDocument();
+    expect(screen.getByText("已选择 2 张牌，可以提交给服务端判定。")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "出牌" }));
     await waitFor(() => expect(client.submitAction).toHaveBeenCalled());
     expect(vi.mocked(client.submitAction).mock.calls[0]?.[0]).toMatchObject({

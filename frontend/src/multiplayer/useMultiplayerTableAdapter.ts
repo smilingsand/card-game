@@ -161,8 +161,10 @@ export function useMultiplayerTableAdapter({
       if (canAct && !isActionPending) toggleCard(cardId, true);
     },
     onPlay: (cardIds) => {
-      if (!isActionPending && selectedPlay && sameCardIds(selectedPlay.cardIds, cardIds))
-        onSubmitPlay(cardIds);
+      // `legalActions` is an Authority-projected candidate catalogue, not a
+      // complete local rule oracle for every physical selection. Forward the
+      // user's exact IDs and let Authority perform the sole legality decision.
+      if (!isActionPending && canAct && cardIds.length > 0) onSubmitPlay(cardIds);
     },
     onPass: () => {
       if (!isActionPending && canPass) onSubmitPass();
@@ -188,7 +190,7 @@ export function useMultiplayerTableAdapter({
     highestPlay,
     currentActorSeat: game.current,
     teammateSeat: teammateOf(game.seat),
-    canPlay: canAct && !!selectedPlay,
+    canPlay: canAct && selectedCardIds.length > 0,
     canPass,
     canHint: canAct && game.legalActions?.some((action) => action.type === "play") === true,
     isActionPending,
@@ -230,8 +232,6 @@ export function useMultiplayerTableAdapter({
       ? `等待${model.playerNames[game.current]}出牌。`
       : selectedCardIds.length === 0
         ? "请选择要出的牌。"
-        : selectedPlay
-          ? `已选择 ${selectedCardIds.length} 张牌，可以出牌。`
-          : `已选择 ${selectedCardIds.length} 张牌；这不是当前可出的合法牌型。`
+        : `已选择 ${selectedCardIds.length} 张牌，可以提交给服务端判定。`
   };
 }

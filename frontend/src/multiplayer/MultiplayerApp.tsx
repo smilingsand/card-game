@@ -205,6 +205,7 @@ export function MultiplayerApp({
     const commandId = crypto.randomUUID();
     const submittedCardIds = kind === "play" ? [...(cardIds ?? [])] : [];
     setActionPending(true);
+    setNotice(kind === "pass" ? "正在提交过牌。" : "正在提交出牌。");
     void client
       .submitAction({
         roomId,
@@ -238,6 +239,7 @@ export function MultiplayerApp({
       expectedEventSequence: game.eventSequence
     };
     setRestartPending(true);
+    setNotice(kind === "match" ? "正在重新开赛。" : "正在重开本局。");
     void (kind === "match" ? client.restartMatch(input) : client.restartRound(input))
       .then(async (next) => {
         setRoom(next);
