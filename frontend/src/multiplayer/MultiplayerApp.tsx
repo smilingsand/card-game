@@ -88,6 +88,8 @@ export function MultiplayerApp({
   const [actionPending, setActionPending] = useState(false);
   const [restartPending, setRestartPending] = useState(false);
   const eventSequenceRef = useRef(0);
+  const roomPhaseRef = useRef<RoomProjection["phase"] | undefined>(undefined);
+  const projectionRefreshRef = useRef<Promise<void> | undefined>(undefined);
   const latestGameProjectionRef = useRef<{
     readonly gameId?: string;
     readonly eventSequence: number;
@@ -127,6 +129,21 @@ export function MultiplayerApp({
     setEventSequence(nextGame.eventSequence);
   }, []);
 
+  const refreshGameProjection = useCallback(
+    (id: string) => {
+      if (projectionRefreshRef.current) return projectionRefreshRef.current;
+      const refresh = client
+        .getGameView(id)
+        .then(applyGameProjection)
+        .finally(() => {
+          if (projectionRefreshRef.current === refresh) projectionRefreshRef.current = undefined;
+        });
+      projectionRefreshRef.current = refresh;
+      return refresh;
+    },
+    [applyGameProjection, client]
+  );
+
   const refreshRoom = useCallback(
     async (id: string) => {
       const next = await client.getRoom(id);
@@ -138,13 +155,16 @@ export function MultiplayerApp({
           : next
       );
       if (next.phase === "started") {
-        const nextGame = await client.getGameView(id);
-        applyGameProjection(nextGame);
+        await refreshGameProjection(id);
         setNotice((current) => (current.includes("创建或加入房间") ? "已恢复房间连接。" : current));
       }
     },
-    [applyGameProjection, client]
+    [client, refreshGameProjection]
   );
+
+  useEffect(() => {
+    roomPhaseRef.current = room?.phase;
+  }, [room?.phase]);
 
   useEffect(() => {
     if (!initialRoomId || room) return;
@@ -164,10 +184,12 @@ export function MultiplayerApp({
       onStatus: setConnection,
       onEvent: (sequence) => {
         if (Number.isInteger(sequence)) setEventSequence(sequence as number);
-        void refreshRoom(roomId).catch((error) => setNotice(messageFor(error)));
+        const refresh =
+          roomPhaseRef.current === "started" ? refreshGameProjection(roomId) : refreshRoom(roomId);
+        void refresh.catch((error) => setNotice(messageFor(error)));
       }
     });
-  }, [client, connectionEpoch, hasRoom, refreshRoom, roomId]);
+  }, [client, connectionEpoch, hasRoom, refreshGameProjection, refreshRoom, roomId]);
 
   const withSession = async (operation: () => Promise<void>) => {
     try {

@@ -209,22 +209,21 @@ export default {
         });
         return error("invalid_payload", 400);
       }
-    const decision = await rateDecision(
-      env,
-      requestRateKey(request),
-      config.rateLimitPerMinute,
-    );
-    if (!decision.allowed) {
-      securityLog("rate_limited", {
-        method: request.method,
-        route: url.pathname,
-      });
-      return error("rate_limited", 429, {
-        "retry-after": String(decision.retryAfterSeconds),
-      });
-    }
-
     if (request.method === "POST" && url.pathname === "/v1/session") {
+      const decision = await rateDecision(
+        env,
+        requestRateKey(request),
+        config.rateLimitPerMinute,
+      );
+      if (!decision.allowed) {
+        securityLog("rate_limited", {
+          method: request.method,
+          route: url.pathname,
+        });
+        return error("rate_limited", 429, {
+          "retry-after": String(decision.retryAfterSeconds),
+        });
+      }
       const subjectId = createAnonymousSubjectId();
       const token = createReconnectToken();
       const response = await callSession(env, subjectId, "issue", {
@@ -246,6 +245,25 @@ export default {
         route: url.pathname,
       });
       return authenticated;
+    }
+    const isRealtimeProjectionRead =
+      request.method === "GET" &&
+      /^\/v1\/rooms\/[A-Za-z0-9_-]{22}\/(view|game-view)$/u.test(url.pathname);
+    const decision = await rateDecision(
+      env,
+      `subject:${authenticated.subjectId}`,
+      isRealtimeProjectionRead
+        ? Math.max(config.rateLimitPerMinute, 1_000)
+        : config.rateLimitPerMinute,
+    );
+    if (!decision.allowed) {
+      securityLog("rate_limited", {
+        method: request.method,
+        route: url.pathname,
+      });
+      return error("rate_limited", 429, {
+        "retry-after": String(decision.retryAfterSeconds),
+      });
     }
     const realtimeRoom = /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/realtime$/u.exec(
       url.pathname,

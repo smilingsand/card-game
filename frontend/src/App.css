@@ -432,6 +432,13 @@ button:disabled {
   align-content: end;
   padding: 0.75rem;
 }
+.human-seat > section[aria-label="操作"] {
+  position: absolute;
+  bottom: 14rem;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+}
 .selected-play-status {
   min-height: 1.25rem;
   margin: 0;
@@ -520,6 +527,10 @@ button:disabled {
 }
 
 @media (max-width: 720px) {
+  .human-seat > section[aria-label="操作"] {
+    position: static;
+    transform: none;
+  }
   main {
     padding: max(0.5rem, env(safe-area-inset-top)) max(0.5rem, env(safe-area-inset-right))
       max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));

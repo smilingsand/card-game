@@ -7,12 +7,16 @@
 - `Room.reconcile()` 在当前局完成时调用既有 Authority `/next-round`，保留房间、身份、座位和比赛 `gameId`，并推进 `roundNumber`/事件序号后重新调度下一局。
 - 已消除已恢复房间仍显示“请选择名称后创建或加入房间”的初始 notice 残留。
 - ADR-0033 替代 ADR-0030 中在线真人 30 秒回合托管：在线真人不设出牌超时；仅在心跳确认断线、当前回合宽限结束后临时托管一个动作。bot task 继续使用独立短思考延迟。
+- 已开局 WebSocket 通知不再先请求房间 `/view` 再请求个人投影；前端合并并发 `game-view` 刷新，避免机器人连续动作造成读取放大。
+- 已认证请求按 `subjectId` 限流；个人 `view/game-view` 的实时读取额度至少为 1000/min，避免本地多客户端共用 IP 的 30/min 安全阈值阻塞牌局。
+- 桌面端行动按钮已脱离手牌文档流，固定在当前手牌上方；移动端仍使用原响应式流式布局。
 
 ## 本次测试
 
 - `frontend`: format check、lint、typecheck、54 项单测、build 均通过。
-- `backend`: typecheck、`test:p3-08`（4 项）和 `test:p4-01`（3 项）通过。
+- `backend`: typecheck、`test:p3-08`（4 项）和 `test:p4-01`（4 项）通过。
 - P4-01 新增受控完成局测试：同一比赛 `gameId` 保留、事件序号递增、`roundNumber` 进入 2、上一局完成顺序和公开摘要存在。
+- P4-01 新增 80 次个人 `game-view` 读取回归：在基础 30/min 配置下全部成功，防止 `rate_limited` 阻塞实时牌桌。
 - `test:core` 通过。
 
 ## 已知基线问题

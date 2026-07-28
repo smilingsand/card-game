@@ -31,7 +31,7 @@ const fixtureSeeds = [
   ],
 ];
 
-async function runtime(seed) {
+async function runtime(seed, rateLimitPerMinute = "1000") {
   const directory = await mkdtemp(join(tmpdir(), "p4-01-lifecycle-"));
   temporaryPaths.push(directory);
   const scriptPath = join(directory, "worker.mjs");
@@ -64,7 +64,7 @@ async function runtime(seed) {
     bindings: {
       ENVIRONMENT: "local",
       SESSION_TTL_SECONDS: "3600",
-      RATE_LIMIT_PER_MINUTE: "1000",
+      RATE_LIMIT_PER_MINUTE: rateLimitPerMinute,
       ROOM_SEED_ENCRYPTION_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       ROOM_INVITE_HASH_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       P3_TEST_MODE: "true",
@@ -518,6 +518,27 @@ test("P4-01: 完成一局后保留房间并由 Room 自动进入带公开赛局�
         }),
       ]),
     );
+  } finally {
+    await instance.dispose();
+  }
+}, 60_000);
+
+test("P4-01: 高频个人投影刷新按身份限流，不会耗尽通用 30/min 配额", async () => {
+  const instance = await runtime(fixtureSeeds[0][1], "30");
+  try {
+    const now = Date.now();
+    const { roomId, cookie } = await startSouthHuman(instance, now);
+    const responses = await Promise.all(
+      Array.from({ length: 80 }, () =>
+        instance.dispatchFetch(
+          `https://local.test/v1/rooms/${roomId}/game-view`,
+          {
+            headers: { cookie },
+          },
+        ),
+      ),
+    );
+    expect(responses.every((response) => response.status === 200)).toBe(true);
   } finally {
     await instance.dispose();
   }
