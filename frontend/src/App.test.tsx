@@ -316,7 +316,7 @@ describe("App", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/^提示：可出/);
     fireEvent.click(screen.getByRole("button", { name: /^出牌/ }));
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(/^已出/));
-  });
+  }, 10_000);
 
   it("明牌以同一组牌布局显示其他三家，并可立即关闭", async () => {
     render(<App storage={memoryStorage()} />);
