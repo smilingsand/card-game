@@ -142,3 +142,15 @@ changing table data, rules, or multiplayer callbacks:
 
 The responsive grid explicitly returns side public actions to normal flow at
 720px and below.
+
+### Follow-up: annotated desktop spacing refinement
+
+The next annotated desktop review identified two remaining alignment issues.
+The shared CSS now aligns the public pass word to the top edge of the
+equivalent public-card area, rather than to its bottom edge. The human hand
+area is lowered independently of the action controls; the controls move down
+slightly and the hand, player identity and count move further down. The hand
+arrangement help now uses the same centred maximum width as the hand area, so
+its left edge tracks the hand instead of the full table edge. This remains a
+desktop-only presentation adjustment and does not change game state,
+multiplayer callbacks, bot scheduling or responsive behaviour.
