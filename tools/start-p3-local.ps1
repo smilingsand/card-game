@@ -112,29 +112,30 @@ if ($StopOnly) {
 }
 
 $backend = $null
-$frontend = $null
 try {
   $backend = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/d', '/c', 'npm.cmd run dev') -WorkingDirectory (Join-Path $repositoryRoot 'backend') -NoNewWindow -PassThru
-  $frontend = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/d', '/c', 'npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort') -WorkingDirectory (Join-Path $repositoryRoot 'frontend') -NoNewWindow -PassThru
 
   Write-Host 'P4 local services are starting: frontend http://127.0.0.1:5173, backend http://127.0.0.1:8788.'
-  Write-Host 'Press Ctrl+C in this window to stop both process trees. Use -StopOnly after a forced terminal close.'
+  Write-Host 'Vite runs in this foreground terminal. Ctrl+C stops Vite, then this script stops the backend process tree.'
+  Write-Host 'Use -StopOnly only after a forced terminal close.'
 
-  while (-not $backend.HasExited -and -not $frontend.HasExited) {
-    Start-Sleep -Seconds 1
-    $backend.Refresh()
-    $frontend.Refresh()
+  Push-Location (Join-Path $repositoryRoot 'frontend')
+  try {
+    & cmd.exe /d /c 'npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort'
+    if ($LASTEXITCODE -ne 0) {
+      throw "Frontend development process exited with code $LASTEXITCODE."
+    }
+  }
+  finally {
+    Pop-Location
   }
 
+  $backend.Refresh()
   if ($backend.HasExited) {
     throw "Backend development process exited early (exit code $($backend.ExitCode))."
   }
-  throw "Frontend development process exited early (exit code $($frontend.ExitCode))."
 }
 finally {
-  if ($frontend) {
-    Stop-ProcessTree -ProcessId $frontend.Id
-  }
   if ($backend) {
     Stop-ProcessTree -ProcessId $backend.Id
   }
