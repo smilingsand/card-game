@@ -126,3 +126,19 @@ recorded only an internal reference rather than a project stack trace. The
 registry offered no later patch release, so the dependency was returned to
 4.113.0. Do not use 4.114.0 for this local Durable Object workflow until a
 Wrangler release fixes that ProxyWorker crash.
+
+## Follow-up: shared table desktop spacing
+
+The shared table CSS was adjusted from the P4 multiplayer screenshot without
+changing table data, rules, or multiplayer callbacks:
+
+- desktop table height increased to reserve a larger human-hand lower half;
+- top public actions move upward and pass text cannot wrap vertically;
+- centre status moves below the top public-action area;
+- east/west public actions appear inside the table, beside their card-count
+  badges rather than beneath them;
+- the human hand, identity and count move down below the controls, while the
+  hand-help copy aligns to the hand-area left edge.
+
+The responsive grid explicitly returns side public actions to normal flow at
+720px and below.

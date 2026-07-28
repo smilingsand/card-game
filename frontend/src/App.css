@@ -112,7 +112,8 @@ button:disabled {
 
 .table {
   position: relative;
-  min-height: min(48.75rem, calc(100dvh - 8rem));
+  /* The lower half needs its own action and hand area. */
+  min-height: min(52rem, calc(100dvh - 6.5rem));
   margin: 1rem 0;
   border: 18px solid #77bfd5;
   border-radius: 2.25rem;
@@ -195,7 +196,7 @@ button:disabled {
 }
 .table-info {
   left: 50%;
-  top: 35%;
+  top: 39%;
   width: 16rem;
   transform: translate(-50%, -50%);
   color: #134860;
@@ -236,16 +237,16 @@ button:disabled {
   justify-items: center;
   min-height: 2rem;
 }
-.show-all-hands .east-actions,
-.show-all-hands .west-actions {
+.east .seat-actions,
+.west .seat-actions {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
 }
-.show-all-hands .east-actions {
+.east .seat-actions {
   right: calc(100% + 0.65rem);
 }
-.show-all-hands .west-actions {
+.west .seat-actions {
   left: calc(100% + 0.65rem);
 }
 .public-action {
@@ -256,6 +257,7 @@ button:disabled {
 }
 .pass-word {
   display: block;
+  white-space: nowrap;
   line-height: 1;
   color: #fff1a9;
   font-size: 1.8rem;
@@ -379,8 +381,9 @@ button:disabled {
    human hand and the action controls. */
 .north .seat-actions {
   position: absolute;
-  top: 5.75rem;
+  top: 4.65rem;
   left: 50%;
+  min-width: max-content;
   transform: translateX(-50%);
 }
 
@@ -435,7 +438,7 @@ button:disabled {
 .human-seat {
   position: absolute;
   right: 1.25rem;
-  bottom: 0.25rem;
+  bottom: -0.7rem;
   left: 1.25rem;
   display: grid;
   gap: 0.25rem;
@@ -444,7 +447,7 @@ button:disabled {
 }
 .human-seat > section[aria-label="操作"] {
   position: absolute;
-  bottom: 10rem;
+  bottom: 11rem;
   left: 50%;
   z-index: 2;
   transform: translateX(-50%);
@@ -525,6 +528,7 @@ button:disabled {
   outline-offset: 2px;
 }
 #hand-arrangement-help {
+  justify-self: start;
   margin: 0;
   color: #405b67;
   font-size: 0.9rem;
@@ -537,6 +541,11 @@ button:disabled {
 }
 
 @media (max-width: 720px) {
+  .east .seat-actions,
+  .west .seat-actions {
+    position: static;
+    transform: none;
+  }
   .human-seat > section[aria-label="操作"] {
     position: static;
     transform: none;
