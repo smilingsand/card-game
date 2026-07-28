@@ -12,6 +12,7 @@
     "test:p3-09": "node ../frontend/node_modules/vitest/vitest.mjs run test/p3-09-security.local.test.mjs --config ../frontend/vite.config.ts --configLoader runner",
     "test:p3-10": "node ../frontend/node_modules/vitest/vitest.mjs run test/p3-10-operations.local.test.mjs --config ../frontend/vite.config.ts --configLoader runner",
     "test:p3-11": "node ../frontend/node_modules/vitest/vitest.mjs run test/p3-11-e2e-chaos.local.test.mjs --config ../frontend/vite.config.ts --configLoader runner",
+    "test:p4-01": "node ../frontend/node_modules/vitest/vitest.mjs run test/p4-01-single-human-bot-lifecycle.local.test.mjs --config ../frontend/vite.config.ts --configLoader runner",
     "typecheck": "..\\frontend\\node_modules\\.bin\\tsc.cmd -p tsconfig.json --noEmit --pretty false",
     "dev": "wrangler dev --local --port 8788",
     "test:local": "wrangler dev --local --test-scheduled"

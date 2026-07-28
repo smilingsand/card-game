@@ -584,6 +584,7 @@ export class AuthorityGameDurableObject {
       try {
         const session = await this.restore(meta);
         return json({
+          gameId: meta.gameId,
           current: session.game.state.current,
           eventSequence: session.stream.events.length - 1,
           turnStartedAt: this.turnStartedAt(),
@@ -620,6 +621,41 @@ export class AuthorityGameDurableObject {
     // without adding a client-facing audit or state-mutation API.
     if (this.env.P3_TEST_MODE === "true" && path === "/internal-audit")
       return json({ gameId: meta.gameId, ...(await this.auditSeed(meta)) });
+    if (this.env.P3_TEST_MODE === "true" && path === "/internal-action-trace") {
+      const commands = [
+        ...this.ctx.storage.sql.exec<CommandRow>(
+          "SELECT command_id as commandId, response FROM commands ORDER BY command_id",
+        ),
+      ].map((command) => {
+        const response = JSON.parse(command.response) as {
+          readonly acknowledged?: boolean;
+          readonly eventSequence?: number;
+        };
+        return {
+          commandId: command.commandId,
+          acknowledged: response.acknowledged === true,
+          eventSequence: response.eventSequence,
+        };
+      });
+      const actions = [
+        ...this.ctx.storage.sql.exec<EventRow>(
+          "SELECT sequence, payload FROM events ORDER BY sequence",
+        ),
+      ].flatMap((row) => {
+        const stored = JSON.parse(row.payload) as StoredEvent;
+        if (stored.kind !== "action") return [];
+        return [
+          {
+            eventSequence: row.sequence,
+            actorSeat: stored.action.actor,
+            actionType: stored.action.type,
+            appliedCardIds:
+              stored.action.type === "play" ? stored.action.cardIds : [],
+          },
+        ];
+      });
+      return json({ gameId: meta.gameId, commands, actions });
+    }
     if (this.env.P3_TEST_MODE === "true" && path === "/internal-backup") {
       const roomId = meta.ownerId.startsWith("room:")
         ? meta.ownerId.slice("room:".length)

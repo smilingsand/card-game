@@ -52,6 +52,7 @@ interface TakeoverRow extends Record<string, SqlStorageValue> {
 }
 
 interface TurnStatus {
+  readonly gameId: string;
   readonly current: Seat;
   readonly eventSequence: number;
   readonly turnStartedAt: number;
@@ -160,6 +161,9 @@ export class RoomDurableObject {
     this.ctx.storage.sql.exec(
       "CREATE TABLE IF NOT EXISTS bot_dispatch_clock (id INTEGER PRIMARY KEY CHECK(id=1), dispatched_at INTEGER NOT NULL)",
     );
+    this.ctx.storage.sql.exec(
+      "CREATE TABLE IF NOT EXISTS diagnostic_events (sequence INTEGER PRIMARY KEY AUTOINCREMENT, payload TEXT NOT NULL)",
+    );
   }
 
   private meta(): MetaRow | undefined {
@@ -186,6 +190,21 @@ export class RoomDurableObject {
       "INSERT INTO room_events (payload) VALUES (?)",
       JSON.stringify(event),
     );
+  }
+  /** Test-only, local diagnostic trail. It is never reachable in production. */
+  private diagnostic(
+    meta: MetaRow,
+    event: string,
+    details: Record<string, unknown>,
+  ): void {
+    if (this.env.P3_TEST_MODE !== "true") return;
+    this.ctx.storage.sql.exec(
+      "INSERT INTO diagnostic_events (payload) VALUES (?)",
+      JSON.stringify({ roomId: meta.roomId, event, ...details }),
+    );
+  }
+  private diagnosticTurnGeneration(status: TurnStatus): string {
+    return `${status.gameId}:${status.eventSequence}:${status.current}`;
   }
 
   /** Broadcasts only a public invalidation signal; each socket reloads its own projection. */
@@ -292,6 +311,12 @@ export class RoomDurableObject {
       seat,
       enabled ? 1 : 0,
     );
+    this.diagnostic(meta, "takeover.changed", {
+      logicalSeat: seat,
+      controllerMode: enabled ? "bot" : "human",
+      takeoverEnabled: enabled,
+      at: now,
+    });
   }
   private scheduleReconcile(
     meta: MetaRow,
@@ -395,6 +420,19 @@ export class RoomDurableObject {
     if (!statusResponse.ok) throw new Error("authority_unavailable");
     let status = (await statusResponse.json()) as TurnStatus;
     if (status.completed) return;
+    const currentSeat = this.seats().find(
+      (seat) => seat.seat === status.current,
+    )!;
+    this.diagnostic(meta, "reconcile.enter", {
+      gameId: status.gameId,
+      turnGeneration: this.diagnosticTurnGeneration(status),
+      currentActorSeat: status.current,
+      controllerMode: status.botControlled ? "bot" : "human",
+      controllerSubjectId: currentSeat.subjectId,
+      authorityEventSequence: status.eventSequence,
+      takeoverDeadline: status.turnStartedAt + 30_000,
+      at: now,
+    });
     for (const seat of this.seats()) {
       if (!seat.subjectId) {
         if (!this.takeover(seat.seat)?.enabled)
@@ -430,6 +468,15 @@ export class RoomDurableObject {
     // action remains an idempotent internal Authority command; no rule state is
     // modified in Room.
     if ((this.botDispatchedAt() ?? Number.NEGATIVE_INFINITY) >= now) {
+      this.diagnostic(meta, "bot.dispatch.suppressed", {
+        gameId: status.gameId,
+        turnGeneration: this.diagnosticTurnGeneration(status),
+        currentActorSeat: status.current,
+        authorityEventSequence: status.eventSequence,
+        botDispatchedAt: this.botDispatchedAt(),
+        scheduledAt: status.turnStartedAt + 30_000,
+        at: now,
+      });
       this.scheduleReconcile(meta, now, status);
       return;
     }
@@ -448,6 +495,18 @@ export class RoomDurableObject {
       const command = await this.authorityPost(meta, "bot-command", {
         commandId: `bot-${status.current}-${status.eventSequence + 1}`,
         now,
+      });
+      this.diagnostic(meta, "bot.dispatch.executed", {
+        gameId: status.gameId,
+        turnGeneration: this.diagnosticTurnGeneration(status),
+        currentActorSeat: status.current,
+        controllerMode: "bot",
+        controllerSubjectId: currentSeat.subjectId,
+        commandId: `bot-${status.current}-${status.eventSequence + 1}`,
+        expectedEventSequence: status.eventSequence,
+        scheduledAt: now,
+        executedAt: now,
+        acknowledgementStatus: command.status,
       });
       if (!command.ok) throw new Error("bot_command_unavailable");
       this.markBotDispatchedAt(now);
@@ -599,6 +658,7 @@ export class RoomDurableObject {
       path !== "/authority-view" &&
       path !== "/authority-command" &&
       path !== "/presence" &&
+      path !== "/internal-diagnostics" &&
       path !== "/restart-match" &&
       path !== "/restart-round"
     )
@@ -674,6 +734,20 @@ export class RoomDurableObject {
         body: JSON.stringify({ subjectId, now: payload.now }),
       });
     }
+    if (path === "/internal-diagnostics") {
+      if (this.env.P3_TEST_MODE !== "true")
+        return json({ error: "not_found" }, 404);
+      return json({
+        entries: [
+          ...this.ctx.storage.sql.exec<{ sequence: number; payload: string }>(
+            "SELECT sequence, payload FROM diagnostic_events ORDER BY sequence",
+          ),
+        ].map((row) => ({
+          sequence: row.sequence,
+          ...JSON.parse(row.payload),
+        })),
+      });
+    }
     if (path === "/authority-command") {
       if (meta.phase !== "started")
         return json({ error: "room_not_started" }, 409);
@@ -694,6 +768,15 @@ export class RoomDurableObject {
       )
         return json({ error: "invalid_payload" }, 422);
       this.markPresence(subjectId, true, Number(payload.now));
+      this.diagnostic(meta, "human.command.received", {
+        commandId: payload.commandId,
+        expectedEventSequence: payload.expectedEventSequence,
+        submittedCardIds: cardIds ?? [],
+        currentActorSeat: ownSeat.seat,
+        controllerMode: "human",
+        controllerSubjectId: subjectId,
+        at: Number(payload.now),
+      });
       try {
         await this.reconcile(meta, Number(payload.now));
       } catch {
@@ -714,6 +797,16 @@ export class RoomDurableObject {
         },
       );
       if (response.ok) {
+        const acknowledged = (await response.clone().json()) as {
+          readonly eventSequence?: number;
+        };
+        this.diagnostic(meta, "human.command.acknowledged", {
+          commandId: payload.commandId,
+          expectedEventSequence: payload.expectedEventSequence,
+          authorityEventSequence: acknowledged.eventSequence,
+          acknowledgementStatus: response.status,
+          at: Number(payload.now),
+        });
         // A human command must be acknowledged as soon as Authority has made
         // it durable.  Running normal-vNext for each following bot seat in
         // this same HTTP request can leave the browser action permanently
@@ -739,7 +832,13 @@ export class RoomDurableObject {
           this.ctx.storage.setAlarm(Number(payload.now) + 1_000);
         }
         await this.notifyRealtime(meta.roomId).catch(() => undefined);
-      }
+      } else
+        this.diagnostic(meta, "human.command.rejected", {
+          commandId: payload.commandId,
+          expectedEventSequence: payload.expectedEventSequence,
+          acknowledgementStatus: response.status,
+          at: Number(payload.now),
+        });
       return response;
     }
     if (path === "/restart-match" || path === "/restart-round") {
@@ -765,7 +864,29 @@ export class RoomDurableObject {
           now: payload.now,
         },
       );
-      if (!response.ok) return response;
+      if (!response.ok) {
+        this.diagnostic(meta, "restart.rejected", {
+          restartKind: path,
+          commandId: payload.clientCommandId,
+          expectedEventSequence: payload.expectedEventSequence,
+          acknowledgementStatus: response.status,
+          at: Number(payload.now),
+        });
+        return response;
+      }
+      const restart = (await response.clone().json()) as {
+        readonly gameId?: string;
+        readonly eventSequence?: number;
+      };
+      this.diagnostic(meta, "restart.acknowledged", {
+        restartKind: path,
+        commandId: payload.clientCommandId,
+        expectedEventSequence: payload.expectedEventSequence,
+        gameId: restart.gameId,
+        authorityEventSequence: restart.eventSequence,
+        acknowledgementStatus: response.status,
+        at: Number(payload.now),
+      });
       try {
         await this.reconcile(meta, Number(payload.now));
       } catch {

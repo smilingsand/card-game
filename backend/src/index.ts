@@ -274,7 +274,7 @@ export default {
     // runtimes. P3-05 public traffic enters only through room lifecycle APIs.
     const authority =
       env.P3_TEST_MODE === "true"
-        ? /^\/v1\/authority\/([A-Za-z0-9_-]{1,128})(?:\/(command|view|replay|new-game|next-round|backup|restore|corrupt|corrupt-event-gap))?$/u.exec(
+        ? /^\/v1\/authority\/([A-Za-z0-9_-]{1,128})(?:\/(command|view|replay|new-game|next-round|backup|restore|corrupt|corrupt-event-gap|action-trace))?$/u.exec(
             url.pathname,
           )
         : undefined;
@@ -290,7 +290,10 @@ export default {
             action === "restore" ||
             action === "corrupt" ||
             action === "corrupt-event-gap")) ||
-        (request.method === "GET" && (action === "view" || action === "replay"))
+        (request.method === "GET" &&
+          (action === "view" ||
+            action === "replay" ||
+            action === "action-trace"))
       ) {
         let body: Record<string, unknown> = {};
         if (request.method === "POST") body = postBody ?? {};
@@ -307,7 +310,9 @@ export default {
                   ? "internal-corrupt-snapshot"
                   : action === "corrupt-event-gap"
                     ? "internal-corrupt-event-gap"
-                    : (action ?? "initialize")),
+                    : action === "action-trace"
+                      ? "internal-action-trace"
+                      : (action ?? "initialize")),
           {
             method: "POST",
             body: JSON.stringify({
@@ -321,7 +326,7 @@ export default {
       }
     }
     const roomMatch =
-      /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/(join|ready|start|restart-match|restart-round|view|game-view|actions|presence|seat-requests|seat-requests\/approve)$/u.exec(
+      /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/(join|ready|start|restart-match|restart-round|view|game-view|actions|presence|seat-requests|seat-requests\/approve|diagnostics)$/u.exec(
         url.pathname,
       );
     const isRoomCreate =
@@ -354,7 +359,9 @@ export default {
                 ? "authority-view"
                 : action === "presence"
                   ? "presence"
-                  : action;
+                  : action === "diagnostics" && env.P3_TEST_MODE === "true"
+                    ? "internal-diagnostics"
+                    : action;
       return room.fetch(`https://room.internal/${internalAction}`, {
         method: "POST",
         body: JSON.stringify({
