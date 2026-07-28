@@ -34,3 +34,40 @@ anonymous sessions and rooms; it is not source code and is not committed.
 The fresh environment remains running for browser acceptance.  If this symptom
 recurs, stop the local environment first and preserve/move the state directory
 before deleting it so the state can be investigated.
+
+## Follow-up: 2026-07-29 local busy-loop diagnosis
+
+The slow/disconnected symptom recurred after an earlier recovery.  It was
+reproduced even for `GET /health`, so it was not caused by Room, Authority,
+bot strategy, or the frontend click path.
+
+Evidence from the affected local runtime:
+
+- the non-listening Wrangler runtime consumed about 4.0 CPU seconds during a
+  five-second idle sample;
+- `GET /health` took about 10.7 seconds;
+- after stopping the runtime and moving its state to the ignored recoverable
+  backup `temp/p4-wrangler-state-backup-20260729-015113`, a fresh state had
+  zero CPU growth across a three-second idle sample and `/health` returned in
+  67 ms.
+
+The recovery command is now responsible for terminating both recorded process
+trees and port listeners, and it verifies that ports 5173 and 8788 are free.
+It treats an already-exited recorded PID as a harmless race, but reports a
+real `taskkill` failure.  The multiplayer lobby also disables a create/join/
+ready/start operation while its prior HTTP operation is pending, preventing a
+slow local backend from generating a second anonymous session or room.
+
+Fresh P4 smoke after this second recovery:
+
+- session: 201 in 1012 ms;
+- room create: 201 in 618 ms;
+- ready: 200 in 375 ms;
+- start: 200 in 711 ms;
+- personal `game-view`: 200 in 509 ms.
+
+For a clean manual run, use `npm.cmd run p4:stop`, then `npm.cmd run p4:dev`
+from the repository root.  Do not separately run `wrangler dev` or `vite`;
+doing so can leave an independent `workerd` tree and reintroduce SQLite/state
+contention.  If the idle CPU or `/health` delay recurs, stop first and archive
+the local-only state again before investigating it.

@@ -16,20 +16,30 @@ param(
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $ports = @(5173, 8788)
+$processStatePath = Join-Path $repositoryRoot 'backend\.wrangler\p4-dev-process.json'
 
 function Get-ListeningProcessIds {
   param([Parameter(Mandatory = $true)][int]$Port)
 
-  $pattern = "^\s*TCP\s+\S+:$Port\s+\S+\s+LISTENING\s+(\d+)\s*$"
-  return @(
-    netstat.exe -ano -p tcp |
-      ForEach-Object {
-        if ($_ -match $pattern) {
-          [int]$Matches[1]
-        }
-      } |
-      Sort-Object -Unique
-  )
+  try {
+    return @(
+      Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction Stop |
+        ForEach-Object { [int]$_.OwningProcess } |
+        Sort-Object -Unique
+    )
+  }
+  catch {
+    $pattern = "^\s*TCP\s+\S+:$Port\s+\S+\s+LISTENING\s+(\d+)\s*$"
+    return @(
+      netstat.exe -ano -p tcp |
+        ForEach-Object {
+          if ($_ -match $pattern) {
+            [int]$Matches[1]
+          }
+        } |
+        Sort-Object -Unique
+    )
+  }
 }
 
 function Stop-ProcessTree {
@@ -40,11 +50,82 @@ function Stop-ProcessTree {
   }
 
   Write-Host "Stopping PID $ProcessId and its child process tree."
-  & taskkill.exe /PID $ProcessId /T /F | Out-Host
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $taskkillOutput = & taskkill.exe /PID $ProcessId /T /F 2>&1
+    $taskkillExitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+  $taskkillOutput | Out-Host
+  if ($taskkillExitCode -ne 0) {
+    if (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) {
+      return
+    }
+    throw "Unable to stop PID $ProcessId (taskkill exit code $taskkillExitCode). Run 'npm.cmd run p4:stop' from an elevated terminal, then retry."
+  }
+}
+
+function Get-RecordedBackendProcessId {
+  if (-not (Test-Path -LiteralPath $processStatePath)) {
+    return $null
+  }
+  try {
+    $record = Get-Content -LiteralPath $processStatePath -Raw | ConvertFrom-Json
+    if ($record.backendProcessId -is [int] -or $record.backendProcessId -is [long]) {
+      return [int]$record.backendProcessId
+    }
+  }
+  catch {
+    Write-Warning 'Ignoring unreadable P4 local process record.'
+  }
+  return $null
+}
+
+function Remove-ProcessRecord {
+  Remove-Item -LiteralPath $processStatePath -Force -ErrorAction SilentlyContinue
+}
+
+function Get-DevRootProcessIds {
+  $processById = @{}
+  try {
+    Get-CimInstance Win32_Process | ForEach-Object {
+      $processById[[int]$_.ProcessId] = $_
+    }
+  }
+  catch {
+    Write-Warning 'Unable to inspect process parents; falling back to fixed-port listeners.'
+    return @()
+  }
+
+  $matches = @(
+    $processById.Values | Where-Object {
+      $_.Name -in @('cmd.exe', 'node.exe') -and
+      [string]$_.CommandLine -match '(?i)(?:wrangler(?:\.js)?\s+dev\b.*--port\s+8788|vite(?:\.js)?\b.*--port\s+5173)'
+    }
+  )
+  $matchedIds = @{}
+  foreach ($process in $matches) {
+    $matchedIds[[int]$process.ProcessId] = $true
+  }
+  return @(
+    $matches |
+      Where-Object { -not $matchedIds.ContainsKey([int]$_.ParentProcessId) } |
+      ForEach-Object { [int]$_.ProcessId }
+  )
 }
 
 function Clear-LocalP3Ports {
   $listenerProcessIds = @{}
+  $recordedBackendProcessId = Get-RecordedBackendProcessId
+  if ($recordedBackendProcessId) {
+    $listenerProcessIds[$recordedBackendProcessId] = $true
+  }
+  foreach ($processId in Get-DevRootProcessIds) {
+    $listenerProcessIds[$processId] = $true
+  }
   foreach ($port in $ports) {
     foreach ($processId in Get-ListeningProcessIds -Port $port) {
       # Do not inspect Win32_Process here: that WMI class is unavailable to
@@ -56,6 +137,7 @@ function Clear-LocalP3Ports {
   foreach ($processId in $listenerProcessIds.Keys) {
     Stop-ProcessTree -ProcessId $processId
   }
+  Remove-ProcessRecord
 
   Start-Sleep -Milliseconds 300
   foreach ($port in $ports) {
@@ -75,7 +157,13 @@ if ($StopOnly) {
 
 $backend = $null
 try {
-  $backend = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/d', '/c', 'npm.cmd run dev') -WorkingDirectory (Join-Path $repositoryRoot 'backend') -NoNewWindow -PassThru
+  # Wrangler enables Local Explorer automatically when it detects an AI agent.
+  # That explorer starts a second workerd which can consume a CPU core and
+  # stall the actual local Worker.  The P4 runtime has no dependency on it.
+  $backend = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/d', '/c', 'set "X_LOCAL_EXPLORER=false" && npm.cmd run dev') -WorkingDirectory (Join-Path $repositoryRoot 'backend') -NoNewWindow -PassThru
+  @{ backendProcessId = $backend.Id; startedAt = [DateTime]::UtcNow.ToString('o') } |
+    ConvertTo-Json -Compress |
+    Set-Content -LiteralPath $processStatePath -Encoding utf8
 
   Write-Host 'P4 local services are starting: frontend http://127.0.0.1:5173, backend http://127.0.0.1:8788.'
   Write-Host 'Vite runs in this foreground terminal. Ctrl+C stops Vite, then this script stops the backend process tree.'
@@ -101,4 +189,5 @@ finally {
   if ($backend) {
     Stop-ProcessTree -ProcessId $backend.Id
   }
+  Remove-ProcessRecord
 }

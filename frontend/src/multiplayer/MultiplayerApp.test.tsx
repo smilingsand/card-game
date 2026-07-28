@@ -88,6 +88,26 @@ describe("多人前端", () => {
     );
   });
 
+  it("大厅操作进行中不会重复创建 session 或房间", async () => {
+    const client = fakeClient();
+    let resolveRoom:
+      ((value: { readonly room: RoomProjection; readonly inviteCode: string }) => void) | undefined;
+    vi.mocked(client.createRoom).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRoom = resolve;
+        })
+    );
+    render(<MultiplayerApp client={client} onExit={() => undefined} />);
+    const create = screen.getByRole("button", { name: "创建房间" });
+    fireEvent.click(create);
+    fireEvent.click(create);
+    await waitFor(() => expect(client.createSession).toHaveBeenCalledTimes(1));
+    expect(client.createRoom).toHaveBeenCalledTimes(1);
+    resolveRoom?.({ room, inviteCode: "invite-123" });
+    await screen.findByLabelText("多人房间");
+  });
+
   it("支持预设与自定义名称，且联机页面不接收本地存档", () => {
     render(<MultiplayerApp client={fakeClient()} onExit={() => undefined} />);
     fireEvent.change(screen.getByLabelText("玩家名称"), { target: { value: "custom" } });

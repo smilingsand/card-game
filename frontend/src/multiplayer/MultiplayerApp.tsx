@@ -84,12 +84,14 @@ export function MultiplayerApp({
     "idle"
   );
   const [connectionEpoch, setConnectionEpoch] = useState(0);
+  const [lobbyPending, setLobbyPending] = useState(false);
   const [eventSequence, setEventSequence] = useState(0);
   const [actionPending, setActionPending] = useState(false);
   const [restartPending, setRestartPending] = useState(false);
   const eventSequenceRef = useRef(0);
   const roomPhaseRef = useRef<RoomProjection["phase"] | undefined>(undefined);
   const projectionRefreshRef = useRef<Promise<void> | undefined>(undefined);
+  const lobbyPendingRef = useRef(false);
   const latestGameProjectionRef = useRef<{
     readonly gameId?: string;
     readonly eventSequence: number;
@@ -192,12 +194,18 @@ export function MultiplayerApp({
   }, [client, connectionEpoch, hasRoom, refreshGameProjection, refreshRoom, roomId]);
 
   const withSession = async (operation: () => Promise<void>) => {
+    if (lobbyPendingRef.current) return;
+    lobbyPendingRef.current = true;
+    setLobbyPending(true);
     try {
       await client.createSession();
       await operation();
     } catch (error) {
       setNotice(messageFor(error));
       setConnection("error");
+    } finally {
+      lobbyPendingRef.current = false;
+      setLobbyPending(false);
     }
   };
 
@@ -218,7 +226,10 @@ export function MultiplayerApp({
       setNotice("已加入房间，等待其他玩家准备。");
     });
 
-  const run = (operation: () => Promise<RoomProjection>, success: string) =>
+  const run = (operation: () => Promise<RoomProjection>, success: string) => {
+    if (lobbyPendingRef.current) return;
+    lobbyPendingRef.current = true;
+    setLobbyPending(true);
     void operation()
       .then(async (next) => {
         setRoom(next);
@@ -228,7 +239,12 @@ export function MultiplayerApp({
         }
         setNotice(success);
       })
-      .catch((error) => setNotice(messageFor(error)));
+      .catch((error) => setNotice(messageFor(error)))
+      .finally(() => {
+        lobbyPendingRef.current = false;
+        setLobbyPending(false);
+      });
+  };
 
   const submit = (kind: "pass" | "play", cardIds?: readonly string[]) => {
     if (!roomId || !game || actionPending) return;
@@ -385,7 +401,7 @@ export function MultiplayerApp({
               ))}
             </select>
           </label>
-          <button type="button" onClick={create} disabled={!name}>
+          <button type="button" onClick={create} disabled={!name || lobbyPending}>
             创建房间
           </button>
           <label>
@@ -404,7 +420,11 @@ export function MultiplayerApp({
               onChange={(event) => setInviteCode(event.target.value.trim())}
             />
           </label>
-          <button type="button" onClick={join} disabled={!name || !roomId || !inviteCode}>
+          <button
+            type="button"
+            onClick={join}
+            disabled={!name || !roomId || !inviteCode || lobbyPending}
+          >
             加入房间
           </button>
         </section>
@@ -433,11 +453,19 @@ export function MultiplayerApp({
           </div>
           {room.phase === "lobby" ? (
             <>
-              <button type="button" onClick={() => run(() => client.ready(roomId), "已准备。")}>
-                准备
+              <button
+                type="button"
+                onClick={() => run(() => client.ready(roomId), "已准备。")}
+                disabled={lobbyPending}
+              >
+                {lobbyPending ? "正在提交…" : "准备"}
               </button>
-              <button type="button" onClick={() => run(() => client.start(roomId), "牌局已开始。")}>
-                开始牌局
+              <button
+                type="button"
+                onClick={() => run(() => client.start(roomId), "牌局已开始。")}
+                disabled={lobbyPending}
+              >
+                {lobbyPending ? "正在提交…" : "开始牌局"}
               </button>
             </>
           ) : null}

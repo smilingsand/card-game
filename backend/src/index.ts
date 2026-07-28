@@ -110,8 +110,13 @@ async function rateDecision(
   key: string,
   limit: number,
 ): Promise<RateDecision> {
+  // The rate window is keyed by `key`, so a single global DO adds no security
+  // value and serializes unrelated browser requests behind one local SQLite
+  // actor.  Shard by that same key: a given IP/subject keeps exactly one
+  // authoritative window, while other rooms and realtime connections cannot
+  // make it wait behind it.
   const stub = env.RATE_LIMITER.get(
-    env.RATE_LIMITER.idFromName("p3-03-security-gate"),
+    env.RATE_LIMITER.idFromName(`p3-03-security-gate:${key}`),
   );
   const response = await stub.fetch("https://rate.internal/check", {
     method: "POST",
@@ -151,6 +156,27 @@ function requestRateKey(request: Request): string {
 
 function securityLog(event: string, fields: Record<string, unknown>): void {
   console.info(JSON.stringify({ event, ...redactLogFields(fields) }));
+}
+
+function localTiming(
+  env: Env,
+  route: string,
+  fields: Record<string, number>,
+): void {
+  if (env.ENVIRONMENT !== "local") return;
+  const totalMs = Object.values(fields).reduce(
+    (total, value) => total + value,
+    0,
+  );
+  if (totalMs < 500) return;
+  console.info(
+    JSON.stringify({
+      event: "local_request_timing",
+      route,
+      totalMs,
+      ...fields,
+    }),
+  );
 }
 
 function createRoomId(): string {
@@ -210,11 +236,13 @@ export default {
         return error("invalid_payload", 400);
       }
     if (request.method === "POST" && url.pathname === "/v1/session") {
+      const rateStartedAt = Date.now();
       const decision = await rateDecision(
         env,
         requestRateKey(request),
         config.rateLimitPerMinute,
       );
+      const rateMs = Date.now() - rateStartedAt;
       if (!decision.allowed) {
         securityLog("rate_limited", {
           method: request.method,
@@ -226,10 +254,15 @@ export default {
       }
       const subjectId = createAnonymousSubjectId();
       const token = createReconnectToken();
+      const sessionStartedAt = Date.now();
       const response = await callSession(env, subjectId, "issue", {
         subjectId,
         tokenHash: await hashToken(token),
         expiresAt: Date.now() + config.sessionTtlSeconds * 1_000,
+      });
+      localTiming(env, url.pathname, {
+        rateMs,
+        sessionMs: Date.now() - sessionStartedAt,
       });
       if (!response.ok) return error("session_unavailable", 503);
       securityLog("session_issued", { subjectId, token });
@@ -238,7 +271,9 @@ export default {
       });
     }
 
+    const sessionValidationStartedAt = Date.now();
     const authenticated = await requireSession(request, env);
+    const sessionValidationMs = Date.now() - sessionValidationStartedAt;
     if (authenticated instanceof Response) {
       securityLog("authentication_rejected", {
         method: request.method,
@@ -249,6 +284,7 @@ export default {
     const isRealtimeProjectionRead =
       request.method === "GET" &&
       /^\/v1\/rooms\/[A-Za-z0-9_-]{22}\/(view|game-view)$/u.test(url.pathname);
+    const rateStartedAt = Date.now();
     const decision = await rateDecision(
       env,
       `subject:${authenticated.subjectId}`,
@@ -256,6 +292,7 @@ export default {
         ? Math.max(config.rateLimitPerMinute, 1_000)
         : config.rateLimitPerMinute,
     );
+    const rateMs = Date.now() - rateStartedAt;
     if (!decision.allowed) {
       securityLog("rate_limited", {
         method: request.method,
@@ -278,7 +315,8 @@ export default {
       const realtime = env.REALTIME_ROOM.get(
         env.REALTIME_ROOM.idFromName(roomId),
       );
-      return realtime.fetch(
+      const realtimeStartedAt = Date.now();
+      const response = await realtime.fetch(
         `https://realtime.internal/connect?roomId=${encodeURIComponent(roomId)}`,
         {
           headers: {
@@ -287,6 +325,12 @@ export default {
           },
         },
       );
+      localTiming(env, url.pathname, {
+        sessionValidationMs,
+        rateMs,
+        realtimeMs: Date.now() - realtimeStartedAt,
+      });
+      return response;
     }
     // P3-04 legacy fixture: these routes remain unavailable in non-test
     // runtimes. P3-05 public traffic enters only through room lifecycle APIs.
@@ -382,15 +426,25 @@ export default {
                     : action === "complete-round" && env.P3_TEST_MODE === "true"
                       ? "internal-complete-round"
                       : action;
-      return room.fetch(`https://room.internal/${internalAction}`, {
-        method: "POST",
-        body: JSON.stringify({
-          ...body,
-          roomId,
-          subjectId: authenticated.subjectId,
-          now: requestNow,
-        }),
+      const roomStartedAt = Date.now();
+      const response = await room.fetch(
+        `https://room.internal/${internalAction}`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            ...body,
+            roomId,
+            subjectId: authenticated.subjectId,
+            now: requestNow,
+          }),
+        },
+      );
+      localTiming(env, url.pathname, {
+        sessionValidationMs,
+        rateMs,
+        roomMs: Date.now() - roomStartedAt,
       });
+      return response;
     }
     if (request.method === "GET" && url.pathname === "/v1/session")
       return json({ anonymousId: authenticated.subjectId });
