@@ -1026,7 +1026,9 @@ export class AuthorityGameDurableObject {
       const seat = session.game.state.current;
       if (!this.botControlled(seat))
         return json({ error: "bot_not_controlling" }, 409);
+      const decisionStartedAt = Date.now();
       const action = chooseTableBotAction(session.game);
+      const decisionDurationMs = Date.now() - decisionStartedAt;
       if (!action || action.actor !== seat)
         return json({ error: "bot_action_unavailable" }, 422);
       const result = applyTableSessionAction(session, action);
@@ -1035,6 +1037,7 @@ export class AuthorityGameDurableObject {
       const response = {
         acknowledged: true,
         commandId: payload.commandId,
+        decisionDurationMs,
         eventSequence: event.sequence,
       };
       this.ctx.storage.transactionSync(() => {

@@ -195,7 +195,7 @@ button:disabled {
 }
 .table-info {
   left: 50%;
-  top: 40%;
+  top: 35%;
   width: 16rem;
   transform: translate(-50%, -50%);
   color: #134860;
@@ -435,7 +435,7 @@ button:disabled {
 .human-seat {
   position: absolute;
   right: 1.25rem;
-  bottom: 1.25rem;
+  bottom: 0.25rem;
   left: 1.25rem;
   display: grid;
   gap: 0.25rem;
@@ -444,7 +444,7 @@ button:disabled {
 }
 .human-seat > section[aria-label="操作"] {
   position: absolute;
-  bottom: 11.5rem;
+  bottom: 10rem;
   left: 50%;
   z-index: 2;
   transform: translateX(-50%);
@@ -474,7 +474,7 @@ button:disabled {
 }
 .south-actions {
   position: absolute;
-  bottom: 15.5rem;
+  bottom: 13.5rem;
   left: 50%;
   transform: translateX(-50%);
 }

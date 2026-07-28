@@ -557,6 +557,11 @@ export class RoomDurableObject {
       commandId,
       now,
     });
+    const acknowledgement = command.ok
+      ? ((await command.clone().json()) as {
+          readonly decisionDurationMs?: unknown;
+        })
+      : undefined;
     this.diagnostic(meta, "bot.dispatch.executed", {
       gameId: status.gameId,
       turnGeneration,
@@ -568,6 +573,9 @@ export class RoomDurableObject {
       scheduledAt: task.scheduledAt,
       executedAt: now,
       acknowledgementStatus: command.status,
+      ...(typeof acknowledgement?.decisionDurationMs === "number"
+        ? { decisionDurationMs: acknowledgement.decisionDurationMs }
+        : {}),
     });
     if (!command.ok) throw new Error("bot_command_unavailable");
     this.clearBotTask();
@@ -903,29 +911,17 @@ export class RoomDurableObject {
         // The Authority event has crossed the turn boundary.  No delayed task
         // created for the former generation may survive this human action.
         this.clearBotTask();
-        // A human command must be acknowledged as soon as Authority has made
-        // it durable.  Running normal-vNext for each following bot seat in
-        // this same HTTP request can leave the browser action permanently
-        // pending on a costly position.  The alarm keeps the bot work on the
-        // same Room/Authority command path, but after this acknowledgement.
-        // Local fixtures own time explicitly.  Scheduling a Durable Object
-        // alarm with their logical timestamp would otherwise fire against the
-        // host wall clock and silently inject a P3-08 timeout takeover.
+        // Reconciliation only records the next bot task here; its scheduled
+        // time is always in the future, so it cannot execute normal-vNext in
+        // this human request.  Await it instead of racing a background
+        // waitUntil reconciliation with a second raw setAlarm call.  That race
+        // can cancel the Durable Object alarm and leave a bot turn stranded.
         if (this.env.P3_TEST_MODE !== "true") {
-          // Keep the acknowledgement independent from bot thinking, but do not
-          // make a real player wait for the platform's alarm scheduling
-          // granularity. `waitUntil` executes the same durable Room ->
-          // Authority internal-command path after the response has been made
-          // durable. The alarm remains a retry/failover mechanism if this
-          // isolate is interrupted before the background reconciliation runs.
-          this.ctx.waitUntil(
-            this.reconcile(meta, Number(payload.now))
-              .then(() => this.notifyRealtime(meta.roomId))
-              .catch(() => {
-                this.ctx.storage.setAlarm(Date.now() + 1_000);
-              }),
-          );
-          this.ctx.storage.setAlarm(Number(payload.now) + 1_000);
+          try {
+            await this.reconcile(meta, Number(payload.now));
+          } catch {
+            return json({ error: "authority_unavailable" }, 503);
+          }
         }
         await this.notifyRealtime(meta.roomId).catch(() => undefined);
       } else
