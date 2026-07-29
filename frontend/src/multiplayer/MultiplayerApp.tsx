@@ -193,6 +193,35 @@ export function MultiplayerApp({
     });
   }, [client, connectionEpoch, hasRoom, refreshGameProjection, refreshRoom, roomId]);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV || room?.phase !== "started" || !roomId || !game) return;
+    if (room.seats.find((item) => item.seat === game.current)?.controller !== "bot") return;
+
+    const observedGameId = game.gameId;
+    const observedSequence = game.eventSequence;
+    // Wrangler/Miniflare may cancel a local DO alarm.  This is deliberately a
+    // single delayed recovery per bot turn, not a websocket heartbeat poll:
+    // it preserves the visible 0.8–1.34s bot think time and avoids flooding
+    // Room with overlapping presence requests.
+    const timer = window.setTimeout(() => {
+      if (!client.nudgeRoom) return;
+      void client
+        .nudgeRoom(roomId)
+        .then(() => client.getGameView(roomId))
+        .then((nextGame) => {
+          applyGameProjection(nextGame);
+          if (nextGame.gameId === observedGameId && nextGame.eventSequence === observedSequence)
+            setNotice("本地机器人仍在等待调度；将由下一次房间事件继续恢复。");
+        })
+        .catch(() => {
+          // This is only the development-only alarm recovery path.  A failed
+          // recovery nudge must not be presented as a player operation failure.
+          setNotice("本地机器人调度正在恢复，请稍候。");
+        });
+    }, 1_600);
+    return () => window.clearTimeout(timer);
+  }, [applyGameProjection, client, game, room, roomId]);
+
   const withSession = async (operation: () => Promise<void>) => {
     if (lobbyPendingRef.current) return;
     lobbyPendingRef.current = true;
@@ -246,19 +275,27 @@ export function MultiplayerApp({
       });
   };
 
-  const submit = (kind: "pass" | "play", cardIds?: readonly string[]) => {
+  const submit = (kind: "pass" | "play" | "tribute" | "return", cardIds?: readonly string[]) => {
     if (!roomId || !game || actionPending) return;
     const commandId = crypto.randomUUID();
-    const submittedCardIds = kind === "play" ? [...(cardIds ?? [])] : [];
+    const submittedCardIds = kind === "pass" ? [] : [...(cardIds ?? [])];
     setActionPending(true);
-    setNotice(kind === "pass" ? "正在提交过牌。" : "正在提交出牌。");
+    setNotice(
+      kind === "pass"
+        ? "正在提交过牌。"
+        : kind === "tribute"
+          ? "正在提交进贡牌。"
+          : kind === "return"
+            ? "正在提交还贡牌。"
+            : "正在提交出牌。"
+    );
     void client
       .submitAction({
         roomId,
         commandId,
         expectedEventSequence: game.eventSequence,
         kind,
-        ...(kind === "play" ? { cardIds: submittedCardIds } : {})
+        ...(kind !== "pass" ? { cardIds: submittedCardIds } : {})
       })
       .then((result) => {
         if (
@@ -272,7 +309,15 @@ export function MultiplayerApp({
           return;
         }
         applyGameProjection(result.view);
-        setNotice(kind === "pass" ? "已过牌。" : "已出牌。");
+        setNotice(
+          kind === "pass"
+            ? "已过牌。"
+            : kind === "tribute"
+              ? "已完成进贡。"
+              : kind === "return"
+                ? "已完成还贡，下一局开始。"
+                : "已出牌。"
+        );
       })
       .catch((error) => setNotice(messageFor(error)))
       .finally(() => setActionPending(false));
@@ -436,7 +481,7 @@ export function MultiplayerApp({
               邀请码：<code>{inviteCode}</code>
             </p>
           ) : null}
-          {connection !== "connected" ? (
+          {connection === "disconnected" || connection === "error" ? (
             <button type="button" onClick={() => setConnectionEpoch((current) => current + 1)}>
               重新连接
             </button>
@@ -476,6 +521,7 @@ export function MultiplayerApp({
           seats={room.seats}
           onPass={() => submit("pass")}
           onPlay={(cardIds) => submit("play", cardIds)}
+          onTribute={(kind, cardId) => submit(kind, [cardId])}
           onStaleLeadingSelection={() => {
             setNotice("正在同步服务端提供的当前合法出牌。");
             return refreshRoom(roomId).catch((error) => setNotice(messageFor(error)));
@@ -605,7 +651,6 @@ export function LegacyGameView({
     [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
     setDisplayOrder(next);
   };
-
   return (
     <section aria-label="个人牌局视图" className="multiplayer-game multiplayer-table-game">
       <section className="table responsive-table" aria-label="多人牌桌">
@@ -714,10 +759,10 @@ export function LegacyGameView({
             <strong className="human-seat-name">{displayName(game.seat)}</strong>
             <span className="card-count seat-card-count">{game.hand.length}</span>
           </p>
-          <p id="multiplayer-hand-help">
-            已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
-          </p>
         </section>
+        <p id="multiplayer-hand-help">
+          已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
+        </p>
       </section>
     </section>
   );

@@ -202,4 +202,34 @@ describe("共享多人牌桌适配器", () => {
     expect(scoreboard).toHaveTextContent("我方2对方3西家贡小王");
     expect(scoreboard.querySelectorAll(".match-token")).toHaveLength(2);
   });
+
+  it("在人类收到进贡时只允许从原手牌选牌，再确认还贡", () => {
+    const onTribute = vi.fn();
+    render(
+      <MultiplayerTable
+        game={{
+          ...game,
+          match: {
+            roundNumber: 2,
+            levels: { northSouth: "2", eastWest: "3" },
+            activeLevelTeam: "eastWest",
+            tributeSummary: ["东家贡A"],
+            tributeHint: "请你（南家）还贡"
+          },
+          tributeAction: { kind: "return", cardIds: ["nine-spade"] }
+        }}
+        seats={seats}
+        handLayout="stacked"
+        actionPending={false}
+        notice=""
+        onPlay={vi.fn()}
+        onPass={vi.fn()}
+        onTribute={onTribute}
+      />
+    );
+    expect(screen.queryByLabelText("选择还贡牌")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "选择♠9" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认还贡" }));
+    expect(onTribute).toHaveBeenCalledWith("return", "nine-spade");
+  });
 });

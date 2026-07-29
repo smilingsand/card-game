@@ -545,6 +545,22 @@ test("P4-01: 完成一局后保留房间并由 Room 自动进入带公开赛局�
     ]);
     expect(next.match.levels).toEqual({ northSouth: "5", eastWest: "2" });
     expect(next.match.tributeHint).toBeTruthy();
+    expect(next.tributeAction).toMatchObject({ kind: "return" });
+    expect(next.tributeAction.cardIds.length).toBeGreaterThan(0);
+    const returned = await post(
+      instance,
+      `/v1/rooms/${roomId}/actions`,
+      {
+        commandId: "p4-01-human-return",
+        expectedEventSequence: next.eventSequence,
+        kind: "return",
+        cardIds: [next.tributeAction.cardIds[0]],
+        now: now + 2,
+      },
+      cookie,
+    );
+    expect(returned.status).toBe(200);
+    expect((await returned.json()).view.tributeAction).toBeUndefined();
     expect(JSON.stringify(next)).not.toMatch(/seed|cardsById|reasons/i);
     const log = await diagnostics(instance, roomId, cookie);
     expect(log.entries).toEqual(

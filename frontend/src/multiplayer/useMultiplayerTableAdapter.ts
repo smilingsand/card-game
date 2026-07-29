@@ -90,7 +90,10 @@ export function useMultiplayerTableAdapter({
   const [displayOrder, setDisplayOrder] = useState<readonly string[]>();
   const draggingCardId = useRef<string | undefined>(undefined);
   const staleSelection = useRef<string | undefined>(undefined);
-  const canAct = game.current === game.seat;
+  const tributeAction = game.tributeAction;
+  const isTributePending = tributeAction !== undefined;
+  const canAct = game.current === game.seat && !isTributePending;
+  const canSelect = canAct || isTributePending;
   const cardsById = useMemo(() => new Map(game.hand.map((card) => [card.id, card])), [game.hand]);
   const orderedIds = useMemo(
     () => reconcileHumanDisplayOrder(displayOrder, handIds, cardsById, game.levelRank ?? "2"),
@@ -114,8 +117,8 @@ export function useMultiplayerTableAdapter({
   const canPass = canAct && game.legalActions?.some((action) => action.type === "pass") === true;
 
   useEffect(() => {
-    if (!canAct) clearSelection();
-  }, [canAct, clearSelection, game.eventSequence]);
+    if (!canSelect) clearSelection();
+  }, [canSelect, clearSelection, game.eventSequence]);
   useEffect(() => setDisplayOrder(undefined), [game.gameId]);
   useEffect(() => {
     if (
@@ -158,7 +161,7 @@ export function useMultiplayerTableAdapter({
   };
   const callbacks: TableInteractionCallbacks = {
     onToggleCard: (cardId) => {
-      if (canAct && !isActionPending) toggleCard(cardId, true);
+      if (canSelect && !isActionPending) toggleCard(cardId, true);
     },
     onPlay: (cardIds) => {
       // `legalActions` is an Authority-projected candidate catalogue, not a
@@ -184,13 +187,21 @@ export function useMultiplayerTableAdapter({
     displayPositions: createDisplayPositions(game.seat),
     ownHand,
     selectedCardIds,
-    selectableCardIds: canAct && !isActionPending ? handIds : [],
+    selectableCardIds: !isActionPending
+      ? isTributePending
+        ? tributeAction.cardIds
+        : canAct
+          ? handIds
+          : []
+      : [],
     remainingCardCounts: game.remainingCardCounts,
     publicActions,
     highestPlay,
     currentActorSeat: game.current,
     teammateSeat: teammateOf(game.seat),
-    canPlay: canAct && selectedCardIds.length > 0,
+    canPlay: isTributePending
+      ? selectedCardIds.length === 1 && tributeAction.cardIds.includes(selectedCardIds[0])
+      : canAct && selectedCardIds.length > 0,
     canPass,
     canHint: canAct && game.legalActions?.some((action) => action.type === "play") === true,
     isActionPending,
@@ -228,7 +239,13 @@ export function useMultiplayerTableAdapter({
     },
     levelRank: game.levelRank ?? "2",
     canAct,
-    selectionStatus: !canAct
+    selectionStatus: isTributePending
+      ? selectedCardIds.length === 0
+        ? tributeAction.kind === "return"
+          ? "请选择一张不大于 10 的牌还贡。"
+          : "请选择最大的牌进贡。"
+        : `已选择 ${selectedCardIds.length} 张牌，确认后提交给服务端。`
+      : !canAct
       ? `等待${model.playerNames[game.current]}出牌。`
       : selectedCardIds.length === 0
         ? "请选择要出的牌。"

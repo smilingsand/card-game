@@ -3,6 +3,7 @@ import { botThinkDelayMs, type Seat } from "@card-game/guandan-core";
 export interface RoomEnv {
   readonly AUTHORITY_GAME: DurableObjectNamespace;
   readonly REALTIME_ROOM: DurableObjectNamespace;
+  readonly ENVIRONMENT?: string;
   readonly ROOM_INVITE_HASH_KEY?: string;
   readonly P3_TEST_MODE?: string;
 }
@@ -58,6 +59,7 @@ interface TurnStatus {
   readonly turnStartedAt: number;
   readonly botControlled: boolean;
   readonly completed: boolean;
+  readonly tributePending?: boolean;
 }
 
 interface BotTaskRow extends Record<string, SqlStorageValue> {
@@ -392,6 +394,7 @@ export class RoomDurableObject {
     // request finishes, stranding an already-recorded bot task until a later
     // unrelated request happens to reconcile the room.
     if (next !== undefined) await this.ctx.storage.setAlarm(next);
+    else await this.ctx.storage.deleteAlarm();
   }
   private markMissedHeartbeats(now: number): void {
     for (const presence of [
@@ -449,6 +452,30 @@ export class RoomDurableObject {
       await this.scheduleReconcile(meta, now);
       return;
     }
+    // A local restart preserves Durable Object state but not the browser
+    // connections that used to own it.  Do not turn an entirely abandoned
+    // table into an endless all-bot game: it consumes the single local worker
+    // and can make a newly created room appear unavailable.  The next real
+    // presence update resumes normal reconciliation from the same authority
+    // state, so reconnection remains lossless.
+    const hasConnectedHuman = this.seats().some(
+      (seat) =>
+        seat.subjectId !== null &&
+        this.presence(seat.subjectId)?.connected === 1,
+    );
+    if (!hasConnectedHuman) {
+      const task = this.botTask();
+      this.clearBotTask();
+      if (task)
+        this.diagnostic(meta, "bot.dispatch.paused_no_connected_human", {
+          gameId: task.gameId,
+          turnGeneration: task.turnGeneration,
+          currentActorSeat: task.seat,
+          at: now,
+        });
+      await this.scheduleReconcile(meta, now);
+      return;
+    }
     const statusResponse = await this.authorityPost(meta, "turn-status", {
       now,
     });
@@ -473,6 +500,14 @@ export class RoomDurableObject {
       });
       if (!nextRound.ok) throw new Error("next_round_unavailable");
       await this.reconcile(meta, now);
+      return;
+    }
+    // A new round may pause before its first trick for a human tribute or
+    // return.  That is not a normal card-play turn: do not let a bot consume
+    // it merely because the pre-tribute leader is a bot.
+    if (status.tributePending) {
+      this.clearBotTask();
+      await this.scheduleReconcile(meta, now, status);
       return;
     }
     const currentSeat = this.seats().find(
@@ -555,6 +590,13 @@ export class RoomDurableObject {
         scheduledAt: task.scheduledAt,
         at: now,
       });
+      this.localBotTrace("local_bot_task_scheduled", {
+        roomId: meta.roomId,
+        gameId: status.gameId,
+        seat: status.current,
+        eventSequence: status.eventSequence,
+        scheduledAt: task.scheduledAt,
+      });
     }
     if (now < task.scheduledAt) {
       await this.scheduleReconcile(meta, now, status);
@@ -565,6 +607,14 @@ export class RoomDurableObject {
       ? this.presence(botSeat.subjectId)
       : undefined;
     const commandId = `bot-${status.current}-${status.eventSequence + 1}`;
+    this.localBotTrace("local_bot_task_dispatch", {
+      roomId: meta.roomId,
+      gameId: status.gameId,
+      seat: status.current,
+      eventSequence: status.eventSequence,
+      scheduledAt: task.scheduledAt,
+      dispatchedAt: now,
+    });
     const command = await this.authorityPost(meta, "bot-command", {
       commandId,
       now,
@@ -588,6 +638,14 @@ export class RoomDurableObject {
       ...(typeof acknowledgement?.decisionDurationMs === "number"
         ? { decisionDurationMs: acknowledgement.decisionDurationMs }
         : {}),
+    });
+    this.localBotTrace("local_bot_task_result", {
+      roomId: meta.roomId,
+      gameId: status.gameId,
+      seat: status.current,
+      eventSequence: status.eventSequence,
+      commandId,
+      status: command.status,
     });
     if (!command.ok) throw new Error("bot_command_unavailable");
     this.clearBotTask();
@@ -616,8 +674,19 @@ export class RoomDurableObject {
         scheduledAt: nextTask.scheduledAt,
         at: now,
       });
+      this.localBotTrace("local_bot_task_scheduled", {
+        roomId: meta.roomId,
+        gameId: status.gameId,
+        seat: status.current,
+        eventSequence: status.eventSequence,
+        scheduledAt: nextTask.scheduledAt,
+      });
     }
     await this.scheduleReconcile(meta, now, status);
+  }
+  private localBotTrace(event: string, detail: Record<string, unknown>): void {
+    if (this.env.ENVIRONMENT === "local")
+      console.info(JSON.stringify({ event, ...detail }));
   }
   private markPresence(
     subjectId: string,

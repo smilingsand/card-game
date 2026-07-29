@@ -14,6 +14,7 @@ export function MultiplayerTable({
   notice,
   onPlay,
   onPass,
+  onTribute = () => undefined,
   onChangeLayout = () => undefined,
   onStaleLeadingSelection
 }: {
@@ -24,6 +25,7 @@ export function MultiplayerTable({
   readonly notice: string;
   readonly onPlay: (cardIds: readonly string[]) => void;
   readonly onPass: () => void;
+  readonly onTribute?: (kind: "tribute" | "return", cardId: string) => void;
   readonly onChangeLayout?: (layout: "stacked" | "flat") => void;
   readonly onStaleLeadingSelection?: () => Promise<void>;
 }) {
@@ -113,9 +115,20 @@ export function MultiplayerTable({
             canHint={model.canHint}
             isActionPending={model.isActionPending}
             selectedCardIds={model.selectedCardIds}
-            onPlay={callbacks.onPlay}
+            onPlay={(cardIds) => {
+              if (game.tributeAction && cardIds.length === 1)
+                onTribute(game.tributeAction.kind, cardIds[0]);
+              else callbacks.onPlay(cardIds);
+            }}
             onPass={callbacks.onPass}
             onHint={callbacks.onHint}
+            playLabel={
+              game.tributeAction
+                ? game.tributeAction.kind === "return"
+                  ? "确认还贡"
+                  : "确认进贡"
+                : undefined
+            }
           />
           <p className="selected-play-status" aria-live="polite">
             {adapter.selectionStatus}
@@ -138,10 +151,10 @@ export function MultiplayerTable({
               {model.remainingCardCounts[model.viewerLogicalSeat]}
             </span>
           </p>
-          <p id="hand-arrangement-help">
-            已按牌面自动整理。可拖拽牌到另一张牌前方理牌，也可按 Alt 加左右方向键移动当前牌。
-          </p>
         </section>
+        <p id="hand-arrangement-help">
+          已按牌面自动整理。可拖拽牌到另一张牌前方理牌，也可按 Alt 加左右方向键移动当前牌。
+        </p>
       </TableView>
     </section>
   );

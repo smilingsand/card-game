@@ -4,11 +4,15 @@ import {
   chooseTableBotAction,
   formatCard,
   getLegalBotActions,
+  getSouthReturnChoices,
+  getSouthTributeChoices,
   getSelectedPlayActions,
   latestRecentActionsBySeat,
   parseSecureSeed,
   prepareNextTableSessionWithSecureSeed,
   restartCurrentTableSession,
+  submitSouthReturn,
+  submitSouthTribute,
   type Seat,
   type TableSession,
   type TurnAction,
@@ -53,6 +57,11 @@ interface CommandRow extends Record<string, SqlStorageValue> {
 
 type StoredEvent =
   | { readonly kind: "action"; readonly action: TurnAction }
+  | {
+      readonly kind: "tribute";
+      readonly action: "tribute" | "return";
+      readonly cardId: string;
+    }
   | { readonly kind: "next-round"; readonly encryptedSeed: string }
   | { readonly kind: "restart-current-round"; readonly encryptedSeed: string }
   | { readonly kind: "test-complete-fixture" };
@@ -201,6 +210,24 @@ function view(
         ? "下一局已准备完成"
         : "正在准备进贡"
     : "首局由南家先出";
+  const tributeChoices =
+    seat === "south"
+      ? session.match.tributePhase === "awaiting-tribute"
+        ? getSouthTributeChoices(session)
+        : session.match.tributePhase === "awaiting-return"
+          ? getSouthReturnChoices(session)
+          : []
+      : [];
+  const tributeAction =
+    tributeChoices.length > 0
+      ? {
+          kind:
+            session.match.tributePhase === "awaiting-tribute"
+              ? "tribute"
+              : "return",
+          cardIds: tributeChoices,
+        }
+      : undefined;
   return {
     ...(gameId ? { gameId } : {}),
     seat,
@@ -219,6 +246,7 @@ function view(
       tributeSummary,
       tributeHint,
     },
+    ...(tributeAction ? { tributeAction } : {}),
     leader: session.game.state.leader,
     passes: session.game.state.passes,
     finished: session.game.state.finished,
@@ -347,6 +375,13 @@ export class AuthorityGameDurableObject {
           await decryptSeed(stored.encryptedSeed, this.env),
         );
         session = prepareNextTableSessionWithSecureSeed(session, roundSeed);
+        if (session.stream.events.length - 1 !== row.sequence)
+          throw new Error("stored_event_invalid");
+      } else if (stored.kind === "tribute") {
+        session =
+          stored.action === "tribute"
+            ? submitSouthTribute(session, stored.cardId)
+            : submitSouthReturn(session, stored.cardId);
         if (session.stream.events.length - 1 !== row.sequence)
           throw new Error("stored_event_invalid");
       } else if (stored.kind === "restart-current-round") {
@@ -639,6 +674,7 @@ export class AuthorityGameDurableObject {
           turnStartedAt: this.turnStartedAt(),
           botControlled: this.botControlled(session.game.state.current),
           completed: session.game.state.completed,
+          tributePending: session.match.tributePhase !== "ready",
         });
       } catch {
         return this.unavailableState();
@@ -1088,8 +1124,6 @@ export class AuthorityGameDurableObject {
     if (!subjectSeat) return json({ error: "forbidden" }, 403);
     if (this.botControlled(subjectSeat))
       return json({ error: "seat_under_bot_control" }, 409);
-    if (session.game.state.current !== subjectSeat)
-      return json({ error: "not_your_turn" }, 409);
     if (payload.expectedEventSequence !== session.stream.events.length - 1)
       return json(
         {
@@ -1098,6 +1132,62 @@ export class AuthorityGameDurableObject {
         },
         409,
       );
+    if (
+      (payload.kind === "tribute" || payload.kind === "return") &&
+      subjectSeat === "south" &&
+      Array.isArray(payload.cardIds) &&
+      payload.cardIds.length === 1 &&
+      typeof payload.cardIds[0] === "string"
+    ) {
+      const tributeKind: "tribute" | "return" = payload.kind;
+      const tributeCardId = payload.cardIds[0];
+      let next: TableSession;
+      try {
+        next =
+          tributeKind === "tribute"
+            ? submitSouthTribute(session, tributeCardId)
+            : submitSouthReturn(session, tributeCardId);
+      } catch {
+        return json({ error: "invalid_tribute_card" }, 422);
+      }
+      const event = next.stream.events.at(-1)!;
+      const response = {
+        acknowledged: true,
+        accepted: true,
+        commandId: payload.commandId,
+        eventSequence: event.sequence,
+        appliedEventSequence: event.sequence,
+        appliedCardIds: [tributeCardId],
+        view: view(next, subjectSeat, false, meta.gameId),
+      };
+      this.ctx.storage.transactionSync(() => {
+        this.ctx.storage.sql.exec(
+          "INSERT INTO events (sequence, payload) VALUES (?, ?)",
+          event.sequence,
+          JSON.stringify({
+            kind: "tribute",
+            action: tributeKind,
+            cardId: tributeCardId,
+          } satisfies StoredEvent),
+        );
+        this.ctx.storage.sql.exec(
+          "INSERT INTO snapshots (event_sequence, payload) VALUES (?, ?)",
+          event.sequence,
+          JSON.stringify({
+            eventSequence: event.sequence,
+            state: view(next, "south"),
+          }),
+        );
+        this.ctx.storage.sql.exec(
+          "INSERT INTO commands (command_id, response) VALUES (?, ?)",
+          payload.commandId,
+          JSON.stringify(response),
+        );
+      });
+      return json(response);
+    }
+    if (session.game.state.current !== subjectSeat)
+      return json({ error: "not_your_turn" }, 409);
     let action: TurnAction | undefined;
     if (payload.kind === "pass") action = { type: "pass", actor: subjectSeat };
     if (

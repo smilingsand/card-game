@@ -1,6 +1,8 @@
 import type { Card, Event, Seat, TurnAction } from "@card-game/guandan-core";
 
 export const MULTIPLAYER_PROTOCOL_VERSION = "p3-ws-v1";
+const HEARTBEAT_INTERVAL_MS = 10_000;
+const LOCAL_RECOVERY_RETRY_DELAY_MS = 400;
 
 export interface RoomSeatProjection {
   readonly seat: Seat;
@@ -36,6 +38,11 @@ export interface GameProjection {
     readonly previousFinish?: readonly Seat[];
     readonly tributeSummary: readonly string[];
     readonly tributeHint: string;
+  };
+  /** 仅在本人需要完成进贡或还贡时出现的权威可选实体牌。 */
+  readonly tributeAction?: {
+    readonly kind: "tribute" | "return";
+    readonly cardIds: readonly string[];
   };
   readonly positions?: Readonly<Record<"bottom" | "left" | "top" | "right", Seat>>;
   readonly leader?: Seat;
@@ -89,7 +96,7 @@ export interface MultiplayerClient {
     readonly roomId: string;
     readonly commandId: string;
     readonly expectedEventSequence: number;
-    readonly kind: "pass" | "play";
+    readonly kind: "pass" | "play" | "tribute" | "return";
     readonly cardIds?: readonly string[];
   }): Promise<{
     readonly accepted: true;
@@ -99,6 +106,8 @@ export interface MultiplayerClient {
     readonly appliedCardIds: readonly string[];
     readonly view: GameProjection;
   }>;
+  /** Local-only recovery for a missed Durable Object bot alarm. */
+  nudgeRoom?(roomId: string): Promise<void>;
   connect(input: {
     readonly roomId: string;
     readonly lastEventSequence: number;
@@ -111,6 +120,14 @@ type FetchLike = typeof fetch;
 
 function apiOrigin(): string {
   return import.meta.env.VITE_MULTIPLAYER_API_ORIGIN?.replace(/\/$/u, "") ?? "";
+}
+
+function isLocalWorkerRestart(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.startsWith("http_503:") &&
+    error.message.includes("worker restarted mid-request")
+  );
 }
 
 async function responseJson<T>(response: Response): Promise<T> {
@@ -201,6 +218,21 @@ export function createHttpMultiplayerClient(fetchImpl: FetchLike = fetch): Multi
         readonly view: GameProjection;
       }>(`/v1/rooms/${roomId}/actions`, body);
     },
+    async nudgeRoom(roomId) {
+      if (!import.meta.env.DEV) return;
+      try {
+        await post(`/v1/rooms/${roomId}/presence`, { connected: true });
+      } catch (error) {
+        // This endpoint only refreshes local presence and is safe to replay.
+        // Wrangler can restart its local worker while Miniflare is recovering an
+        // alarm, which otherwise surfaces as an unrelated player operation error.
+        if (!isLocalWorkerRestart(error)) throw error;
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, LOCAL_RECOVERY_RETRY_DELAY_MS);
+        });
+        await post(`/v1/rooms/${roomId}/presence`, { connected: true });
+      }
+    },
     connect(input) {
       const origin = apiOrigin() || window.location.origin;
       const url = new URL(`/v1/rooms/${input.roomId}/realtime`, origin);
@@ -227,7 +259,7 @@ export function createHttpMultiplayerClient(fetchImpl: FetchLike = fetch): Multi
               payload: {}
             })
           );
-        }, 10_000);
+        }, HEARTBEAT_INTERVAL_MS);
       });
       socket.addEventListener("message", (event) => {
         try {

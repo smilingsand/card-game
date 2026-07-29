@@ -64,6 +64,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -79,13 +80,10 @@ describe("多人前端", () => {
     expect(seats.querySelectorAll("[data-seat]")).toHaveLength(4);
     expect(seats.textContent).toContain("机器人A");
     expect(screen.getByText(/邀请码：/)).toBeInTheDocument();
-    const initialConnects = vi.mocked(client.connect).mock.calls.length;
-    fireEvent.click(screen.getByRole("button", { name: "重新连接" }));
-    await waitFor(() =>
-      expect(vi.mocked(client.connect).mock.calls.length).toBeGreaterThanOrEqual(
-        initialConnects + 1
-      )
-    );
+    // 新建房间后 WebSocket effect 尚未完成时，连接状态为 idle；这不是断线，
+    // 不应短暂展示“重新连接”按钮。
+    expect(screen.queryByRole("button", { name: "重新连接" })).not.toBeInTheDocument();
+    await waitFor(() => expect(client.connect).toHaveBeenCalled());
   });
 
   it("大厅操作进行中不会重复创建 session 或房间", async () => {
@@ -164,6 +162,25 @@ describe("多人前端", () => {
     await expect(client.createSession()).rejects.toThrow(
       "http_503: Your worker encountered an internal error"
     );
+  });
+
+  it("本地机器人恢复请求遇到 worker 重启时会自动重试一次", async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("Your worker restarted mid-request. Please try again.", {
+          status: 503,
+          headers: { "content-type": "text/plain" }
+        })
+      )
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    const client = createHttpMultiplayerClient(fetchImpl);
+
+    const recovery = client.nudgeRoom?.("room-123");
+    await vi.advanceTimersByTimeAsync(400);
+    await expect(recovery).resolves.toBeUndefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
   it("房主开局后立即读取个人投影并渲染可玩的四方牌桌", async () => {

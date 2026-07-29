@@ -113,7 +113,7 @@ button:disabled {
 .table {
   position: relative;
   /* The lower half needs its own action and hand area. */
-  min-height: min(52rem, calc(100dvh - 6.5rem));
+  min-height: max(39rem, calc(100dvh - 2rem));
   margin: 1rem 0;
   border: 18px solid #77bfd5;
   border-radius: 2.25rem;
@@ -439,50 +439,77 @@ button:disabled {
 .human-seat {
   position: absolute;
   right: 1.25rem;
-  bottom: -1.5rem;
+  bottom: 1rem;
   left: 1.25rem;
   display: grid;
-  gap: 0.25rem;
+  grid-template-areas:
+    "status"
+    "controls"
+    "hand"
+    "identity"
+    "help";
+  justify-items: center;
+  gap: 0.45rem;
   align-content: end;
   padding: 0.75rem;
 }
 .human-seat > section[aria-label="操作"] {
-  position: absolute;
-  bottom: 10.35rem;
-  left: 50%;
+  grid-area: controls;
+  position: relative;
+  top: 1.5rem;
   z-index: 2;
-  transform: translateX(-50%);
+}
+.human-seat::before {
+  grid-area: status;
+  min-height: 1.25rem;
+  margin: 0 0 -0.1rem;
+  content: "";
 }
 .selected-play-status {
+  grid-area: status;
+  position: absolute;
+  right: 0;
+  bottom: -1.9rem;
+  left: 0;
   min-height: 1.25rem;
-  margin: 0;
+  margin: 0 0 -0.1rem;
   color: #173d52;
   text-align: center;
   font-size: 0.9rem;
 }
 .human-seat-identity {
+  grid-area: identity;
+  position: relative;
+  top: 1.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin: 0.15rem 0 0;
+  margin: 0;
 }
 .human-seat-identity .seat-card-count {
   position: static;
 }
 #multiplayer-hand-help {
-  align-self: flex-start;
+  position: absolute;
+  right: 0;
+  bottom: -1rem;
+  left: 0;
   margin: 0;
   color: #405b67;
   font-size: 0.9rem;
+  text-align: center;
 }
 .south-actions {
   position: absolute;
-  bottom: 13.5rem;
+  bottom: 17.35rem;
   left: 50%;
   transform: translateX(-50%);
 }
 .human-hand {
+  grid-area: hand;
+  position: relative;
+  top: 1.5rem;
   justify-content: center;
   align-items: flex-end;
   overflow: visible;
@@ -529,11 +556,16 @@ button:disabled {
   outline-offset: 2px;
 }
 #hand-arrangement-help {
-  width: min(100%, 34rem);
-  justify-self: center;
+  position: absolute;
+  right: 0;
+  bottom: -1rem;
+  left: 0;
+  width: auto;
   margin: 0;
   color: #405b67;
   font-size: 0.9rem;
+  text-align: center;
+  white-space: nowrap;
 }
 .human-footer {
   display: flex;
