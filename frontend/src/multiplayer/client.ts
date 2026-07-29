@@ -61,6 +61,8 @@ export interface GameProjection {
     readonly actor: Seat;
     readonly cards: readonly Card[];
     readonly wildcardAs: Readonly<Record<string, { readonly rank: Card["rank"] }>>;
+    /** 由权威规则引擎确定的公开牌型名称，例如“单张”或“对子”。 */
+    readonly patternLabel?: string;
   };
   /** Present only for the authenticated viewer while it is their turn. */
   readonly legalActions?: readonly TurnAction[];

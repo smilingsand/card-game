@@ -145,7 +145,8 @@ describe("共享多人牌桌适配器", () => {
           highestPlay: {
             actor: "west",
             cards: [{ id: "west-joker", deckIndex: 1, rank: "big-joker", suit: "joker" }],
-            wildcardAs: {}
+            wildcardAs: {},
+            patternLabel: "单张"
           },
           publicActions: [
             {
@@ -173,6 +174,7 @@ describe("共享多人牌桌适配器", () => {
     expect(within(screen.getByLabelText("top 座位")).getByText("9")).toBeInTheDocument();
     expect(within(screen.getByLabelText("left 座位")).getByText("大王")).toBeInTheDocument();
     expect(screen.getByText(/当前牌由机器人C压住/)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("已出单张。");
     expect(screen.queryByText(/机器人C领出/)).not.toBeInTheDocument();
   });
 

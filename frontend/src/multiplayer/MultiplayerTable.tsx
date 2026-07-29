@@ -100,7 +100,7 @@ export function MultiplayerTable({
               : `${model.playerNames[game.leader ?? game.seat]}领出。`}
           </p>
           <p className="table-status" role="status">
-            {notice}
+            {game.highestPlay?.patternLabel ? `已出${game.highestPlay.patternLabel}。` : notice}
           </p>
         </section>
         <PublicActions

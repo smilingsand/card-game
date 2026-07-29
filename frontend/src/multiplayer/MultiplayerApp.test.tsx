@@ -16,6 +16,10 @@ const room: RoomProjection = {
 };
 
 const startedRoom: RoomProjection = { ...room, phase: "started" };
+const readyRoom: RoomProjection = {
+  ...room,
+  seats: room.seats.map((item) => (item.seat === "south" ? { ...item, ready: true } : item))
+};
 const testCommandId = "00000000-0000-4000-8000-000000000001";
 const startedGame = {
   seat: "south" as const,
@@ -49,7 +53,7 @@ function fakeClient(): MultiplayerClient {
     createRoom: vi.fn().mockResolvedValue({ room, inviteCode: "invite-123" }),
     joinRoom: vi.fn(),
     getRoom: vi.fn().mockResolvedValue(room),
-    ready: vi.fn().mockResolvedValue(room),
+    ready: vi.fn().mockResolvedValue(readyRoom),
     start: vi.fn().mockResolvedValue(room),
     restartMatch: vi.fn().mockResolvedValue(startedRoom),
     restartRound: vi.fn().mockResolvedValue(startedRoom),
@@ -57,6 +61,12 @@ function fakeClient(): MultiplayerClient {
     submitAction: vi.fn(),
     connect: vi.fn().mockReturnValue(() => undefined)
   };
+}
+
+async function readyAndStart() {
+  fireEvent.click(screen.getByRole("button", { name: "准备" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "开始游戏" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "开始游戏" }));
 }
 
 beforeEach(() => {
@@ -191,7 +201,7 @@ describe("多人前端", () => {
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findAllByLabelText("多人房间");
-    fireEvent.click(screen.getByRole("button", { name: "开始牌局" }));
+    await readyAndStart();
     expect(await screen.findByLabelText("多人牌桌")).toBeInTheDocument();
     expect(client.getGameView).toHaveBeenCalledWith("room-123");
     expect(screen.getByLabelText("你的手牌").querySelectorAll(".card-face")).toHaveLength(2);
@@ -235,7 +245,7 @@ describe("多人前端", () => {
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findByLabelText("多人房间");
-    fireEvent.click(screen.getByRole("button", { name: "开始牌局" }));
+    await readyAndStart();
     await screen.findByLabelText("你的手牌");
     expect(screen.queryByRole("button", { name: "明牌" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "重新开赛" })).toBeEnabled();
@@ -264,7 +274,7 @@ describe("多人前端", () => {
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findByLabelText("多人房间");
-    fireEvent.click(screen.getByRole("button", { name: "开始牌局" }));
+    await readyAndStart();
     await screen.findByLabelText("你的手牌");
     fireEvent.click(screen.getByRole("button", { name: "重开本局" }));
     await waitFor(() => expect(client.restartRound).toHaveBeenCalledTimes(2));
@@ -362,7 +372,7 @@ describe("多人前端", () => {
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findByLabelText("多人房间");
-    fireEvent.click(screen.getByRole("button", { name: "开始牌局" }));
+    await readyAndStart();
     await screen.findByLabelText("你的手牌");
     fireEvent.click(screen.getByRole("button", { name: "选择♠A" }));
     fireEvent.click(screen.getByRole("button", { name: "选择♥A" }));
@@ -426,7 +436,7 @@ describe("多人前端", () => {
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findByLabelText("多人房间");
-    fireEvent.click(screen.getByRole("button", { name: "开始牌局" }));
+    await readyAndStart();
     await screen.findByLabelText("你的手牌");
     fireEvent.click(screen.getByRole("button", { name: "选择♠A" }));
     fireEvent.click(screen.getByRole("button", { name: "选择♥A" }));
@@ -446,7 +456,7 @@ describe("多人前端", () => {
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findByLabelText("多人房间");
-    fireEvent.click(screen.getByRole("button", { name: "开始牌局" }));
+    await readyAndStart();
     await screen.findByLabelText("你的手牌");
     fireEvent.click(screen.getByRole("button", { name: "选择♠A" }));
     fireEvent.click(screen.getByRole("button", { name: "出牌" }));
@@ -473,7 +483,7 @@ describe("多人前端", () => {
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findByLabelText("多人房间");
-    fireEvent.click(screen.getByRole("button", { name: "开始牌局" }));
+    await readyAndStart();
     await screen.findByLabelText("你的手牌");
     fireEvent.click(screen.getByRole("button", { name: "选择♠A" }));
     fireEvent.click(screen.getByRole("button", { name: "出牌" }));
@@ -499,7 +509,7 @@ describe("多人前端", () => {
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findByLabelText("多人房间");
-    fireEvent.click(screen.getByRole("button", { name: "开始牌局" }));
+    await readyAndStart();
     await screen.findByLabelText("你的手牌");
     const card = document.querySelector<HTMLButtonElement>(".hand-card");
     expect(card).not.toBeNull();
@@ -550,7 +560,7 @@ describe("多人前端", () => {
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findByLabelText("多人房间");
-    fireEvent.click(screen.getByRole("button", { name: "开始牌局" }));
+    await readyAndStart();
     await screen.findByLabelText("你的手牌");
     fireEvent.click(screen.getByRole("button", { name: "选择♥A" }));
     await waitFor(() => expect(client.getGameView).toHaveBeenCalledTimes(2));

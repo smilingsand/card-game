@@ -3,6 +3,7 @@ import {
   createTableSession,
   chooseTableBotAction,
   formatCard,
+  formatInterpretation,
   getLegalBotActions,
   getSouthReturnChoices,
   getSouthTributeChoices,
@@ -169,6 +170,7 @@ function view(
             .map((id) => session.game.cardsById.get(id))
             .filter((card) => card !== undefined),
           wildcardAs: session.game.state.highest.wildcardAs,
+          patternLabel: formatInterpretation(session.game.state.highest),
         }
       : undefined;
   const publicActions = latestRecentActionsBySeat(

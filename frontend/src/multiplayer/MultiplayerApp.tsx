@@ -108,6 +108,8 @@ export function MultiplayerApp({
     seat;
   const hasRoom = Boolean(room);
   const isHost = room?.seats.find((item) => item.seat === viewerSeat)?.isHost === true;
+  const viewerReady = room?.seats.find((item) => item.seat === viewerSeat)?.ready === true;
+  const allPlayersReady = room?.seats.every((item) => item.ready) === true;
   const matchSeatName = (logicalSeat: Seat) => {
     if (logicalSeat === viewerSeat) return `${SEAT_LABEL[logicalSeat]}（你）`;
     const seated = room?.seats.find((item) => item.seat === logicalSeat);
@@ -497,22 +499,23 @@ export function MultiplayerApp({
             ))}
           </div>
           {room.phase === "lobby" ? (
-            <>
-              <button
-                type="button"
-                onClick={() => run(() => client.ready(roomId), "已准备。")}
-                disabled={lobbyPending}
-              >
-                {lobbyPending ? "正在提交…" : "准备"}
-              </button>
-              <button
-                type="button"
-                onClick={() => run(() => client.start(roomId), "牌局已开始。")}
-                disabled={lobbyPending}
-              >
-                {lobbyPending ? "正在提交…" : "开始牌局"}
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() =>
+                viewerReady && isHost
+                  ? run(() => client.start(roomId), "牌局已开始。")
+                  : run(() => client.ready(roomId), "已准备。")
+              }
+              disabled={lobbyPending || (viewerReady && (!isHost || !allPlayersReady))}
+            >
+              {lobbyPending
+                ? "正在提交…"
+                : viewerReady
+                  ? isHost
+                    ? "开始游戏"
+                    : "已准备，等待房主开始"
+                  : "准备"}
+            </button>
           ) : null}
         </section>
       ) : game ? (
