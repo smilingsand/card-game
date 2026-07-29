@@ -98,19 +98,19 @@ describe("多人前端", () => {
     await waitFor(() => expect(client.connect).toHaveBeenCalled());
   });
 
-  it("房主在大厅关闭房间会回到首页", async () => {
+  it("房主在大厅点击右上角退出会关闭房间并回到首页", async () => {
     const client = fakeClient();
     const onExit = vi.fn();
     render(<MultiplayerApp client={client} initialRoomId="room-123" onExit={onExit} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "关闭房间" }));
+    fireEvent.click(await screen.findByRole("button", { name: "退出" }));
 
     await waitFor(() => expect(client.closeRoom).toHaveBeenCalledWith("room-123"));
     expect(onExit).toHaveBeenCalledTimes(1);
     expect(client.leaveRoom).not.toHaveBeenCalled();
   });
 
-  it("非房主在大厅退出房间只释放自己的连接", async () => {
+  it("非房主在大厅点击右上角退出只释放自己的连接", async () => {
     const client = fakeClient();
     const onExit = vi.fn();
     vi.mocked(client.getRoom).mockResolvedValue({
@@ -119,11 +119,35 @@ describe("多人前端", () => {
     });
     render(<MultiplayerApp client={client} initialRoomId="room-123" onExit={onExit} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "退出房间" }));
+    fireEvent.click(await screen.findByRole("button", { name: "退出" }));
 
     await waitFor(() => expect(client.leaveRoom).toHaveBeenCalledWith("room-123"));
     expect(onExit).toHaveBeenCalledTimes(1);
     expect(client.closeRoom).not.toHaveBeenCalled();
+  });
+
+  it("牌桌退出只回到大厅，不会被后续机器人事件重新拉回牌桌", async () => {
+    const client = fakeClient();
+    vi.mocked(client.createRoom).mockResolvedValue({ room, inviteCode: "invite-123" });
+    vi.mocked(client.start).mockResolvedValue(startedRoom);
+    vi.mocked(client.getGameView).mockResolvedValue(startedGame);
+    let onEvent: (() => void) | undefined;
+    vi.mocked(client.connect).mockImplementation((input) => {
+      onEvent = () => input.onEvent();
+      return () => undefined;
+    });
+    render(<MultiplayerApp client={client} onExit={() => undefined} />);
+    fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
+    await screen.findByLabelText("多人房间");
+    await readyAndStart();
+    await screen.findByLabelText("多人牌桌");
+
+    fireEvent.click(screen.getByRole("button", { name: "退出" }));
+
+    expect(await screen.findByLabelText("多人房间")).toBeInTheDocument();
+    expect(screen.queryByLabelText("多人牌桌")).not.toBeInTheDocument();
+    await act(async () => onEvent?.());
+    expect(screen.queryByLabelText("多人牌桌")).not.toBeInTheDocument();
   });
 
   it("大厅操作进行中不会重复创建 session 或房间", async () => {

@@ -80,6 +80,7 @@ export function MultiplayerApp({
   const [inviteCode, setInviteCode] = useState("");
   const [room, setRoom] = useState<RoomProjection>();
   const [game, setGame] = useState<GameProjection>();
+  const [tableExited, setTableExited] = useState(false);
   const [connection, setConnection] = useState<"idle" | "connected" | "disconnected" | "error">(
     "idle"
   );
@@ -98,6 +99,7 @@ export function MultiplayerApp({
   }>({
     eventSequence: -1
   });
+  const tableExitedRef = useRef(false);
   const [notice, setNotice] = useState("请选择名称后创建或加入房间。");
   const [rulesOpen, setRulesOpen] = useState(false);
   const [handLayout, setHandLayout] = useState<"stacked" | "flat">("stacked");
@@ -119,6 +121,7 @@ export function MultiplayerApp({
   };
 
   const applyGameProjection = useCallback((nextGame: GameProjection) => {
+    if (tableExitedRef.current) return;
     const latest = latestGameProjectionRef.current;
     const sameGame = latest.gameId === nextGame.gameId;
     // A realtime notification can start a projection read just before an action
@@ -190,7 +193,9 @@ export function MultiplayerApp({
       onEvent: (sequence) => {
         if (Number.isInteger(sequence)) setEventSequence(sequence as number);
         const refresh =
-          roomPhaseRef.current === "started" ? refreshGameProjection(roomId) : refreshRoom(roomId);
+          roomPhaseRef.current === "started" && !tableExitedRef.current
+            ? refreshGameProjection(roomId)
+            : refreshRoom(roomId);
         void refresh.catch((error) => setNotice(messageFor(error)));
       }
     });
@@ -266,6 +271,8 @@ export function MultiplayerApp({
       .then(async (next) => {
         setRoom(next);
         if (next.phase === "started") {
+          tableExitedRef.current = false;
+          setTableExited(false);
           const nextGame = await client.getGameView(next.roomId);
           applyGameProjection(nextGame);
         }
@@ -365,6 +372,8 @@ export function MultiplayerApp({
       });
   };
   const exitTable = () => {
+    tableExitedRef.current = true;
+    setTableExited(true);
     setGame(undefined);
     setActionPending(false);
     setNotice("已退出牌桌，可在大厅继续管理房间。");
@@ -489,7 +498,7 @@ export function MultiplayerApp({
             加入房间
           </button>
         </section>
-      ) : room.phase === "lobby" ? (
+      ) : room.phase === "lobby" || tableExited ? (
         <section aria-label="多人房间" className="multiplayer-room">
           <p>房间：{room.roomId}</p>
           {inviteCode ? (
@@ -531,9 +540,6 @@ export function MultiplayerApp({
                   : "准备"}
             </button>
           ) : null}
-          <button type="button" onClick={exitLobby} disabled={lobbyPending}>
-            {isHost ? "关闭房间" : "退出房间"}
-          </button>
         </section>
       ) : game ? (
         <MultiplayerTable
