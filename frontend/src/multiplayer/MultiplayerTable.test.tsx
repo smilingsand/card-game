@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { GameProjection, RoomProjection } from "./client";
 import { MultiplayerTable } from "./MultiplayerTable";
@@ -233,5 +233,42 @@ describe("共享多人牌桌适配器", () => {
     fireEvent.click(screen.getByRole("button", { name: "选择♠9" }));
     fireEvent.click(screen.getByRole("button", { name: "确认还贡" }));
     expect(onTribute).toHaveBeenCalledWith("return", "nine-spade");
+  });
+
+  it("resets manual hand ordering when Authority starts a new round", async () => {
+    const props = {
+      seats,
+      handLayout: "stacked" as const,
+      actionPending: false,
+      notice: "",
+      onPlay: vi.fn(),
+      onPass: vi.fn()
+    };
+    const { rerender } = render(<MultiplayerTable game={game} {...props} />);
+    const nineSpade = screen.getByRole("button", { name: "选择♠9" });
+    fireEvent.keyDown(nineSpade, { altKey: true, key: "ArrowLeft" });
+    fireEvent.keyDown(nineSpade, { altKey: true, key: "ArrowLeft" });
+
+    rerender(
+      <MultiplayerTable
+        game={{
+          ...game,
+          hand: [game.hand[0], game.hand[2]],
+          match: {
+            roundNumber: 2,
+            levels: { northSouth: "2", eastWest: "2" },
+            activeLevelTeam: "northSouth",
+            tributeSummary: [],
+            tributeHint: ""
+          }
+        }}
+        {...props}
+      />
+    );
+
+    await waitFor(() => {
+      const cards = within(screen.getByLabelText("你的手牌")).getAllByRole("button");
+      expect(cards[0]).toHaveAccessibleName("选择♠K");
+    });
   });
 });

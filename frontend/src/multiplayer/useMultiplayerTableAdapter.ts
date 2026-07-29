@@ -119,7 +119,9 @@ export function useMultiplayerTableAdapter({
   useEffect(() => {
     if (!canSelect) clearSelection();
   }, [canSelect, clearSelection, game.eventSequence]);
-  useEffect(() => setDisplayOrder(undefined), [game.gameId]);
+  // Authority keeps the same game ID and physical card IDs for the whole match.
+  // A fresh deal must not inherit the player's visual ordering from the prior round.
+  useEffect(() => setDisplayOrder(undefined), [game.gameId, game.match?.roundNumber]);
   useEffect(() => {
     if (
       !onRefreshLegalActions ||
