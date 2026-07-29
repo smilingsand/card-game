@@ -300,6 +300,42 @@ export class RoomDurableObject {
       this.env.AUTHORITY_GAME.idFromName(meta.roomId),
     );
   }
+  private realtime(): DurableObjectStub {
+    return this.env.REALTIME_ROOM.get(
+      this.env.REALTIME_ROOM.idFromName(this.meta()!.roomId),
+    );
+  }
+  private async closeRoom(meta: MetaRow): Promise<void> {
+    this.clearBotTask();
+    await this.ctx.storage.deleteAlarm();
+    const realtimeResponse = await this.realtime().fetch(
+      "https://realtime.internal/room-close",
+      {
+        method: "POST",
+        headers: { "x-p3-internal-room-id": meta.roomId },
+      },
+    );
+    if (!realtimeResponse.ok) {
+      throw new Error(
+        `realtime room close failed with ${realtimeResponse.status}`,
+      );
+    }
+    const authority = await this.authorityPost(meta, "destroy", {
+      now: Date.now(),
+    });
+    if (!authority.ok && authority.status !== 404)
+      throw new Error("authority_unavailable");
+    this.ctx.storage.transactionSync(() => {
+      this.ctx.storage.sql.exec("DELETE FROM diagnostic_events");
+      this.ctx.storage.sql.exec("DELETE FROM bot_tasks");
+      this.ctx.storage.sql.exec("DELETE FROM seat_takeovers");
+      this.ctx.storage.sql.exec("DELETE FROM presence");
+      this.ctx.storage.sql.exec("DELETE FROM seat_requests");
+      this.ctx.storage.sql.exec("DELETE FROM room_events");
+      this.ctx.storage.sql.exec("DELETE FROM seats");
+      this.ctx.storage.sql.exec("DELETE FROM room_meta");
+    });
+  }
   private async authorityPost(
     meta: MetaRow,
     path: string,
@@ -836,9 +872,20 @@ export class RoomDurableObject {
       path !== "/internal-diagnostics" &&
       path !== "/internal-complete-round" &&
       path !== "/restart-match" &&
-      path !== "/restart-round"
+      path !== "/restart-round" &&
+      path !== "/close"
     )
       return json({ error: "room_already_started" }, 409);
+
+    if (path === "/close") {
+      if (subjectId !== meta.ownerId) return json({ error: "forbidden" }, 403);
+      try {
+        await this.closeRoom(meta);
+      } catch {
+        return json({ error: "room_unavailable" }, 503);
+      }
+      return json({ closed: true });
+    }
 
     if (path === "/join") {
       if (this.subjectSeat(subjectId))

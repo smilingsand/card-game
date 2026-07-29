@@ -173,14 +173,14 @@ try {
     ConvertTo-Json -Compress |
     Set-Content -LiteralPath $processStatePath -Encoding utf8
 
-  Write-Host 'P4 local services are starting: frontend http://127.0.0.1:5173, backend http://127.0.0.1:8788.'
+  Write-Host 'P4 local services are starting: frontend http://127.0.0.1:5173 (LAN: http://<本机IP>:5173), backend http://127.0.0.1:8788.'
   Write-Host "Backend logs: $backendLogPath (errors: $backendErrorLogPath)."
   Write-Host 'Vite runs in this foreground terminal. Ctrl+C stops Vite, then this script stops the backend process tree.'
   Write-Host 'Use -StopOnly only after a forced terminal close.'
 
   Push-Location (Join-Path $repositoryRoot 'frontend')
   try {
-    & cmd.exe /d /c 'npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort'
+    & cmd.exe /d /c 'npm.cmd run dev -- --host 0.0.0.0 --port 5173 --strictPort'
     if ($LASTEXITCODE -ne 0) {
       throw "Frontend development process exited with code $LASTEXITCODE."
     }

@@ -70,6 +70,76 @@ afterEach(async () =>
   ),
 );
 
+test("P4: 房主关闭房间会销毁房间和权威牌局，其他成员不得继续读取", async () => {
+  const runtime = await createRuntime();
+  try {
+    const now = Date.now();
+    const host = await identity(runtime);
+    const guest = await identity(runtime);
+    const created = await post(
+      runtime,
+      "/v1/rooms",
+      { displayName: "曹操", seat: "south", now },
+      host,
+    );
+    expect(created.status).toBe(201);
+    const { roomId, inviteCode } = await created.json();
+    expect(
+      (
+        await post(
+          runtime,
+          `/v1/rooms/${roomId}/join`,
+          { displayName: "刘备", seat: "east", inviteCode, now },
+          guest,
+        )
+      ).status,
+    ).toBe(200);
+
+    for (const cookie of [host, guest])
+      expect(
+        (await post(runtime, `/v1/rooms/${roomId}/ready`, { now }, cookie))
+          .status,
+      ).toBe(200);
+    expect(
+      (await post(runtime, `/v1/rooms/${roomId}/start`, { now }, host)).status,
+    ).toBe(200);
+
+    expect(
+      (await post(runtime, `/v1/rooms/${roomId}/close`, { now }, guest)).status,
+    ).toBe(403);
+    const closed = await post(
+      runtime,
+      `/v1/rooms/${roomId}/close`,
+      { now },
+      host,
+    );
+    expect(closed.status).toBe(200);
+    expect(await closed.json()).toEqual({ closed: true });
+    expect(
+      (
+        await runtime.dispatchFetch(
+          `https://local.test/v1/rooms/${roomId}/view`,
+          {
+            headers: { cookie: host },
+          },
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await runtime.dispatchFetch(
+          `https://local.test/v1/rooms/${roomId}/view`,
+          {
+            headers: { cookie: guest },
+          },
+        )
+      ).status,
+    ).toBe(404);
+  } finally {
+    await runtime.dispose();
+  }
+}, 30_000);
+
 test("P3-10: 受控备份校验后可恢复损坏快照，重放与幂等 ACK 均不丢失", async () => {
   const runtime = await createRuntime();
   try {

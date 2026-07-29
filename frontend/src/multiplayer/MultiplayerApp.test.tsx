@@ -55,6 +55,8 @@ function fakeClient(): MultiplayerClient {
     getRoom: vi.fn().mockResolvedValue(room),
     ready: vi.fn().mockResolvedValue(readyRoom),
     start: vi.fn().mockResolvedValue(room),
+    closeRoom: vi.fn().mockResolvedValue(undefined),
+    leaveRoom: vi.fn().mockResolvedValue(undefined),
     restartMatch: vi.fn().mockResolvedValue(startedRoom),
     restartRound: vi.fn().mockResolvedValue(startedRoom),
     getGameView: vi.fn(),
@@ -94,6 +96,34 @@ describe("多人前端", () => {
     // 不应短暂展示“重新连接”按钮。
     expect(screen.queryByRole("button", { name: "重新连接" })).not.toBeInTheDocument();
     await waitFor(() => expect(client.connect).toHaveBeenCalled());
+  });
+
+  it("房主在大厅关闭房间会回到首页", async () => {
+    const client = fakeClient();
+    const onExit = vi.fn();
+    render(<MultiplayerApp client={client} initialRoomId="room-123" onExit={onExit} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "关闭房间" }));
+
+    await waitFor(() => expect(client.closeRoom).toHaveBeenCalledWith("room-123"));
+    expect(onExit).toHaveBeenCalledTimes(1);
+    expect(client.leaveRoom).not.toHaveBeenCalled();
+  });
+
+  it("非房主在大厅退出房间只释放自己的连接", async () => {
+    const client = fakeClient();
+    const onExit = vi.fn();
+    vi.mocked(client.getRoom).mockResolvedValue({
+      ...room,
+      seats: room.seats.map((item) => (item.seat === "south" ? { ...item, isHost: false } : item))
+    });
+    render(<MultiplayerApp client={client} initialRoomId="room-123" onExit={onExit} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "退出房间" }));
+
+    await waitFor(() => expect(client.leaveRoom).toHaveBeenCalledWith("room-123"));
+    expect(onExit).toHaveBeenCalledTimes(1);
+    expect(client.closeRoom).not.toHaveBeenCalled();
   });
 
   it("大厅操作进行中不会重复创建 session 或房间", async () => {

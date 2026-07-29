@@ -388,7 +388,7 @@ export default {
       }
     }
     const roomMatch =
-      /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/(join|ready|start|restart-match|restart-round|view|game-view|actions|presence|seat-requests|seat-requests\/approve|diagnostics|complete-round)$/u.exec(
+      /^\/v1\/rooms\/([A-Za-z0-9_-]{22})\/(join|ready|start|restart-match|restart-round|close|view|game-view|actions|presence|seat-requests|seat-requests\/approve|diagnostics|complete-round)$/u.exec(
         url.pathname,
       );
     const isRoomCreate =

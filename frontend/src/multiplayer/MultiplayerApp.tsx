@@ -186,6 +186,7 @@ export function MultiplayerApp({
       roomId,
       lastEventSequence: eventSequenceRef.current,
       onStatus: setConnection,
+      onRoomClosed: onExit,
       onEvent: (sequence) => {
         if (Number.isInteger(sequence)) setEventSequence(sequence as number);
         const refresh =
@@ -193,7 +194,7 @@ export function MultiplayerApp({
         void refresh.catch((error) => setNotice(messageFor(error)));
       }
     });
-  }, [client, connectionEpoch, hasRoom, refreshGameProjection, refreshRoom, roomId]);
+  }, [client, connectionEpoch, hasRoom, onExit, refreshGameProjection, refreshRoom, roomId]);
 
   useEffect(() => {
     if (!import.meta.env.DEV || room?.phase !== "started" || !roomId || !game) return;
@@ -363,6 +364,19 @@ export function MultiplayerApp({
         setRestartPending(false);
       });
   };
+  const exitTable = () => {
+    setGame(undefined);
+    setActionPending(false);
+    setNotice("已退出牌桌，可在大厅继续管理房间。");
+  };
+  const exitLobby = () => {
+    if (!roomId || !room) return onExit();
+    setLobbyPending(true);
+    void (isHost ? client.closeRoom(roomId) : client.leaveRoom(roomId))
+      .then(onExit)
+      .catch((error) => setNotice(messageFor(error)))
+      .finally(() => setLobbyPending(false));
+  };
 
   return (
     <main className="multiplayer-app" aria-label="多人联网掼蛋">
@@ -398,8 +412,8 @@ export function MultiplayerApp({
         >
           {handLayout === "stacked" ? "横排" : "竖排"}
         </button>
-        <button type="button" onClick={onExit}>
-          单人本地掼蛋
+        <button type="button" onClick={game ? exitTable : exitLobby}>
+          退出
         </button>
       </header>
       {game?.match?.previousFinish ? (
@@ -517,6 +531,9 @@ export function MultiplayerApp({
                   : "准备"}
             </button>
           ) : null}
+          <button type="button" onClick={exitLobby} disabled={lobbyPending}>
+            {isHost ? "关闭房间" : "退出房间"}
+          </button>
         </section>
       ) : game ? (
         <MultiplayerTable

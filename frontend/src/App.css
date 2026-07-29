@@ -891,3 +891,22 @@ button:disabled {
   border-radius: 0.35rem;
   padding: 0.5rem;
 }
+.game-home {
+  min-height: 100vh;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 2rem;
+}
+
+.game-home-actions {
+  display: grid;
+  gap: 1rem;
+  width: min(28rem, calc(100vw - 3rem));
+}
+
+.game-home-actions button {
+  min-height: 5rem;
+  border-radius: 1rem;
+  font-size: 1.5rem;
+}

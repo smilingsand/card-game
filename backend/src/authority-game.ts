@@ -650,6 +650,21 @@ export class AuthorityGameDurableObject {
     }
     const meta = this.meta();
     if (!meta) return json({ error: "not_initialized" }, 404);
+    if (path === "/destroy") {
+      if (payload.subjectId !== meta.ownerId)
+        return json({ error: "forbidden" }, 403);
+      this.ctx.storage.transactionSync(() => {
+        this.ctx.storage.sql.exec("DELETE FROM backup_audit");
+        this.ctx.storage.sql.exec("DELETE FROM bot_controls");
+        this.ctx.storage.sql.exec("DELETE FROM turn_state");
+        this.ctx.storage.sql.exec("DELETE FROM snapshots");
+        this.ctx.storage.sql.exec("DELETE FROM commands");
+        this.ctx.storage.sql.exec("DELETE FROM events");
+        this.ctx.storage.sql.exec("DELETE FROM controllers");
+        this.ctx.storage.sql.exec("DELETE FROM meta");
+      });
+      return json({ closed: true });
+    }
     if (typeof payload.now !== "number" || payload.now >= meta.expiresAt) {
       this.ctx.storage.transactionSync(() => {
         this.ctx.storage.sql.exec("DELETE FROM commands");

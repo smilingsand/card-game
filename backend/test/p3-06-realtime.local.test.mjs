@@ -114,6 +114,35 @@ afterEach(async () => {
   );
 });
 
+test("P4: 房主关闭房间会通知并关闭仍在线的实时连接", async () => {
+  const runtime = await createRuntime();
+  try {
+    const { host, roomId } = await makeStartedRoom(runtime);
+    const socket = await openRealtime(runtime, roomId, host);
+    const received = messages(socket);
+    socket.send(
+      JSON.stringify({
+        type: "hello",
+        protocolVersion: "p3-ws-v1",
+        roomId,
+        payload: { lastEventSequence: 0 },
+      }),
+    );
+    await settle();
+
+    expect(
+      (await post(runtime, `/v1/rooms/${roomId}/close`, {}, host)).status,
+    ).toBe(200);
+    await settle();
+
+    expect(received).toContainEqual(
+      expect.objectContaining({ type: "roomClosed", roomId }),
+    );
+  } finally {
+    await runtime.dispose();
+  }
+}, 30_000);
+
 test("P3-06: 协商、ACK、乱序/重复与缺口重放收敛为同一个人投影序列", async () => {
   const runtime = await createRuntime();
   try {

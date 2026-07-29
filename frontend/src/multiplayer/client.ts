@@ -83,6 +83,8 @@ export interface MultiplayerClient {
   getRoom(roomId: string): Promise<RoomProjection>;
   ready(roomId: string): Promise<RoomProjection>;
   start(roomId: string): Promise<RoomProjection>;
+  closeRoom(roomId: string): Promise<void>;
+  leaveRoom(roomId: string): Promise<void>;
   restartMatch(input: {
     readonly roomId: string;
     readonly clientCommandId: string;
@@ -115,6 +117,7 @@ export interface MultiplayerClient {
     readonly lastEventSequence: number;
     readonly onEvent: (eventSequence?: number) => void;
     readonly onStatus: (status: "connected" | "disconnected" | "error") => void;
+    readonly onRoomClosed?: () => void;
   }): () => void;
 }
 
@@ -202,6 +205,12 @@ export function createHttpMultiplayerClient(fetchImpl: FetchLike = fetch): Multi
       const result = await post<{ readonly room: RoomProjection }>(`/v1/rooms/${roomId}/start`, {});
       return result.room;
     },
+    async closeRoom(roomId) {
+      await post(`/v1/rooms/${roomId}/close`, {});
+    },
+    async leaveRoom(roomId) {
+      await post(`/v1/rooms/${roomId}/presence`, { connected: false });
+    },
     async restartMatch(input) {
       const { roomId, ...body } = input;
       const result = await post<{ readonly room: RoomProjection }>(
@@ -282,13 +291,19 @@ export function createHttpMultiplayerClient(fetchImpl: FetchLike = fetch): Multi
           // the Authority event sequence used to submit an action, so never
           // feed it into the caller's optimistic command revision.  A fresh
           // personal projection supplies that revision after the notification.
-          if (message.type === "roomChanged" || message.type === "serverEvent") input.onEvent();
+          if (message.type === "roomClosed") input.onRoomClosed?.();
+          else if (message.type === "roomChanged" || message.type === "serverEvent")
+            input.onEvent();
         } catch {
           input.onStatus("error");
         }
       });
-      socket.addEventListener("close", () => {
+      socket.addEventListener("close", (event) => {
         if (heartbeat !== undefined) window.clearInterval(heartbeat);
+        if (event.code === 1000 && event.reason === "room closed") {
+          input.onRoomClosed?.();
+          return;
+        }
         input.onStatus("disconnected");
       });
       socket.addEventListener("error", () => input.onStatus("error"));

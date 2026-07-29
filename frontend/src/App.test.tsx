@@ -60,15 +60,23 @@ describe("App", () => {
   });
 
   it("首页通过多人联机游戏按钮进入多人大厅", async () => {
-    render(<App storage={memoryStorage()} />);
+    render(<App initialMode="home" storage={memoryStorage()} />);
 
-    expect(screen.getByRole("heading", { name: "单人本地掼蛋" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "多人联机游戏" }));
+    expect(screen.getByRole("heading", { name: "掼蛋游戏" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "多人掼蛋游戏" }));
     expect(await screen.findByLabelText("多人大厅")).toBeInTheDocument();
   });
 
+  it("单人游戏的退出按钮回到首页", () => {
+    render(<App initialMode="solo" storage={memoryStorage()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "退出" }));
+
+    expect(screen.getByRole("heading", { name: "掼蛋游戏" })).toBeInTheDocument();
+  });
+
   it("牌桌只展示 normal-vNext 策略", async () => {
-    render(<App storage={memoryStorage()} />);
+    render(<App initialMode="solo" storage={memoryStorage()} />);
     await waitFor(() =>
       expect(screen.getByLabelText("机器人策略")).toHaveTextContent("normal-vNext")
     );
@@ -86,18 +94,20 @@ describe("App", () => {
     const afterSouth = applyTableSessionAction(initial, opening);
     if (!afterSouth.ok) throw new Error("expected south opening");
 
-    render(<App storage={memoryStorage(serializeTableSession(afterSouth.session))} />);
+    render(
+      <App initialMode="solo" storage={memoryStorage(serializeTableSession(afterSouth.session))} />
+    );
     await waitFor(() => expect(screen.getByText("normal-vNext 正在思考…")).toBeInTheDocument());
   });
 
   it("牌桌提供独立的响应式布局边界", async () => {
-    render(<App storage={memoryStorage()} />);
+    render(<App initialMode="solo" storage={memoryStorage()} />);
     await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
     expect(screen.getByLabelText("牌桌")).toHaveClass("responsive-table");
   });
 
   it("纵叠手牌和座位计数使用不会被网格拉伸的布局边界", async () => {
-    render(<App storage={memoryStorage()} />);
+    render(<App initialMode="solo" storage={memoryStorage()} />);
     await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
 
     const hand = screen.getByLabelText("你的手牌");
@@ -120,7 +130,7 @@ describe("App", () => {
   });
 
   it("纵叠手牌使用无缝连接边界", async () => {
-    render(<App storage={memoryStorage()} />);
+    render(<App initialMode="solo" storage={memoryStorage()} />);
     await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
     expect(
       screen.getByLabelText("你的手牌").querySelectorAll(".joined-card-stack").length
@@ -168,7 +178,7 @@ describe("App", () => {
   });
 
   it("首局由南家行动，牌桌按四边座位显示并高亮可选牌", async () => {
-    render(<App storage={memoryStorage()} />);
+    render(<App initialMode="solo" storage={memoryStorage()} />);
 
     await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
     expect(screen.getByLabelText("北家座位")).toHaveTextContent("27");
@@ -257,7 +267,7 @@ describe("App", () => {
     );
     if (!antiTribute) throw new Error("expected a west two-big-joker anti-tribute seed");
 
-    render(<App storage={memoryStorage(serializeTableSession(antiTribute))} />);
+    render(<App initialMode="solo" storage={memoryStorage(serializeTableSession(antiTribute))} />);
 
     await waitFor(() =>
       expect(screen.getByLabelText("本局结算与下一局提示")).toHaveTextContent(
@@ -287,7 +297,9 @@ describe("App", () => {
     const choices = getSouthTributeChoices(awaitingTribute);
     expect(choices).not.toHaveLength(0);
 
-    render(<App storage={memoryStorage(serializeTableSession(awaitingTribute))} />);
+    render(
+      <App initialMode="solo" storage={memoryStorage(serializeTableSession(awaitingTribute))} />
+    );
 
     await waitFor(() => expect(screen.getByText("请你（南家）上贡")).toBeInTheDocument());
     expect(screen.getByLabelText("本局结算与下一局提示")).toHaveTextContent(
@@ -310,7 +322,7 @@ describe("App", () => {
   });
 
   it("提示和出牌仍通过规则入口提交", async () => {
-    render(<App storage={memoryStorage()} />);
+    render(<App initialMode="solo" storage={memoryStorage()} />);
     await waitFor(() => expect(screen.getByRole("button", { name: "提示" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "提示" }));
     expect(screen.getByRole("status")).toHaveTextContent(/^提示：可出/);
@@ -319,7 +331,7 @@ describe("App", () => {
   }, 10_000);
 
   it("明牌以同一组牌布局显示其他三家，并可立即关闭", async () => {
-    render(<App storage={memoryStorage()} />);
+    render(<App initialMode="solo" storage={memoryStorage()} />);
     await waitFor(() => expect(screen.getByRole("button", { name: "明牌" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "明牌" }));
     const revealed = screen.getByLabelText("东家明牌");
@@ -345,7 +357,9 @@ describe("App", () => {
     const afterNorth = applyTableSessionAction(afterEast.session, { type: "pass", actor: "north" });
     if (!afterNorth.ok) throw new Error("expected north pass");
 
-    render(<App storage={memoryStorage(serializeTableSession(afterNorth.session))} />);
+    render(
+      <App initialMode="solo" storage={memoryStorage(serializeTableSession(afterNorth.session))} />
+    );
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent("已继续上次未完成的对局。")
     );
@@ -357,7 +371,7 @@ describe("App", () => {
   });
 
   it("手动理牌保留为显示偏好，不改变实体选择", async () => {
-    render(<App storage={memoryStorage()} />);
+    render(<App initialMode="solo" storage={memoryStorage()} />);
     const hand = screen.getByLabelText("你的手牌");
     const before = within(hand).getAllByRole("button", { name: /^选择/ });
     const first = before[0];
@@ -377,7 +391,7 @@ describe("App", () => {
   });
 
   it("横排和竖排按钮切换南家及明牌手牌的布局", async () => {
-    render(<App storage={memoryStorage()} />);
+    render(<App initialMode="solo" storage={memoryStorage()} />);
     await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
     const hand = screen.getByLabelText("你的手牌");
     fireEvent.click(screen.getByRole("button", { name: "明牌" }));
@@ -395,7 +409,7 @@ describe("App", () => {
   });
 
   it("触摸抬起可选中或取消选中手牌，不依赖桌面拖拽", async () => {
-    render(<App storage={memoryStorage()} />);
+    render(<App initialMode="solo" storage={memoryStorage()} />);
     await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
 
     const card = within(screen.getByLabelText("你的手牌")).getAllByRole("button", {
@@ -412,7 +426,7 @@ describe("App", () => {
     const incompatible = structuredClone(serializeTableSession(createTableSession(73)));
     Reflect.set(incompatible.stream, "rulesVersion", "guandan-v1");
     const storage = memoryStorage(incompatible);
-    render(<App storage={storage} />);
+    render(<App initialMode="solo" storage={storage} />);
     await waitFor(() =>
       expect(screen.getByRole("status")).toHaveTextContent("存档不兼容或恢复失败")
     );

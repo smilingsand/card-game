@@ -116,10 +116,10 @@ export { CardFace, PlayerCardCount } from "./components/table/CardFace";
 
 function SoloApp({
   storage,
-  onSelectMultiplayer
+  onExit
 }: {
   readonly storage?: StorageBoundary<TableSave>;
-  readonly onSelectMultiplayer: () => void;
+  readonly onExit: () => void;
 }) {
   const saveStorage = useMemo(() => storage ?? defaultStorage(), [storage]);
   const [session, setSession] = useState<TableSession>(() => createTableSession(newSeed()));
@@ -493,8 +493,8 @@ function SoloApp({
         >
           {handLayout === "stacked" ? "横排" : "竖排"}
         </button>
-        <button type="button" onClick={onSelectMultiplayer}>
-          多人联机游戏
+        <button type="button" onClick={onExit}>
+          退出
         </button>
       </header>
       {applyPwaUpdate ? (
@@ -720,16 +720,42 @@ function SoloApp({
   );
 }
 
+function HomePage({
+  onSelectSolo,
+  onSelectMultiplayer
+}: {
+  readonly onSelectSolo: () => void;
+  readonly onSelectMultiplayer: () => void;
+}) {
+  return (
+    <main className="game-home" aria-label="掼蛋游戏首页">
+      <h1>掼蛋游戏</h1>
+      <div className="game-home-actions">
+        <button type="button" onClick={onSelectSolo}>
+          单人掼蛋游戏
+        </button>
+        <button type="button" onClick={onSelectMultiplayer}>
+          多人掼蛋游戏
+        </button>
+      </div>
+    </main>
+  );
+}
+
 /** The local save boundary is mounted only for the single-player application. */
 export function App({
   storage,
-  multiplayerClient
+  multiplayerClient,
+  initialMode = "home"
 }: {
   readonly storage?: StorageBoundary<TableSave>;
   readonly multiplayerClient?: MultiplayerClient;
+  readonly initialMode?: "home" | "solo" | "multiplayer";
 }) {
   const initialRoomId = new URLSearchParams(window.location.search).get("room") ?? undefined;
-  const [mode, setMode] = useState<"solo" | "multiplayer">(initialRoomId ? "multiplayer" : "solo");
+  const [mode, setMode] = useState<"home" | "solo" | "multiplayer">(
+    initialRoomId ? "multiplayer" : initialMode
+  );
   const setOnlineRoom = (roomId: string | undefined) => {
     const url = new URL(window.location.href);
     if (roomId) url.searchParams.set("room", roomId);
@@ -744,13 +770,20 @@ export function App({
         onRoomChange={setOnlineRoom}
         onExit={() => {
           setOnlineRoom(undefined);
-          setMode("solo");
+          setMode("home");
         }}
+      />
+    );
+  if (mode === "home")
+    return (
+      <HomePage
+        onSelectSolo={() => setMode("solo")}
+        onSelectMultiplayer={() => setMode("multiplayer")}
       />
     );
   return (
     <>
-      <SoloApp storage={storage} onSelectMultiplayer={() => setMode("multiplayer")} />
+      <SoloApp storage={storage} onExit={() => setMode("home")} />
     </>
   );
 }

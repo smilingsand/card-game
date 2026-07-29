@@ -169,6 +169,22 @@ export class RealtimeRoomDurableObject {
   async fetch(request: Request): Promise<Response> {
     this.setup();
     const url = new URL(request.url);
+    if (url.pathname === "/room-close") {
+      const roomId = request.headers.get("x-p3-internal-room-id");
+      if (!roomId || request.method !== "POST")
+        return new Response("forbidden", { status: 403 });
+      this.broadcast({
+        type: "roomClosed",
+        protocolVersion: PROTOCOL_VERSION,
+        roomId,
+        payload: {},
+      });
+      for (const socket of this.ctx.getWebSockets())
+        socket.close(1000, "room closed");
+      this.ctx.storage.sql.exec("DELETE FROM realtime_commands");
+      this.ctx.storage.sql.exec("DELETE FROM realtime_events");
+      return new Response(null, { status: 204 });
+    }
     if (url.pathname === "/room-changed") {
       const roomId = request.headers.get("x-p3-internal-room-id");
       if (!roomId || request.method !== "POST")
