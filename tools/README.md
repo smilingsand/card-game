@@ -11,6 +11,15 @@
 .\tools\start-p3-local.ps1 -StopOnly
 ```
 
+也可从仓库根目录使用等价命令：
+
+```powershell
+npm.cmd run p4:dev
+npm.cmd run p4:stop
+```
+
+Vite 绑定 `0.0.0.0:5173`：本机可使用 `http://127.0.0.1:5173/`，同一局域网设备可使用 `http://<本机IP>:5173/`。Wrangler 后端仍只监听本机 `127.0.0.1:8788`，由 Vite 代理转发；不要把 8788 直接暴露到局域网。
+
 脚本只处理 P4 本地开发固定端口 `5173`（Vite）与 `8788`（Wrangler）。它会使用
 `taskkill /T` 终止监听进程及其子进程，避免 `workerd` 或 Vite 的 Node 子进程残留。
 不要将前端或后端以脱离终端的 `Start-Process` 方式单独启动；那种进程不属于你按下

@@ -23,6 +23,16 @@ Replace duplicated multiplayer table presentation and interaction with the valid
 
 ## Progress log
 
+- 2026-07-30: added a top-level home screen and explicit single/multiplayer
+  exits. Multiplayer table exit is deliberately local presentation only: it
+  returns to the room lobby and suppresses stale realtime projections until
+  the player selects “继续游戏”, which reloads the same personal Authority
+  projection. From the lobby, host exit invokes authoritative room closure;
+  non-host exit releases only that subject's presence and socket. Room close
+  broadcasts `roomClosed`, closes realtime sockets, cancels Room alarms/tasks,
+  erases Room/Authority/Realtime local persistence, and returns all connected
+  clients home. See ADR-0034 and the 2026-07-30 handoff.
+
 - 2026-07-28: added `useMultiplayerTableAdapter` and `MultiplayerTable`; active rendering uses `TableView`, `SeatView`, `HandView`, `ActionControls`, and `PublicActions`.
 - 2026-07-28: `seat-projection` now delegates to `createDisplayPositions`; targeted UI suite is 14/14 and adapter suite is 3/3.
 - 2026-07-28: frontend format, lint, typecheck, build, and targeted suites pass. One full-suite run hit the pre-existing reconnect-test race (`connect` observed twice); an immediate isolated rerun passed 14/14. Backend typecheck plus P3-05, P3-06, and P3-08 all pass.

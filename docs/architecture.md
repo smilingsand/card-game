@@ -1,5 +1,9 @@
 # 扑克牌游戏平台架构基线
 
+## P4 本地多人入口与生命周期
+
+本地多人仍遵循 `Vite → Wrangler Worker → SQLite-backed Durable Object` 的权威边界。浏览器默认显示首页；多人客户端只持有自己的个人投影。牌桌“退出”仅改变本地展示状态，返回房间大厅并抑制旧的实时投影；“继续游戏”必须重新向 Authority 读取个人 `game-view`。大厅右上角退出才改变服务端生命周期：房主关闭整个房间，非房主仅断开自己的 presence/WebSocket。关闭房间会协调清理 Room、Authority 与 Realtime 的持久状态和本地 alarm/task，且向在线客户端广播 `roomClosed`。完整决策见 `proj-info/adr/ADR-0034-p4-explicit-room-exit-and-resume.md`。
+
 ## 当前实现状态（P2 已交付；P2.7 本地策略稳定化待发布验收）
 
 - 浏览器应用位于 `frontend/`，使用 React、TypeScript、Vite；Vercel 项目 Root Directory 为 `frontend`。

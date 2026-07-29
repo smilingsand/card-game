@@ -12,18 +12,18 @@
 - 本地版本已包含：尾局下家阻断、合法动作兜底、自然中小结构争牌、控制资源保护，以及明牌时按出牌先后显示覆盖关系。
 - P2.7 已部署到 Vercel Production 并完成用户人工试玩验收；正式入口为 `https://card-game-wentop.vercel.app/`。未来的移动端/PWA 风险变更按需单独复测。
 
-P3-01 至 P3-07 已在本地 `P3-development` 分支完成验收。当前 P4 工作在 `codex/p3-11-singleplayer-table-modularization` 分支继续多人牌桌复用、动作生命周期和本地运行时稳定性收口；尚未完成最终人工验收或部署。当前多人版本仅在本地 Vite、Wrangler/Miniflare 与 SQLite-backed Durable Object 中验证，尚未部署 Cloudflare；最新交接与本地恢复说明见 [P4 handoff](proj-info/handoffs/HANDOFF-2026-07-29-P4-runtime-recovery-and-table-layout.md)。
+P3-01 至 P3-10 已在本地完成验收；P3-07 与 P3-11 仍等待四客户端人工验收。当前 P4 工作在 `codex/p3-11-singleplayer-table-modularization` 分支继续多人牌桌复用、动作生命周期和本地运行时稳定性收口；尚未部署。当前多人版本仅在本地 Vite、Wrangler/Miniflare 与 SQLite-backed Durable Object 中验证。入口为首页的单人/多人选择；多人支持创建/加入、准备/开始、牌桌退出到大厅、继续同一权威牌局，以及大厅右上角退出（房主关闭房间，非房主释放自身连接）。本机启动和故障恢复见 [P4 最新交接](proj-info/handoffs/HANDOFF-2026-07-30-P4-entry-exit-and-room-lifecycle.md)。
 
 ## 文档入口
 
 - [当前机器人策略说明](docs/基础机器人策略说明_V2.md)
-- [已采用的掼蛋规则](docs/掼蛋规则(被采用)_V1.md)
+- [已采用的掼蛋规则](<docs/掼蛋规则(被采用)_V1.md>)
 - [统一规则口径](docs/resolved-rules.md)
 - [架构基线](docs/architecture.md)
 - [P2.7 发布记录](proj-info/phases/P2/release.md)
 - [阶段入口](proj-info/phases/README.md)
 - [策略收敛 ADR](proj-info/adr/ADR-0024-normal-vnext-strategy-replacement.md)
-- [最新 P3 交接说明](proj-info/handoffs/P3-01-P3-07-local-handoff.md)
+- [最新 P4 交接说明](proj-info/handoffs/HANDOFF-2026-07-30-P4-entry-exit-and-room-lifecycle.md)
 - [座位、控制权与视图投影 ADR](proj-info/adr/ADR-0029-p3-seat-controller-and-view-projection.md)
 - [项目开发合同](AGENTS.md)
 
