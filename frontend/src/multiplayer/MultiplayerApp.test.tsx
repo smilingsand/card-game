@@ -160,6 +160,45 @@ describe("多人前端", () => {
     });
   });
 
+  it("本地 Worker 在出牌中重启时，会以同一 commandId 自动重试一次", async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response("Your worker restarted mid-request. Please try again.", {
+          status: 503,
+          headers: { "content-type": "text/plain" }
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            accepted: true,
+            commandId: "command-123",
+            eventSequence: 4,
+            appliedEventSequence: 4,
+            appliedCardIds: [],
+            view: {}
+          }),
+          { status: 200 }
+        )
+      );
+    const client = createHttpMultiplayerClient(fetchImpl);
+    const action = client.submitAction({
+      roomId: "room-123",
+      commandId: "command-123",
+      expectedEventSequence: 3,
+      kind: "pass"
+    });
+
+    await vi.advanceTimersByTimeAsync(400);
+    await expect(action).resolves.toMatchObject({ commandId: "command-123" });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    for (const [, request] of fetchImpl.mock.calls as [string, RequestInit][]) {
+      expect(JSON.parse(String(request.body))).toMatchObject({ commandId: "command-123" });
+    }
+  });
+
   it("将非 JSON 的后端错误显示为可诊断 HTTP 错误", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response("Your worker encountered an internal error", {

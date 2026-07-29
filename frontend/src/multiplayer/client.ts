@@ -152,6 +152,18 @@ async function responseJson<T>(response: Response): Promise<T> {
   return body;
 }
 
+async function retryAfterLocalWorkerRestart<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isLocalWorkerRestart(error)) throw error;
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, LOCAL_RECOVERY_RETRY_DELAY_MS);
+    });
+    return operation();
+  }
+}
+
 export function createHttpMultiplayerClient(fetchImpl: FetchLike = fetch): MultiplayerClient {
   const request = async <T>(path: string, init?: RequestInit): Promise<T> =>
     responseJson<T>(
@@ -211,29 +223,26 @@ export function createHttpMultiplayerClient(fetchImpl: FetchLike = fetch): Multi
     },
     submitAction(input) {
       const { roomId, ...body } = input;
-      return post<{
-        readonly accepted: true;
-        readonly commandId: string;
-        readonly eventSequence: number;
-        readonly appliedEventSequence: number;
-        readonly appliedCardIds: readonly string[];
-        readonly view: GameProjection;
-      }>(`/v1/rooms/${roomId}/actions`, body);
+      // Authority persists responses by commandId, so repeating this exact
+      // request cannot apply a card action twice after a local Worker restart.
+      return retryAfterLocalWorkerRestart(() =>
+        post<{
+          readonly accepted: true;
+          readonly commandId: string;
+          readonly eventSequence: number;
+          readonly appliedEventSequence: number;
+          readonly appliedCardIds: readonly string[];
+          readonly view: GameProjection;
+        }>(`/v1/rooms/${roomId}/actions`, body)
+      );
     },
     async nudgeRoom(roomId) {
       if (!import.meta.env.DEV) return;
-      try {
-        await post(`/v1/rooms/${roomId}/presence`, { connected: true });
-      } catch (error) {
-        // This endpoint only refreshes local presence and is safe to replay.
-        // Wrangler can restart its local worker while Miniflare is recovering an
-        // alarm, which otherwise surfaces as an unrelated player operation error.
-        if (!isLocalWorkerRestart(error)) throw error;
-        await new Promise<void>((resolve) => {
-          window.setTimeout(resolve, LOCAL_RECOVERY_RETRY_DELAY_MS);
-        });
-        await post(`/v1/rooms/${roomId}/presence`, { connected: true });
-      }
+      // This explicitly asks Room to reconcile a bot task whose local alarm
+      // may have been lost; ordinary websocket heartbeats only refresh liveness.
+      await retryAfterLocalWorkerRestart(() =>
+        post(`/v1/rooms/${roomId}/presence`, { connected: true, recover: true })
+      );
     },
     connect(input) {
       const origin = apiOrigin() || window.location.origin;

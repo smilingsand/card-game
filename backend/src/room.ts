@@ -884,10 +884,19 @@ export class RoomDurableObject {
     if (path === "/presence") {
       if (
         typeof payload.connected !== "boolean" ||
-        typeof payload.now !== "number"
+        typeof payload.now !== "number" ||
+        (payload.recover !== undefined && typeof payload.recover !== "boolean")
       )
         return json({ error: "invalid_payload" }, 422);
+      const wasConnected = this.presence(subjectId)?.connected === 1;
       this.markPresence(subjectId, payload.connected, payload.now);
+      // Websocket heartbeats arrive every 10 seconds.  Re-running full bot
+      // reconciliation for an unchanged connection repeatedly rewrote the
+      // same Miniflare alarm and could overlap its local SQLite alarm work.
+      // A connection transition or the explicit local recovery nudge remains
+      // a reconciliation boundary; an ordinary heartbeat is liveness only.
+      if (wasConnected === payload.connected && payload.recover !== true)
+        return json({ room: this.projection(meta) });
       try {
         await this.reconcile(meta, payload.now);
       } catch {
