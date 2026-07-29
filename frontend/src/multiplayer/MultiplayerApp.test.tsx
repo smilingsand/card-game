@@ -148,6 +148,10 @@ describe("多人前端", () => {
     expect(screen.queryByLabelText("多人牌桌")).not.toBeInTheDocument();
     await act(async () => onEvent?.());
     expect(screen.queryByLabelText("多人牌桌")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "继续游戏" }));
+
+    expect(await screen.findByLabelText("多人牌桌")).toBeInTheDocument();
   });
 
   it("大厅操作进行中不会重复创建 session 或房间", async () => {

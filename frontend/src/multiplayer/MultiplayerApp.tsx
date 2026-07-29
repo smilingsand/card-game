@@ -378,6 +378,20 @@ export function MultiplayerApp({
     setActionPending(false);
     setNotice("已退出牌桌，可在大厅继续管理房间。");
   };
+  const continueGame = () => {
+    if (!roomId || room?.phase !== "started" || !tableExited || lobbyPending) return;
+    setLobbyPending(true);
+    void client
+      .getGameView(roomId)
+      .then((nextGame) => {
+        tableExitedRef.current = false;
+        setTableExited(false);
+        applyGameProjection(nextGame);
+        setNotice("已返回牌桌，继续当前牌局。");
+      })
+      .catch((error) => setNotice(messageFor(error)))
+      .finally(() => setLobbyPending(false));
+  };
   const exitLobby = () => {
     if (!roomId || !room) return onExit();
     setLobbyPending(true);
@@ -521,6 +535,11 @@ export function MultiplayerApp({
               </article>
             ))}
           </div>
+          {tableExited && room.phase === "started" ? (
+            <button type="button" onClick={continueGame} disabled={lobbyPending}>
+              继续游戏
+            </button>
+          ) : null}
           {room.phase === "lobby" ? (
             <button
               type="button"
