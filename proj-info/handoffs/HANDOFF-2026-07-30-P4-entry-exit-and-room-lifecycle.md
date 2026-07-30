@@ -57,7 +57,13 @@ Vitest 输出仍有既有的 React `act(...)` 警告；测试不失败。完整 
 npm.cmd run p4:dev
 ```
 
-正常关闭前台终端使用 `Ctrl+C`；终端被强制关闭后使用 `npm.cmd run p4:stop`。不要另外单独启动 Vite 或 Wrangler。若请求再次持续数秒或出现 503，先保存 `temp/p4-backend-dev.log` 和 `temp/p4-backend-dev.err.log`，按 2026-07-29 handoff 的步骤停止并归档 `backend/.wrangler/state`，不要直接删除。
+本地多人验收只用 `p4:dev` 启动，禁止另外单独启动 Vite 或 Wrangler。正常关闭前台终端使用 `Ctrl+C`；终端被强制关闭、进程残留或端口需清理时，在仓库根目录运行：
+
+```powershell
+npm.cmd run p4:stop
+```
+
+若请求再次持续数秒或出现 503，先保存 `temp/p4-backend-dev.log` 和 `temp/p4-backend-dev.err.log`，按 2026-07-29 handoff 的步骤停止并归档 `backend/.wrangler/state`，不要直接删除。
 
 下一次人工验收建议覆盖：
 
