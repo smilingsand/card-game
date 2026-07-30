@@ -1,4 +1,5 @@
 import { ActionControls } from "../components/table/ActionControls";
+import { PlayerCardCount } from "../components/table/CardFace";
 import { HandView } from "../components/table/HandView";
 import { PublicActions } from "../components/table/PublicActions";
 import { SeatView } from "../components/table/SeatView";
@@ -151,9 +152,10 @@ export function MultiplayerTable({
             <strong className="human-seat-name">
               {model.playerNames[model.viewerLogicalSeat]}
             </strong>
-            <span className="card-count seat-card-count">
-              {model.remainingCardCounts[model.viewerLogicalSeat]}
-            </span>
+            <PlayerCardCount
+              handSize={model.remainingCardCounts[model.viewerLogicalSeat]}
+              finishIndex={game.finished?.indexOf(model.viewerLogicalSeat) ?? -1}
+            />
           </p>
         </section>
         <p id="hand-arrangement-help">

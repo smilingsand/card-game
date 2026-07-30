@@ -157,6 +157,28 @@ describe("共享多人牌桌适配器", () => {
     });
   });
 
+  it("真人出完牌后在自己的底部座位也显示完成名次", () => {
+    render(
+      <MultiplayerTable
+        game={{
+          ...game,
+          hand: [],
+          remainingCardCounts: { ...game.remainingCardCounts, south: 0 },
+          finished: ["south"]
+        }}
+        seats={seats}
+        handLayout="stacked"
+        actionPending={false}
+        notice=""
+        onPlay={vi.fn()}
+        onPass={vi.fn()}
+      />
+    );
+
+    expect(within(screen.getByLabelText("你的手牌")).getByText("头家")).toBeInTheDocument();
+    expect(within(screen.getByLabelText("你的手牌")).queryByText("0")).not.toBeInTheDocument();
+  });
+
   it("99 的实体 ID 原样提交，绝不替换为另一组合法的 KK", () => {
     const onPlay = renderTable();
     fireEvent.click(screen.getByRole("button", { name: "选择♠9" }));
@@ -330,7 +352,7 @@ describe("共享多人牌桌适配器", () => {
     );
 
     await waitFor(() => {
-      const cards = within(screen.getByLabelText("你的手牌")).getAllByRole("button");
+      const cards = screen.getByLabelText("你的手牌").querySelectorAll(".hand-card");
       expect(cards[0]).toHaveAccessibleName("选择♠K");
     });
   });
