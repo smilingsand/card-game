@@ -103,7 +103,7 @@ describe("App", () => {
     expect(screen.queryByLabelText("normal-vNext 决策诊断")).not.toBeInTheDocument();
   });
 
-  it("normal-vNext 等待出牌时明确显示 thinking 状态", async () => {
+  it("机器人等待出牌时不额外显示 thinking 提示", async () => {
     const initial = createTableSession(73);
     const opening = getLegalSingleActions(initial.game).find(
       (action) => action.type === "play" && action.cardIds.length === 1
@@ -115,7 +115,7 @@ describe("App", () => {
     render(
       <App initialMode="solo" storage={memoryStorage(serializeTableSession(afterSouth.session))} />
     );
-    await waitFor(() => expect(screen.getByText("normal-vNext 正在思考…")).toBeInTheDocument());
+    expect(screen.queryByText("normal-vNext 正在思考…")).not.toBeInTheDocument();
   });
 
   it("牌桌提供独立的响应式布局边界", async () => {
@@ -199,6 +199,9 @@ describe("App", () => {
     render(<App initialMode="solo" storage={memoryStorage()} />);
 
     await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
+    const humanIdentity = screen.getByText("南家（你）").closest("p");
+    expect(humanIdentity).toHaveClass("human-seat-identity");
+    expect(humanIdentity).toHaveTextContent("27");
     expect(screen.getByLabelText("北家座位")).toHaveTextContent("27");
     expect(screen.getByLabelText("东家座位")).toHaveTextContent("27");
     expect(screen.getByLabelText("东家座位")).toHaveTextContent("东家（机器人）");

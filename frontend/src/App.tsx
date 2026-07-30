@@ -143,7 +143,6 @@ function SoloApp({
   const [showAllHands, setShowAllHands] = useState(false);
   const [handLayout, setHandLayout] = useState<HandLayout>("stacked");
   const [applyPwaUpdate, setApplyPwaUpdate] = useState<() => void>();
-  const [botThinking, setBotThinking] = useState(false);
   const [completedTrickActions, setCompletedTrickActions] = useState<readonly TurnAction[]>();
   const completedTrickKeyRef = useRef<string | undefined>(undefined);
   const levelRank = game.levelRank ?? session.match.levelRank;
@@ -195,10 +194,8 @@ function SoloApp({
       game.state.current === HUMAN_SEAT
     )
       return;
-    setBotThinking(true);
     const timer = window.setTimeout(() => {
       const action = chooseTableBotAction(game);
-      setBotThinking(false);
       if (!action) {
         setMessage(`${seatName[game.state.current]}没有可执行的合法动作。`);
         return;
@@ -642,11 +639,6 @@ function SoloApp({
           <p className="table-status" role="status">
             {message}
           </p>
-          {botThinking ? (
-            <p className="bot-thinking" role="status">
-              normal-vNext 正在思考…
-            </p>
-          ) : null}
         </section>
         <SeatView
           className="seat west"
@@ -688,65 +680,68 @@ function SoloApp({
           style={{ zIndex: recentActionLayers.get(HUMAN_SEAT) ?? 0 }}
         />
         {game.state.completed ? null : (
-          <section className="human-seat" aria-label="你的手牌">
-            <ActionControls
-              canPass={tableViewModel.canPass}
-              canPlay={tableViewModel.canPlay}
-              canHint={tableViewModel.canHint}
-              isActionPending={tableViewModel.isActionPending}
-              selectedCardIds={tableViewModel.selectedCardIds}
-              onPass={tableInteractions.onPass}
-              onHint={tableInteractions.onHint}
-              onPlay={tableInteractions.onPlay}
-              playLabel={
-                <>
-                  出牌
-                  {selectedActions[0]?.type === "play"
-                    ? `（${formatInterpretation(selectedActions[0].interpretation)}）`
-                    : ""}
-                </>
-              }
-            >
-              {awaitingSouthTribute ? (
-                <button
-                  type="button"
-                  onClick={submitManualTribute}
-                  disabled={selectedCardIds.length !== 1}
-                >
-                  确认进贡
-                </button>
-              ) : null}
-              {awaitingSouthReturn ? (
-                <button
-                  type="button"
-                  onClick={submitManualReturn}
-                  disabled={selectedCardIds.length !== 1}
-                >
-                  确认还贡
-                </button>
-              ) : null}
-            </ActionControls>
-            <HandView
-              groups={tableViewModel.ownHand}
-              handLayout={tableViewModel.handLayout}
-              selectedCardIds={tableViewModel.selectedCardIds}
-              selectableCardIds={tableViewModel.selectableCardIds}
-              draggable={humanCanAct}
-              levelRank={levelRank}
-              onToggleCard={tableInteractions.onToggleCard}
-              onTouchEnd={selectCardWithTouch}
-              onDragStart={dragStart}
-              onDragEnd={() => setDraggingCardId(undefined)}
-              onDrop={dropOnCard}
-              onKeyDown={reorderWithKeyboard}
-            />
-            <div className="human-footer">
-              <p id="hand-arrangement-help">
-                已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
+          <>
+            <section className="human-seat" aria-label="你的手牌">
+              <ActionControls
+                canPass={tableViewModel.canPass}
+                canPlay={tableViewModel.canPlay}
+                canHint={tableViewModel.canHint}
+                isActionPending={tableViewModel.isActionPending}
+                selectedCardIds={tableViewModel.selectedCardIds}
+                onPass={tableInteractions.onPass}
+                onHint={tableInteractions.onHint}
+                onPlay={tableInteractions.onPlay}
+                playLabel={
+                  <>
+                    出牌
+                    {selectedActions[0]?.type === "play"
+                      ? `（${formatInterpretation(selectedActions[0].interpretation)}）`
+                      : ""}
+                  </>
+                }
+              >
+                {awaitingSouthTribute ? (
+                  <button
+                    type="button"
+                    onClick={submitManualTribute}
+                    disabled={selectedCardIds.length !== 1}
+                  >
+                    确认进贡
+                  </button>
+                ) : null}
+                {awaitingSouthReturn ? (
+                  <button
+                    type="button"
+                    onClick={submitManualReturn}
+                    disabled={selectedCardIds.length !== 1}
+                  >
+                    确认还贡
+                  </button>
+                ) : null}
+              </ActionControls>
+              <HandView
+                groups={tableViewModel.ownHand}
+                handLayout={tableViewModel.handLayout}
+                selectedCardIds={tableViewModel.selectedCardIds}
+                selectableCardIds={tableViewModel.selectableCardIds}
+                draggable={humanCanAct}
+                levelRank={levelRank}
+                onToggleCard={tableInteractions.onToggleCard}
+                onTouchEnd={selectCardWithTouch}
+                onDragStart={dragStart}
+                onDragEnd={() => setDraggingCardId(undefined)}
+                onDrop={dropOnCard}
+                onKeyDown={reorderWithKeyboard}
+              />
+              <p className="human-seat-identity">
+                <strong className="human-seat-name">南家（你）</strong>
+                <PlayerCardCount handSize={hand.length} finishIndex={finishIndex(HUMAN_SEAT)} />
               </p>
-              <PlayerCardCount handSize={hand.length} finishIndex={finishIndex(HUMAN_SEAT)} />
-            </div>
-          </section>
+            </section>
+            <p id="hand-arrangement-help">
+              已按牌面自动整理。可拖拽牌到另一张牌前方理牌；也可按 Alt 加左右方向键移动当前牌。
+            </p>
+          </>
         )}
       </TableView>
     </main>
