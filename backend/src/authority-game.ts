@@ -5,16 +5,16 @@ import {
   formatCard,
   formatInterpretation,
   getLegalBotActions,
-  getSouthReturnChoices,
-  getSouthTributeChoices,
+  getReturnChoices,
+  getTributeChoices,
   getSelectedPlayActions,
   latestCompletedTrickActions,
   latestRecentActionsBySeat,
   parseSecureSeed,
   prepareNextTableSessionWithSecureSeed,
   restartCurrentTableSession,
-  submitSouthReturn,
-  submitSouthTribute,
+  submitReturn,
+  submitTribute,
   type Seat,
   type TableSession,
   type TurnAction,
@@ -63,9 +63,19 @@ type StoredEvent =
       readonly kind: "tribute";
       readonly action: "tribute" | "return";
       readonly cardId: string;
+      /** Legacy records predate selectable human seats and always mean south. */
+      readonly seat?: Seat;
     }
-  | { readonly kind: "next-round"; readonly encryptedSeed: string }
-  | { readonly kind: "restart-current-round"; readonly encryptedSeed: string }
+  | {
+      readonly kind: "next-round";
+      readonly encryptedSeed: string;
+      readonly humanSeat?: Seat;
+    }
+  | {
+      readonly kind: "restart-current-round";
+      readonly encryptedSeed: string;
+      readonly humanSeat?: Seat;
+    }
   | { readonly kind: "test-complete-fixture" };
 
 function json(value: unknown, status = 200): Response {
@@ -208,7 +218,13 @@ function view(
   const tributeSummary = session.match.tributePlan.antiTribute
     ? ["抗贡"]
     : session.match.tributePlan.obligations.map((obligation) => {
-        const card = session.game.cardsById.get(obligation.cardId);
+        const tributeCard = session.game.cardsById.get(obligation.cardId);
+        const returned = session.match.submittedReturns.find(
+          (item) => item.from === obligation.to && item.to === obligation.from,
+        );
+        const returnCard = returned
+          ? session.game.cardsById.get(returned.cardId)
+          : undefined;
         const seatName: Record<Seat, string> = {
           south: "南家",
           east: "东家",
@@ -217,7 +233,11 @@ function view(
         };
         // Tribute is an explicitly public table exchange. This projection only
         // exposes that exchanged card, never a player's remaining hand.
-        return `${seatName[obligation.from]}贡${card ? formatCard(card) : "牌"}`;
+        return `${seatName[obligation.from]}贡${tributeCard ? formatCard(tributeCard) : "牌"}${
+          returnCard
+            ? `，${seatName[obligation.to]}还${formatCard(returnCard)}`
+            : ""
+        }`;
       });
   const tributeHint = session.match.previousFinish
     ? session.match.tributePlan.antiTribute
@@ -227,13 +247,11 @@ function view(
         : "正在准备进贡"
     : "首局由南家先出";
   const tributeChoices =
-    seat === "south"
-      ? session.match.tributePhase === "awaiting-tribute"
-        ? getSouthTributeChoices(session)
-        : session.match.tributePhase === "awaiting-return"
-          ? getSouthReturnChoices(session)
-          : []
-      : [];
+    session.match.tributePhase === "awaiting-tribute"
+      ? getTributeChoices(session, seat)
+      : session.match.tributePhase === "awaiting-return"
+        ? getReturnChoices(session, seat)
+        : [];
   const tributeAction =
     tributeChoices.length > 0
       ? {
@@ -378,6 +396,10 @@ export class AuthorityGameDurableObject {
     let session = createTableSession(seed, {
       initialLeader: meta.initialLeader,
     });
+    // P4 had one human controller before tribute events started recording its
+    // seat. Use that binding only for legacy replay; new records carry it.
+    const legacyHumanSeat = this.controllerSeat(meta.ownerId) ?? "south";
+    let replayedLegacyHumanSeat = false;
     for (const row of this.ctx.storage.sql.exec<EventRow>(
       "SELECT sequence, payload FROM events ORDER BY sequence",
     )) {
@@ -388,24 +410,43 @@ export class AuthorityGameDurableObject {
           throw new Error("stored_event_invalid");
         session = next.session;
       } else if (stored.kind === "next-round") {
+        replayedLegacyHumanSeat ||= stored.humanSeat === undefined;
         const roundSeed = parseSecureSeed(
           await decryptSeed(stored.encryptedSeed, this.env),
         );
-        session = prepareNextTableSessionWithSecureSeed(session, roundSeed);
+        session = prepareNextTableSessionWithSecureSeed(
+          session,
+          roundSeed,
+          stored.humanSeat ?? legacyHumanSeat,
+        );
         if (session.stream.events.length - 1 !== row.sequence)
           throw new Error("stored_event_invalid");
       } else if (stored.kind === "tribute") {
+        replayedLegacyHumanSeat ||= stored.seat === undefined;
         session =
           stored.action === "tribute"
-            ? submitSouthTribute(session, stored.cardId)
-            : submitSouthReturn(session, stored.cardId);
+            ? submitTribute(
+                session,
+                stored.seat ?? legacyHumanSeat,
+                stored.cardId,
+              )
+            : submitReturn(
+                session,
+                stored.seat ?? legacyHumanSeat,
+                stored.cardId,
+              );
         if (session.stream.events.length - 1 !== row.sequence)
           throw new Error("stored_event_invalid");
       } else if (stored.kind === "restart-current-round") {
+        replayedLegacyHumanSeat ||= stored.humanSeat === undefined;
         const roundSeed = parseSecureSeed(
           await decryptSeed(stored.encryptedSeed, this.env),
         );
-        session = restartCurrentTableSession(session, roundSeed);
+        session = restartCurrentTableSession(
+          session,
+          roundSeed,
+          stored.humanSeat ?? legacyHumanSeat,
+        );
         if (session.stream.events.length - 1 !== row.sequence)
           throw new Error("stored_event_invalid");
       } else if (
@@ -424,6 +465,7 @@ export class AuthorityGameDurableObject {
       throw new Error("snapshot_event_gap");
     if (
       latestSnapshot &&
+      !replayedLegacyHumanSeat &&
       latestSnapshot.payload !==
         JSON.stringify({
           eventSequence: latestSnapshot.eventSequence,
@@ -941,7 +983,11 @@ export class AuthorityGameDurableObject {
       const roundSeed = parseSecureSeed(secureSeed());
       let restarted: TableSession;
       try {
-        restarted = restartCurrentTableSession(session, roundSeed);
+        restarted = restartCurrentTableSession(
+          session,
+          roundSeed,
+          subjectSeat ?? "south",
+        );
       } catch {
         return json({ error: "round_restart_rejected" }, 422);
       }
@@ -963,6 +1009,7 @@ export class AuthorityGameDurableObject {
           JSON.stringify({
             kind: "restart-current-round",
             encryptedSeed,
+            humanSeat: subjectSeat ?? "south",
           } satisfies StoredEvent),
         );
         this.ctx.storage.sql.exec(
@@ -1038,7 +1085,11 @@ export class AuthorityGameDurableObject {
         return json({ error: "seed_regeneration_failed" }, 503);
       let next: TableSession;
       try {
-        next = prepareNextTableSessionWithSecureSeed(session, nextSeed);
+        next = prepareNextTableSessionWithSecureSeed(
+          session,
+          nextSeed,
+          subjectSeat ?? "south",
+        );
       } catch {
         return json({ error: "round_transition_rejected" }, 422);
       }
@@ -1046,6 +1097,7 @@ export class AuthorityGameDurableObject {
       const stored: StoredEvent = {
         kind: "next-round",
         encryptedSeed: await encryptSeed(nextSeed, this.env),
+        humanSeat: subjectSeat ?? "south",
       };
       const response = {
         acknowledged: true,
@@ -1166,7 +1218,6 @@ export class AuthorityGameDurableObject {
       );
     if (
       (payload.kind === "tribute" || payload.kind === "return") &&
-      subjectSeat === "south" &&
       Array.isArray(payload.cardIds) &&
       payload.cardIds.length === 1 &&
       typeof payload.cardIds[0] === "string"
@@ -1177,8 +1228,8 @@ export class AuthorityGameDurableObject {
       try {
         next =
           tributeKind === "tribute"
-            ? submitSouthTribute(session, tributeCardId)
-            : submitSouthReturn(session, tributeCardId);
+            ? submitTribute(session, subjectSeat, tributeCardId)
+            : submitReturn(session, subjectSeat, tributeCardId);
       } catch {
         return json({ error: "invalid_tribute_card" }, 422);
       }
@@ -1200,6 +1251,7 @@ export class AuthorityGameDurableObject {
             kind: "tribute",
             action: tributeKind,
             cardId: tributeCardId,
+            seat: subjectSeat,
           } satisfies StoredEvent),
         );
         this.ctx.storage.sql.exec(

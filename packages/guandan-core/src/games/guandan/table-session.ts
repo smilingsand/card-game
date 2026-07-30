@@ -429,7 +429,10 @@ function returnValue(
   );
 }
 
-function advanceAutomatedTribute(session: TableSession): TableSession {
+function advanceAutomatedTribute(
+  session: TableSession,
+  humanSeat: import("../../platform/types").Seat,
+): TableSession {
   let match = session.match;
   if (match.tributePhase === "ready") return session;
   const hands = cardsForHands(session.game);
@@ -437,7 +440,7 @@ function advanceAutomatedTribute(session: TableSession): TableSession {
     const submittedTributes = [...match.submittedTributes];
     for (const obligation of match.tributePlan.obligations) {
       if (
-        obligation.from !== "south" &&
+        obligation.from !== humanSeat &&
         !submittedTributes.includes(obligation.cardId)
       )
         submittedTributes.push(obligation.cardId);
@@ -455,7 +458,7 @@ function advanceAutomatedTribute(session: TableSession): TableSession {
     const submittedReturns = [...match.submittedReturns];
     for (const obligation of match.tributePlan.obligations) {
       if (
-        obligation.to === "south" ||
+        obligation.to === humanSeat ||
         submittedReturns.some(
           (item) => item.from === obligation.to && item.to === obligation.from,
         )
@@ -520,9 +523,17 @@ function advanceAutomatedTribute(session: TableSession): TableSession {
 export function getSouthTributeChoices(
   session: TableSession,
 ): readonly string[] {
+  return getTributeChoices(session, "south");
+}
+
+/** Returns the required tribute cards for the one human-controlled seat. */
+export function getTributeChoices(
+  session: TableSession,
+  seat: import("../../platform/types").Seat,
+): readonly string[] {
   if (session.match.tributePhase !== "awaiting-tribute") return [];
   const obligation = session.match.tributePlan.obligations.find(
-    (item) => item.from === "south",
+    (item) => item.from === seat,
   );
   if (
     !obligation ||
@@ -530,10 +541,10 @@ export function getSouthTributeChoices(
   )
     return [];
   return cardsForHands(session.game)
-    .south.filter((card) =>
+    [seat].filter((card) =>
       isRequiredTributeCard(
         card.id,
-        cardsForHands(session.game).south,
+        cardsForHands(session.game)[seat],
         session.match.levelRank,
       ),
     )
@@ -545,10 +556,19 @@ export function submitSouthTribute(
   session: TableSession,
   cardId: string,
 ): TableSession {
+  return submitTribute(session, "south", cardId);
+}
+
+/** Records the human-controlled seat's tribute, then resolves all bot exchanges. */
+export function submitTribute(
+  session: TableSession,
+  seat: import("../../platform/types").Seat,
+  cardId: string,
+): TableSession {
   const obligation = session.match.tributePlan.obligations.find(
-    (item) => item.from === "south",
+    (item) => item.from === seat,
   );
-  if (!obligation || !getSouthTributeChoices(session).includes(cardId))
+  if (!obligation || !getTributeChoices(session, seat).includes(cardId))
     throw new TableSaveError("invalid south tribute card");
   const tributePlan: TributePlan = {
     ...session.match.tributePlan,
@@ -562,6 +582,7 @@ export function submitSouthTribute(
       tributePlan,
       submittedTributes: [...session.match.submittedTributes, cardId],
     }),
+    seat,
   );
 }
 
@@ -569,19 +590,27 @@ export function submitSouthTribute(
 export function getSouthReturnChoices(
   session: TableSession,
 ): readonly string[] {
+  return getReturnChoices(session, "south");
+}
+
+/** Returns legal return cards for the one human-controlled recipient seat. */
+export function getReturnChoices(
+  session: TableSession,
+  seat: import("../../platform/types").Seat,
+): readonly string[] {
   if (session.match.tributePhase !== "awaiting-return") return [];
   const obligation = session.match.tributePlan.obligations.find(
-    (item) => item.to === "south",
+    (item) => item.to === seat,
   );
   if (
     !obligation ||
     session.match.submittedReturns.some(
-      (item) => item.from === "south" && item.to === obligation.from,
+      (item) => item.from === seat && item.to === obligation.from,
     )
   )
     return [];
   return cardsForHands(session.game)
-    .south.filter((card) => canReturnTributeCard(card, session.match.levelRank))
+    [seat].filter((card) => canReturnTributeCard(card, session.match.levelRank))
     .map((card) => card.id);
 }
 
@@ -590,19 +619,29 @@ export function submitSouthReturn(
   session: TableSession,
   cardId: string,
 ): TableSession {
+  return submitReturn(session, "south", cardId);
+}
+
+/** Records the human-controlled seat's return, then resolves all bot exchanges. */
+export function submitReturn(
+  session: TableSession,
+  seat: import("../../platform/types").Seat,
+  cardId: string,
+): TableSession {
   const obligation = session.match.tributePlan.obligations.find(
-    (item) => item.to === "south",
+    (item) => item.to === seat,
   );
-  if (!obligation || !getSouthReturnChoices(session).includes(cardId))
+  if (!obligation || !getReturnChoices(session, seat).includes(cardId))
     throw new TableSaveError("invalid south return card");
   return advanceAutomatedTribute(
     appendProgress(session, {
       ...session.match,
       submittedReturns: [
         ...session.match.submittedReturns,
-        { from: "south", to: obligation.from, cardId },
+        { from: seat, to: obligation.from, cardId },
       ],
     }),
+    seat,
   );
 }
 
@@ -610,10 +649,14 @@ export function submitSouthReturn(
  * Creates the next dealt round after a completed table. Tribute transfer is intentionally
  * not performed here; upper layers must resolve the exposed plan before allowing play.
  */
-export function prepareNextTableSession(session: TableSession): TableSession {
+export function prepareNextTableSession(
+  session: TableSession,
+  humanSeat: import("../../platform/types").Seat = "south",
+): TableSession {
   return prepareNextTableSessionWithRoundSeed(
     session,
     nextRoundSeed(session.seed, session.match.roundNumber + 1),
+    humanSeat,
   );
 }
 
@@ -624,15 +667,17 @@ export function prepareNextTableSession(session: TableSession): TableSession {
 export function prepareNextTableSessionWithSecureSeed(
   session: TableSession,
   roundSeed: SecureSeed,
+  humanSeat: import("../../platform/types").Seat = "south",
 ): TableSession {
   if (roundSeed === session.match.roundSeed)
     throw new TableSaveError("next round must use a new secure seed");
-  return prepareNextTableSessionWithRoundSeed(session, roundSeed);
+  return prepareNextTableSessionWithRoundSeed(session, roundSeed, humanSeat);
 }
 
 function prepareNextTableSessionWithRoundSeed(
   session: TableSession,
   roundSeed: TableSeed,
+  humanSeat: import("../../platform/types").Seat,
 ): TableSession {
   const finish = session.match.currentFinish ?? session.game.state.finished;
   if (!session.game.state.completed || finish.length !== 4)
@@ -672,7 +717,7 @@ function prepareNextTableSessionWithRoundSeed(
   );
   return tributePlan.kind === "none"
     ? prepared
-    : advanceAutomatedTribute(prepared);
+    : advanceAutomatedTribute(prepared, humanSeat);
 }
 
 /**
@@ -682,6 +727,7 @@ function prepareNextTableSessionWithRoundSeed(
 export function restartCurrentTableSession(
   session: TableSession,
   roundSeed: TableSeed,
+  humanSeat: import("../../platform/types").Seat = "south",
 ): TableSession {
   const leader = session.match.previousFinish?.[0] ?? "south";
   const game = createTableGame(roundSeed, {
@@ -719,7 +765,7 @@ export function restartCurrentTableSession(
   );
   return tributePlan.kind === "none"
     ? restarted
-    : advanceAutomatedTribute(restarted);
+    : advanceAutomatedTribute(restarted, humanSeat);
 }
 
 export function serializeTableSession(session: TableSession): TableSave {

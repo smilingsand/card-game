@@ -5,6 +5,7 @@ import { parseSecureSeed } from "../../platform/secure-seed";
 import {
   applyTableSessionAction,
   createTableSession,
+  getTributeChoices,
   prepareNextTableSession,
   prepareNextTableSessionWithSecureSeed,
   getSouthReturnChoices,
@@ -15,6 +16,7 @@ import {
   setHumanDisplayOrder,
   submitSouthReturn,
   submitSouthTribute,
+  submitTribute,
 } from "./table-session";
 
 describe("牌桌事件存档", () => {
@@ -322,5 +324,52 @@ describe("牌桌事件存档", () => {
     expect(exchanged.match.tributePhase).toBe("ready");
     expect(exchanged.match.submittedReturns).toHaveLength(2);
     expect(exchanged.game.state.hands.south).toHaveLength(27);
+  });
+
+  test("north human tribute resolves to the larger tribute giver", () => {
+    const awaitingTribute = Array.from({ length: 128 }, (_, seed) => {
+      const initial = createTableSession(seed);
+      const completed = {
+        ...initial,
+        game: {
+          ...initial.game,
+          state: {
+            ...initial.game.state,
+            completed: true as const,
+            finished: ["east", "west", "north", "south"] as const,
+          },
+        },
+        match: {
+          ...initial.match,
+          currentFinish: ["east", "west", "north", "south"] as const,
+        },
+      };
+      const next = prepareNextTableSession(completed, "north");
+      const [high, low] = next.match.tributePlan.obligations;
+      const highCard = high && next.game.cardsById.get(high.cardId);
+      const lowCard = low && next.game.cardsById.get(low.cardId);
+      return next.match.tributePhase === "awaiting-tribute" &&
+        getTributeChoices(next, "north").length > 0 &&
+        highCard?.rank !== lowCard?.rank
+        ? next
+        : undefined;
+    }).find((session) => session !== undefined);
+    if (!awaitingTribute) throw new Error("expected a non-tied double tribute");
+
+    const [high] = awaitingTribute.match.tributePlan.obligations;
+    const exchanged = submitTribute(
+      awaitingTribute,
+      "north",
+      getTributeChoices(awaitingTribute, "north")[0],
+    );
+
+    expect(exchanged.match.tributePhase).toBe("ready");
+    expect(exchanged.game.state.current).toBe(high.from);
+    expect(exchanged.game.state.current).not.toBe("east");
+    const returnedToNorth = exchanged.match.submittedReturns.find(
+      (item) => item.to === "north",
+    );
+    expect(returnedToNorth).toBeDefined();
+    expect(exchanged.game.state.hands.north).toContain(returnedToNorth?.cardId);
   });
 });
