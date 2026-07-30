@@ -872,6 +872,15 @@ button:disabled {
   gap: 0;
 }
 
+/* Multiplayer seat labels are wider than the solo labels. Move their public
+   actions slightly inward so played cards and passes do not crowd the player. */
+.multiplayer-table-game .east .seat-actions {
+  right: calc(100% + 1.5rem);
+}
+.multiplayer-table-game .west .seat-actions {
+  left: calc(100% + 1.5rem);
+}
+
 .multiplayer-lobby label {
   display: grid;
   gap: 0.25rem;

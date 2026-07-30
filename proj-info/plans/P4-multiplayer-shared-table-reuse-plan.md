@@ -23,6 +23,11 @@ Replace duplicated multiplayer table presentation and interaction with the valid
 
 ## Progress log
 
+- 2026-07-30: aligned the shared table presentation baseline. Solo now shows
+  the human identity below the hand and no longer renders a separate bot
+  thinking line; multiplayer side-seat public actions are offset inward so
+  they do not crowd seat names or card counts.
+
 - 2026-07-30: entering single-player from the home screen now always starts a
   new match and replaces any prior local save. Direct in-table resume behavior
   remains available for the single-player storage boundary.

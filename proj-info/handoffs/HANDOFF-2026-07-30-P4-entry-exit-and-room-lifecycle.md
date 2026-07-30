@@ -3,8 +3,8 @@
 ## 当前分支与提交
 
 - 分支：`codex/p3-11-singleplayer-table-modularization`
-- 最新提交：`fcd9f40 P4: resume multiplayer game from lobby`
-- 前序相关提交：`0b6c6bb`（首页、退出与房间生命周期）、`81d0aeb`（多人退出流程修复）。
+- 入口与房间流程提交：`fcd9f40 P4: resume multiplayer game from lobby`。
+- 后续相关提交：`444b313`（结墩展示稳定化）、`d7b2cdd`（任意真人座位贡还牌）、`a7a5f0f`（首页进入单人新赛局）和 `bb566c9`（隐藏单人机器人思考提示）。
 
 ## 已完成的产品流程
 
@@ -17,6 +17,8 @@
    - 非房主：提交 `presence=false`，关闭自身 WebSocket 并回首页；房间继续运行，既有离线托管逻辑接管。
 6. 删除了大厅底部重复的“关闭房间／退出房间”按钮。
 7. `npm.cmd run p4:dev` 的 Vite 监听改为 `0.0.0.0:5173`。本机 URL 为 `http://127.0.0.1:5173/`；局域网 URL 为 `http://<本机IP>:5173/`。后端仍只监听 `127.0.0.1:8788`。
+8. 单人游戏从首页进入时总是重新开赛并覆盖旧本地存档；单人牌桌内部刷新仍可以恢复当前赛局。
+9. 单人和多人牌桌的底部本人信息布局一致；多人左右玩家的公开出牌或“不要”展示向牌桌中央偏移，避免贴近姓名与剩余牌数。
 
 ## 关键实现位置
 
@@ -46,6 +48,8 @@ npm.cmd run lint --workspace frontend
 - 前端 build、前后端 typecheck、前端 lint 和针对性 Prettier 检查通过。
 
 Vitest 输出仍有既有的 React `act(...)` 警告；测试不失败。完整 `npm.cmd run test:p3-06 --workspace backend` 在本机连续两次失败于既有“Room 绑定真人逻辑座位”空座机器人调度时序断言：期望 eventSequence 2/current south，实际有时为 eventSequence 0/current north。新增 P4 Realtime 用例单独通过；此不稳定项尚未修复，后续应以独立 P4/P3-11 稳定性任务处理，勿在没有复现与日志的情况下改动规则或退出流程。
+
+后续牌桌 UI 调整（2026-07-30）验证：`npm.cmd run lint --workspace frontend` 与 `npm.cmd run build --workspace frontend` 通过。定向 `MultiplayerTable` 套件为 8/9；未通过项是既有的手牌排序测试把“过牌”控制按钮也纳入“你的手牌”的按钮查询，和本次 CSS 展示位置调整无关。
 
 ## 运行与人工验收
 
