@@ -118,10 +118,13 @@ export { CardFace, PlayerCardCount } from "./components/table/CardFace";
 
 function SoloApp({
   storage,
-  onExit
+  onExit,
+  restoreSavedSession = true
 }: {
   readonly storage?: StorageBoundary<TableSave>;
   readonly onExit: () => void;
+  /** 首页发起的新单人游戏不恢复此前的本地赛局。 */
+  readonly restoreSavedSession?: boolean;
 }) {
   const saveStorage = useMemo(() => storage ?? defaultStorage(), [storage]);
   const [session, setSession] = useState<TableSession>(() => createTableSession(newSeed()));
@@ -147,6 +150,10 @@ function SoloApp({
   const finishIndex = (seat: Seat) => game.state.finished.indexOf(seat);
 
   useEffect(() => {
+    if (!restoreSavedSession) {
+      setStorageReady(true);
+      return;
+    }
     let active = true;
     void saveStorage
       .load()
@@ -167,7 +174,7 @@ function SoloApp({
     return () => {
       active = false;
     };
-  }, [clearSelection, saveStorage]);
+  }, [clearSelection, restoreSavedSession, saveStorage]);
 
   useEffect(() => {
     if (!storageReady || saveBlocked) return;
@@ -809,7 +816,11 @@ export function App({
     );
   return (
     <>
-      <SoloApp storage={storage} onExit={() => setMode("home")} />
+      <SoloApp
+        storage={storage}
+        onExit={() => setMode("home")}
+        restoreSavedSession={initialMode !== "home"}
+      />
     </>
   );
 }

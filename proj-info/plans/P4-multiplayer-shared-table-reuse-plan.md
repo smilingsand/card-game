@@ -23,6 +23,10 @@ Replace duplicated multiplayer table presentation and interaction with the valid
 
 ## Progress log
 
+- 2026-07-30: entering single-player from the home screen now always starts a
+  new match and replaces any prior local save. Direct in-table resume behavior
+  remains available for the single-player storage boundary.
+
 - 2026-07-30: removed the south-seat assumption from authoritative tribute
   handling. The actual human seat now receives its own required tribute/return
   choices; replay records that seat so worker restoration preserves the same

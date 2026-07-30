@@ -67,6 +67,24 @@ describe("App", () => {
     expect(await screen.findByLabelText("多人大厅")).toBeInTheDocument();
   });
 
+  it("从首页进入单人游戏时忽略旧存档并开始新赛局", async () => {
+    const initial = createTableSession(73);
+    const opening = getLegalSingleActions(initial.game).find(
+      (action) => action.type === "play" && action.cardIds.length === 1
+    );
+    if (!opening) throw new Error("expected south opening");
+    const afterSouth = applyTableSessionAction(initial, opening);
+    if (!afterSouth.ok) throw new Error("expected south opening");
+    const storage = memoryStorage(serializeTableSession(afterSouth.session));
+
+    render(<App initialMode="home" storage={storage} />);
+    fireEvent.click(screen.getByRole("button", { name: "单人掼蛋游戏" }));
+
+    await waitFor(() => expect(screen.getByText("轮到：南家（你）")).toBeInTheDocument());
+    expect(screen.queryByText("已继续上次未完成的对局。")).not.toBeInTheDocument();
+    await waitFor(() => expect(storage.saveCalls).toBeGreaterThan(0));
+  });
+
   it("单人游戏的退出按钮回到首页", () => {
     render(<App initialMode="solo" storage={memoryStorage()} />);
 
