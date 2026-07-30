@@ -21,6 +21,7 @@ export default defineConfig({
       "../packages/guandan-core/src/games/guandan/normal-vnext-bot.test.ts",
       "../packages/guandan-core/src/games/guandan/normal-vnext-metrics.test.ts",
       "../packages/guandan-core/src/games/guandan/patterns.test.ts",
+      "../packages/guandan-core/src/games/guandan/recent-actions.test.ts",
       "../packages/guandan-core/src/games/guandan/rule-cases.test.ts",
       "../packages/guandan-core/src/games/guandan/settlement.test.ts",
       "../packages/guandan-core/src/games/guandan/simulation.test.ts",

@@ -56,6 +56,13 @@ export interface GameProjection {
     readonly cards: readonly Card[];
     readonly wildcardAs: Readonly<Record<string, { readonly rank: Card["rank"] }>>;
   }[];
+  /** Public actions from a just-cleared trick, shown briefly before the next lead. */
+  readonly completedTrickActions?: readonly {
+    readonly actor: Seat;
+    readonly type: "play" | "pass";
+    readonly cards: readonly Card[];
+    readonly wildcardAs: Readonly<Record<string, { readonly rank: Card["rank"] }>>;
+  }[];
   /** The currently winning public play; never a private hand projection. */
   readonly highestPlay?: {
     readonly actor: Seat;

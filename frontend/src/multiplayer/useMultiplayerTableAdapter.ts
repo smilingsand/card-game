@@ -63,6 +63,7 @@ export interface MultiplayerTableAdapter {
   };
   readonly levelRank: Card["rank"];
   readonly canAct: boolean;
+  readonly isTrickCompletionVisible: boolean;
   readonly selectionStatus: string;
 }
 
@@ -92,7 +93,29 @@ export function useMultiplayerTableAdapter({
   const staleSelection = useRef<string | undefined>(undefined);
   const tributeAction = game.tributeAction;
   const isTributePending = tributeAction !== undefined;
-  const canAct = game.current === game.seat && !isTributePending;
+  const completedTrickKey = game.completedTrickActions?.length
+    ? `${game.gameId ?? "current"}:${game.eventSequence}`
+    : undefined;
+  const completedTrickKeyRef = useRef<string | undefined>(undefined);
+  const completedTrickSourceRef = useRef(game.completedTrickActions);
+  completedTrickSourceRef.current = game.completedTrickActions;
+  const [completedTrickActions, setCompletedTrickActions] =
+    useState<GameProjection["completedTrickActions"]>();
+  useEffect(() => {
+    if (!completedTrickKey) {
+      setCompletedTrickActions(undefined);
+      return;
+    }
+    if (completedTrickKeyRef.current === completedTrickKey) return;
+    const actions = completedTrickSourceRef.current;
+    if (!actions?.length) return;
+    completedTrickKeyRef.current = completedTrickKey;
+    setCompletedTrickActions(actions);
+    const timer = window.setTimeout(() => setCompletedTrickActions(undefined), 900);
+    return () => window.clearTimeout(timer);
+  }, [completedTrickKey]);
+  const isTrickCompletionVisible = completedTrickActions !== undefined;
+  const canAct = game.current === game.seat && !isTributePending && !isTrickCompletionVisible;
   const canSelect = canAct || isTributePending;
   const cardsById = useMemo(() => new Map(game.hand.map((card) => [card.id, card])), [game.hand]);
   const orderedIds = useMemo(
@@ -138,14 +161,14 @@ export function useMultiplayerTableAdapter({
   }, [canAct, game, onRefreshLegalActions, selectedCardIds, selectedPlay]);
 
   const publicActions = useMemo(() => {
-    const mapped = game.publicActions?.map(publicAction) ?? [];
+    const mapped = (completedTrickActions ?? game.publicActions)?.map(publicAction) ?? [];
     return Object.fromEntries(
       (["south", "east", "north", "west"] as const).map((seat) => [
         seat,
         mapped.filter((action) => action.key.startsWith(`${seat}:`)).slice(-1)
       ])
     ) as unknown as Record<Seat, readonly TablePublicAction[]>;
-  }, [game.publicActions]);
+  }, [completedTrickActions, game.publicActions]);
   const highestPlay = game.highestPlay
     ? {
         key: `highest:${game.highestPlay.actor}:${game.eventSequence}`,
@@ -241,16 +264,19 @@ export function useMultiplayerTableAdapter({
     },
     levelRank: game.levelRank ?? "2",
     canAct,
+    isTrickCompletionVisible,
     selectionStatus: isTributePending
       ? selectedCardIds.length === 0
         ? tributeAction.kind === "return"
           ? "请选择一张不大于 10 的牌还贡。"
           : "请选择最大的牌进贡。"
         : `已选择 ${selectedCardIds.length} 张牌，确认后提交给服务端。`
-      : !canAct
-      ? `等待${model.playerNames[game.current]}出牌。`
-      : selectedCardIds.length === 0
-        ? "请选择要出的牌。"
-        : `已选择 ${selectedCardIds.length} 张牌，可以提交给服务端判定。`
+      : isTrickCompletionVisible
+        ? "本墩全员不要，正在结墩。"
+        : !canAct
+          ? `等待${model.playerNames[game.current]}出牌。`
+          : selectedCardIds.length === 0
+            ? "请选择要出的牌。"
+            : `已选择 ${selectedCardIds.length} 张牌，可以提交给服务端判定。`
   };
 }

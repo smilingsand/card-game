@@ -93,7 +93,11 @@ export function MultiplayerTable({
           );
         })}
         <section className="table-info" aria-label="桌面信息">
-          <p>轮到：{model.playerNames[model.currentActorSeat]}</p>
+          <p>
+            {adapter.isTrickCompletionVisible
+              ? "本墩全员不要，正在结墩。"
+              : `轮到：${model.playerNames[model.currentActorSeat]}`}
+          </p>
           <p>
             {model.highestPlay
               ? `当前牌由${model.playerNames[game.highestPlay!.actor]}压住。`

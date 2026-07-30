@@ -8,6 +8,7 @@ import {
   getSouthReturnChoices,
   getSouthTributeChoices,
   getSelectedPlayActions,
+  latestCompletedTrickActions,
   latestRecentActionsBySeat,
   parseSecureSeed,
   prepareNextTableSessionWithSecureSeed,
@@ -186,6 +187,19 @@ function view(
         : [],
     wildcardAs: action.type === "play" ? action.interpretation.wildcardAs : {},
   }));
+  const completedTrickActions = latestCompletedTrickActions(
+    session.game.publicEvents,
+  ).map((action) => ({
+    actor: action.actor,
+    type: action.type,
+    cards:
+      action.type === "play"
+        ? action.cardIds
+            .map((id) => session.game.cardsById.get(id))
+            .filter((card) => card !== undefined)
+        : [],
+    wildcardAs: action.type === "play" ? action.interpretation.wildcardAs : {},
+  }));
   const activeLevelTeam =
     (session.match.previousFinish?.[0] ?? session.match.leader) === "south" ||
     (session.match.previousFinish?.[0] ?? session.match.leader) === "north"
@@ -259,6 +273,7 @@ function view(
       ]),
     ),
     publicActions,
+    ...(completedTrickActions.length > 0 ? { completedTrickActions } : {}),
     // The current winning play is public table state.  Send its card faces so
     // clients never have to infer them from a private hand projection.
     ...(highestPlay ? { highestPlay } : {}),

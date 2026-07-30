@@ -23,6 +23,12 @@ Replace duplicated multiplayer table presentation and interaction with the valid
 
 ## Progress log
 
+- 2026-07-30: after the final third pass clears an active trick, both the
+  single-player table and multiplayer personal projections retain the public
+  play plus all three pass markers for 900 ms before clearing the table and
+  enabling the next leader.  This is presentation-only: turn resolution,
+  event persistence, Authority state, and bot scheduling remain unchanged.
+
 - 2026-07-30: added a top-level home screen and explicit single/multiplayer
   exits. Multiplayer table exit is deliberately local presentation only: it
   returns to the room lobby and suppresses stale realtime projections until

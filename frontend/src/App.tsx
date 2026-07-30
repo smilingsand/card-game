@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type DragEvent,
   type KeyboardEvent,
@@ -42,6 +43,7 @@ import {
 import type { TurnAction } from "@card-game/guandan-core";
 import {
   actionFromPublicEvent,
+  latestCompletedTrickActions,
   latestRecentActionLayerBySeat,
   latestRecentActionsBySeat
 } from "@card-game/guandan-core";
@@ -139,6 +141,8 @@ function SoloApp({
   const [handLayout, setHandLayout] = useState<HandLayout>("stacked");
   const [applyPwaUpdate, setApplyPwaUpdate] = useState<() => void>();
   const [botThinking, setBotThinking] = useState(false);
+  const [completedTrickActions, setCompletedTrickActions] = useState<readonly TurnAction[]>();
+  const completedTrickKeyRef = useRef<string | undefined>(undefined);
   const levelRank = game.levelRank ?? session.match.levelRank;
   const finishIndex = (seat: Seat) => game.state.finished.indexOf(seat);
 
@@ -247,8 +251,25 @@ function SoloApp({
     groupHumanDisplayCards(game.state.hands[seat], game.cardsById, levelRank);
   const publicPlay = (seat: Seat) => (highestPlay?.actor === seat ? highestPlay : undefined);
   const recentActions = latestRecentActionsBySeat(game.publicEvents);
+  const latestCompletedActions = useMemo(
+    () => latestCompletedTrickActions(game.publicEvents),
+    [game.publicEvents]
+  );
+  const completedTrickKey = latestCompletedActions.length
+    ? `${game.publicEvents.length}:${latestCompletedActions.at(-1)?.actor}`
+    : undefined;
+  useEffect(() => {
+    if (!completedTrickKey || completedTrickKeyRef.current === completedTrickKey) return;
+    completedTrickKeyRef.current = completedTrickKey;
+    setCompletedTrickActions(latestCompletedActions);
+    const timer = window.setTimeout(() => setCompletedTrickActions(undefined), 900);
+    return () => window.clearTimeout(timer);
+  }, [completedTrickKey, latestCompletedActions]);
+  const isTrickCompletionVisible = completedTrickActions !== undefined;
+  const visibleRecentActions = completedTrickActions ?? recentActions;
   const recentActionLayers = latestRecentActionLayerBySeat(game.publicEvents);
-  const recentActionsFor = (seat: Seat) => recentActions.filter((action) => action.actor === seat);
+  const recentActionsFor = (seat: Seat) =>
+    visibleRecentActions.filter((action) => action.actor === seat);
 
   const publicActionViewsFor = (seat: Seat): readonly PublicActionView[] =>
     recentActionsFor(seat).map((action) => ({
@@ -293,6 +314,7 @@ function SoloApp({
   const humanCanAct =
     session.match.tributePhase === "ready" &&
     game.state.current === HUMAN_SEAT &&
+    !isTrickCompletionVisible &&
     !game.state.completed;
   const activeLevelTeam = levelTeam(session.match.previousFinish?.[0] ?? session.match.leader);
   const antiTributeProof = antiTributeReason(game, session.match.tributePlan.proof);
@@ -600,7 +622,11 @@ function SoloApp({
           />
         </SeatView>
         <section className="table-info" aria-label="桌面信息">
-          <p>轮到：{seatName[game.state.current]}</p>
+          <p>
+            {isTrickCompletionVisible
+              ? "本墩全员不要，正在结墩。"
+              : `轮到：${seatName[game.state.current]}`}
+          </p>
           <p>
             {game.state.highestSeat
               ? `当前牌由${seatName[game.state.highestSeat]}压住。`

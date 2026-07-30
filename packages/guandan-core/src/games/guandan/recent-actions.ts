@@ -20,6 +20,22 @@ function currentTrickActions(events: readonly Event[]): readonly TurnAction[] {
   return actions.slice(start).slice(-4);
 }
 
+/** 最近刚清墩的公开动作；仅用于在清空桌面前短暂展示最后一次“不要”。 */
+export function latestCompletedTrickActions(
+  events: readonly Event[],
+): readonly TurnAction[] {
+  const actions = events
+    .map(actionFromPublicEvent)
+    .filter((action): action is TurnAction => !!action);
+  const finalPasses = actions.slice(-3);
+  if (
+    finalPasses.length !== 3 ||
+    !finalPasses.every((action) => action.type === "pass")
+  )
+    return [];
+  return actions.slice(-4);
+}
+
 /** 最近一圈中每个座位只显示其最后一次动作，避免旧的“不要”重复残留。 */
 export function latestRecentActionsBySeat(
   events: readonly Event[],

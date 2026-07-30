@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { GameProjection, RoomProjection } from "./client";
 import { MultiplayerTable } from "./MultiplayerTable";
@@ -67,6 +67,69 @@ function renderTable(onPlay = vi.fn(), actionPending = false) {
 }
 
 describe("共享多人牌桌适配器", () => {
+  it("清墩前短暂显示最后三家不要，并在结束后恢复领出操作", () => {
+    vi.useFakeTimers();
+    try {
+      const completedGame: GameProjection = {
+        ...game,
+        eventSequence: 7,
+        completedTrickActions: [
+          {
+            actor: "south",
+            type: "play",
+            cards: [{ id: "nine-spade", deckIndex: 0, rank: "9", suit: "spades" }],
+            wildcardAs: {}
+          },
+          { actor: "east", type: "pass", cards: [], wildcardAs: {} },
+          { actor: "north", type: "pass", cards: [], wildcardAs: {} },
+          { actor: "west", type: "pass", cards: [], wildcardAs: {} }
+        ]
+      };
+      const { rerender } = render(
+        <MultiplayerTable
+          game={completedGame}
+          seats={seats}
+          handLayout="stacked"
+          actionPending={false}
+          notice=""
+          onPlay={vi.fn()}
+          onPass={vi.fn()}
+        />
+      );
+
+      expect(screen.getAllByText("不要")).toHaveLength(3);
+      expect(screen.getAllByText("本墩全员不要，正在结墩。")).toHaveLength(2);
+      expect(screen.getByRole("button", { name: "出牌" })).toBeDisabled();
+
+      rerender(
+        <MultiplayerTable
+          game={{
+            ...completedGame,
+            completedTrickActions: completedGame.completedTrickActions?.map((action) => ({
+              ...action,
+              cards: [...action.cards],
+              wildcardAs: { ...action.wildcardAs }
+            }))
+          }}
+          seats={seats}
+          handLayout="stacked"
+          actionPending={false}
+          notice=""
+          onPlay={vi.fn()}
+          onPass={vi.fn()}
+        />
+      );
+
+      act(() => vi.advanceTimersByTime(900));
+
+      expect(screen.queryByText("不要")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "选择♠9" }));
+      expect(screen.getByRole("button", { name: "出牌" })).toBeEnabled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("四个观察者都将自己映射到底部，且视觉映射不改变逻辑顺序", () => {
     expect(projectSeatsForViewer("south")).toEqual({
       bottom: "south",
