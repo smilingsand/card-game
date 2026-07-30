@@ -431,6 +431,14 @@ describe("多人前端", () => {
 
   it("只根据个人投影的合法动作提交选中的牌", async () => {
     const client = fakeClient();
+    vi.mocked(crypto.randomUUID).mockImplementationOnce(() => {
+      throw new DOMException("randomUUID requires a secure context", "SecurityError");
+    });
+    vi.spyOn(crypto, "getRandomValues").mockImplementation((values) => {
+      const bytes = values as Uint8Array;
+      bytes.set(Uint8Array.from({ length: bytes.length }, (_value, index) => index));
+      return values;
+    });
     const pairGame = {
       ...startedGame,
       legalActions: [
@@ -458,14 +466,14 @@ describe("多人前端", () => {
     vi.mocked(client.createRoom).mockResolvedValue({ room, inviteCode: "invite-123" });
     vi.mocked(client.start).mockResolvedValue(startedRoom);
     vi.mocked(client.getGameView).mockResolvedValue(pairGame);
-    vi.mocked(client.submitAction).mockResolvedValue({
+    vi.mocked(client.submitAction).mockImplementation(async (input) => ({
       accepted: true,
-      commandId: testCommandId,
+      commandId: input.commandId,
       eventSequence: 1,
       appliedEventSequence: 1,
       appliedCardIds: ["card-1", "card-2"],
       view: afterPairGame
-    });
+    }));
     render(<MultiplayerApp client={client} onExit={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "创建房间" }));
     await screen.findByLabelText("多人房间");

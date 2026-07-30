@@ -42,6 +42,22 @@ const PRESET_NAMES = [
 const SEATS: readonly Seat[] = ["south", "east", "north", "west"];
 const SEAT_LABEL: Record<Seat, string> = { south: "南", east: "东", north: "北", west: "西" };
 
+function createClientCommandId(): string {
+  try {
+    if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch {
+    // `randomUUID()` is restricted to secure contexts. LAN development uses
+    // plain HTTP, where `getRandomValues()` remains available.
+  }
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex
+    .slice(6, 8)
+    .join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+}
+
 function botName(seat: Seat, seats: RoomProjection["seats"]): string {
   const index = seats
     .filter((item) => item.controller === "bot")
@@ -287,7 +303,7 @@ export function MultiplayerApp({
 
   const submit = (kind: "pass" | "play" | "tribute" | "return", cardIds?: readonly string[]) => {
     if (!roomId || !game || actionPending) return;
-    const commandId = crypto.randomUUID();
+    const commandId = createClientCommandId();
     const submittedCardIds = kind === "pass" ? [] : [...(cardIds ?? [])];
     setActionPending(true);
     setNotice(
@@ -339,7 +355,7 @@ export function MultiplayerApp({
     const submitRestart = (expectedEventSequence: number) => {
       const input = {
         roomId,
-        clientCommandId: crypto.randomUUID(),
+        clientCommandId: createClientCommandId(),
         expectedEventSequence
       };
       return kind === "match" ? client.restartMatch(input) : client.restartRound(input);

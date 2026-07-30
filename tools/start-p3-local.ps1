@@ -19,6 +19,8 @@ $ports = @(5173, 8788)
 $processStatePath = Join-Path $repositoryRoot 'backend\.wrangler\p4-dev-process.json'
 $backendLogPath = Join-Path $repositoryRoot 'temp\p4-backend-dev.log'
 $backendErrorLogPath = Join-Path $repositoryRoot 'temp\p4-backend-dev.err.log'
+$frontendLogPath = Join-Path $repositoryRoot 'temp\p4-frontend-dev.log'
+$frontendErrorLogPath = Join-Path $repositoryRoot 'temp\p4-frontend-dev.err.log'
 
 function Get-ListeningProcessIds {
   param([Parameter(Mandatory = $true)][int]$Port)
@@ -154,6 +156,47 @@ function Clear-LocalP3Ports {
   }
 }
 
+function Write-NewLogLines {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Label,
+    [Parameter(Mandatory = $true)][ref]$Offset
+  )
+
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return
+  }
+
+  $stream = [System.IO.File]::Open(
+    $Path,
+    [System.IO.FileMode]::Open,
+    [System.IO.FileAccess]::Read,
+    [System.IO.FileShare]::ReadWrite
+  )
+  try {
+    if ($stream.Length -lt $Offset.Value) {
+      $Offset.Value = 0
+    }
+    if ($stream.Length -eq $Offset.Value) {
+      return
+    }
+    [void]$stream.Seek($Offset.Value, [System.IO.SeekOrigin]::Begin)
+    $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::UTF8, $true, 4096, $true)
+    try {
+      while (($line = $reader.ReadLine()) -ne $null) {
+        Write-Host "[$Label] $line"
+      }
+      $Offset.Value = $stream.Position
+    }
+    finally {
+      $reader.Dispose()
+    }
+  }
+  finally {
+    $stream.Dispose()
+  }
+}
+
 Clear-LocalP3Ports
 
 if ($StopOnly) {
@@ -162,39 +205,49 @@ if ($StopOnly) {
 }
 
 $backend = $null
+$frontend = $null
 try {
   # Wrangler enables Local Explorer automatically when it detects an AI agent.
   # That explorer starts a second workerd which can consume a CPU core and
   # stall the actual local Worker.  The P4 runtime has no dependency on it.
   New-Item -ItemType Directory -Path (Split-Path -Parent $backendLogPath) -Force | Out-Null
-  Remove-Item -LiteralPath $backendLogPath, $backendErrorLogPath -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $backendLogPath, $backendErrorLogPath, $frontendLogPath, $frontendErrorLogPath -Force -ErrorAction SilentlyContinue
   $backend = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/d', '/c', 'set "X_LOCAL_EXPLORER=false" && npm.cmd run dev') -WorkingDirectory (Join-Path $repositoryRoot 'backend') -RedirectStandardOutput $backendLogPath -RedirectStandardError $backendErrorLogPath -PassThru
+  $frontend = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/d', '/c', 'npm.cmd run dev -- --host 0.0.0.0 --port 5173 --strictPort') -WorkingDirectory (Join-Path $repositoryRoot 'frontend') -RedirectStandardOutput $frontendLogPath -RedirectStandardError $frontendErrorLogPath -PassThru
   @{ backendProcessId = $backend.Id; startedAt = [DateTime]::UtcNow.ToString('o') } |
     ConvertTo-Json -Compress |
     Set-Content -LiteralPath $processStatePath -Encoding utf8
 
   Write-Host 'P4 local services are starting: frontend http://127.0.0.1:5173 (LAN: http://<本机IP>:5173), backend http://127.0.0.1:8788.'
   Write-Host "Backend logs: $backendLogPath (errors: $backendErrorLogPath)."
-  Write-Host 'Vite runs in this foreground terminal. Ctrl+C stops Vite, then this script stops the backend process tree.'
+  Write-Host "Frontend logs: $frontendLogPath (errors: $frontendErrorLogPath)."
+  Write-Host 'This terminal mirrors frontend and backend logs. Ctrl+C stops both process trees.'
   Write-Host 'Use -StopOnly only after a forced terminal close.'
 
-  Push-Location (Join-Path $repositoryRoot 'frontend')
-  try {
-    & cmd.exe /d /c 'npm.cmd run dev -- --host 0.0.0.0 --port 5173 --strictPort'
-    if ($LASTEXITCODE -ne 0) {
-      throw "Frontend development process exited with code $LASTEXITCODE."
+  [long]$backendLogOffset = 0
+  [long]$backendErrorLogOffset = 0
+  [long]$frontendLogOffset = 0
+  [long]$frontendErrorLogOffset = 0
+  while ($true) {
+    Write-NewLogLines -Path $backendLogPath -Label 'backend' -Offset ([ref]$backendLogOffset)
+    Write-NewLogLines -Path $backendErrorLogPath -Label 'backend:error' -Offset ([ref]$backendErrorLogOffset)
+    Write-NewLogLines -Path $frontendLogPath -Label 'frontend' -Offset ([ref]$frontendLogOffset)
+    Write-NewLogLines -Path $frontendErrorLogPath -Label 'frontend:error' -Offset ([ref]$frontendErrorLogOffset)
+    $backend.Refresh()
+    $frontend.Refresh()
+    if ($backend.HasExited) {
+      throw "Backend development process exited early (exit code $($backend.ExitCode))."
     }
-  }
-  finally {
-    Pop-Location
-  }
-
-  $backend.Refresh()
-  if ($backend.HasExited) {
-    throw "Backend development process exited early (exit code $($backend.ExitCode))."
+    if ($frontend.HasExited) {
+      throw "Frontend development process exited early (exit code $($frontend.ExitCode))."
+    }
+    Start-Sleep -Milliseconds 150
   }
 }
 finally {
+  if ($frontend) {
+    Stop-ProcessTree -ProcessId $frontend.Id
+  }
   if ($backend) {
     Stop-ProcessTree -ProcessId $backend.Id
   }
