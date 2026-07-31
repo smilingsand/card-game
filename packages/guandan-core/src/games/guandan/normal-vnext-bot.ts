@@ -123,19 +123,24 @@ function selectedCards(action: PlayAction, view: BotView): readonly Card[] {
     .filter((card): card is Card => card !== undefined);
 }
 
-function naturalGroups(
-  view: BotView,
+function naturalGroupsForCards(
+  cards: readonly Card[],
+  levelRank: BotView["levelRank"],
 ): ReadonlyMap<Card["rank"], readonly Card[]> {
-  return view.selfHand
+  return cards
     .filter(
       (card) =>
         card.suit !== "joker" &&
-        !(card.suit === "hearts" && card.rank === view.levelRank),
+        !(card.suit === "hearts" && card.rank === levelRank),
     )
     .reduce<Map<Card["rank"], Card[]>>((groups, card) => {
       groups.set(card.rank, [...(groups.get(card.rank) ?? []), card]);
       return groups;
     }, new Map());
+}
+
+function naturalGroups(view: BotView): ReadonlyMap<Card["rank"], readonly Card[]> {
+  return naturalGroupsForCards(view.selfHand, view.levelRank);
 }
 
 function sequences(length: number): readonly (readonly Card["rank"][])[] {
@@ -182,22 +187,43 @@ export function analyzeNormalVNextHand(view: BotView): NormalVNextHandAnalysis {
   };
 }
 
-function belongsToNaturalSequence(
+function naturalStructureCount(
   groups: ReadonlyMap<Card["rank"], readonly Card[]>,
-  rank: Card["rank"],
   copies: number,
   length: number,
-): boolean {
-  return sequences(length).some(
-    (sequence) =>
-      sequence.includes(rank) &&
-      sequence.every((item) => (groups.get(item)?.length ?? 0) >= copies),
+): number {
+  return sequences(length).filter((sequence) =>
+    sequence.every((rank) => (groups.get(rank)?.length ?? 0) >= copies),
+  ).length;
+}
+
+function naturalStructureAllowance(action: PlayAction, view: BotView): {
+  readonly straight: number;
+  readonly consecutivePairs: number;
+  readonly steelPlates: number;
+} {
+  const selected = selectedCards(action, view);
+  const natural = selected.every(
+    (card) =>
+      card.suit !== "joker" &&
+      !(card.suit === "hearts" && card.rank === view.levelRank),
   );
+  if (!natural) return { straight: 0, consecutivePairs: 0, steelPlates: 0 };
+  return {
+    straight: action.interpretation.type === "straight" ? 1 : 0,
+    consecutivePairs: action.interpretation.type === "three-consecutive-pairs" ? 1 : 0,
+    steelPlates: action.interpretation.type === "steel-plate" ? 1 : 0,
+  };
 }
 
 /** Cost of destroying an existing natural group; it never certifies legality. */
 function structureDamageCost(action: PlayAction, view: BotView): number {
   const groups = naturalGroups(view);
+  const selectedIds = new Set(action.cardIds);
+  const remainingGroups = naturalGroupsForCards(
+    view.selfHand.filter((card) => !selectedIds.has(card.id)),
+    view.levelRank,
+  );
   const selectedByRank = selectedCards(action, view).reduce<
     Map<Card["rank"], number>
   >((counts, card) => {
@@ -212,13 +238,29 @@ function structureDamageCost(action: PlayAction, view: BotView): number {
       else if (available === 3) cost += BREAK_TRIPLE_COST;
       else if (available === 2) cost += BREAK_PAIR_COST;
     }
-    if (belongsToNaturalSequence(groups, rank, 1, 5))
-      cost += BREAK_STRAIGHT_COST;
-    if (belongsToNaturalSequence(groups, rank, 2, 3))
-      cost += BREAK_CONSECUTIVE_PAIR_COST;
-    if (belongsToNaturalSequence(groups, rank, 3, 2))
-      cost += BREAK_STEEL_PLATE_COST;
   }
+  const allowance = naturalStructureAllowance(action, view);
+  cost +=
+    Math.max(
+      0,
+      naturalStructureCount(groups, 1, 5) -
+        naturalStructureCount(remainingGroups, 1, 5) -
+        allowance.straight,
+    ) * BREAK_STRAIGHT_COST;
+  cost +=
+    Math.max(
+      0,
+      naturalStructureCount(groups, 2, 3) -
+        naturalStructureCount(remainingGroups, 2, 3) -
+        allowance.consecutivePairs,
+    ) * BREAK_CONSECUTIVE_PAIR_COST;
+  cost +=
+    Math.max(
+      0,
+      naturalStructureCount(groups, 3, 2) -
+        naturalStructureCount(remainingGroups, 3, 2) -
+        allowance.steelPlates,
+    ) * BREAK_STEEL_PLATE_COST;
   return cost;
 }
 

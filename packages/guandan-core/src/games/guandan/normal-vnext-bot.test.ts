@@ -80,6 +80,17 @@ const normalBomb = (ids: readonly string[], key: number): TurnAction => ({
   },
 });
 
+const pattern = (
+  ids: readonly string[],
+  type: Extract<TurnAction, { type: "play" }>['interpretation']['type'],
+  key: number,
+): TurnAction => ({
+  type: "play",
+  actor: "east",
+  cardIds: [...ids],
+  interpretation: { type, comparisonKey: [key], cardIds: [...ids], wildcardAs: {} },
+});
+
 const baseView = (overrides: Record<string, unknown> = {}) => ({
   selfSeat: "east" as const,
   leader: "south" as const,
@@ -869,4 +880,164 @@ test("残局强制阻断时，允许使用唯一的级牌压制", () => {
       }),
     )?.action,
   ).toBe(levelSingle);
+});
+
+test("P6：完整更大顺子跟牌不是拆顺子，应压制而非 pass", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const straight = pattern(["6", "7", "8", "9", "10"], "straight", 10);
+  const view = baseView({
+    selfHand: ["3", "6", "7", "8", "9", "10"].map((rank) =>
+      card(rank, rank as Card["rank"]),
+    ),
+    legalActions: [pass, straight],
+    remainingCardCounts: { east: 5, south: 24, west: 24, north: 24 },
+  });
+
+  expect(describeNormalVNextAction(straight, view)?.structureDamageCost).toBe(0);
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(straight);
+});
+
+test("P6：完整更大连对跟牌不是拆连对，应压制而非 pass", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const consecutivePairs = pattern(
+    ["6a", "6b", "7a", "7b", "8a", "8b"],
+    "three-consecutive-pairs",
+    8,
+  );
+  const view = baseView({
+    selfHand: [
+      card("3", "3"),
+      card("6a", "6"),
+      card("6b", "6"),
+      card("7a", "7"),
+      card("7b", "7"),
+      card("8a", "8"),
+      card("8b", "8"),
+    ],
+    legalActions: [pass, consecutivePairs],
+    remainingCardCounts: { east: 7, south: 24, west: 24, north: 24 },
+  });
+
+  expect(describeNormalVNextAction(consecutivePairs, view)?.structureDamageCost).toBe(0);
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(consecutivePairs);
+});
+
+test("P6：完整更大钢板跟牌不是拆钢板，应压制而非 pass", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const steelPlate = pattern(["7a", "7b", "7c", "8a", "8b", "8c"], "steel-plate", 8);
+  const view = baseView({
+    selfHand: [
+      card("3", "3"),
+      card("7a", "7"),
+      card("7b", "7"),
+      card("7c", "7"),
+      card("8a", "8"),
+      card("8b", "8"),
+      card("8c", "8"),
+    ],
+    legalActions: [pass, steelPlate],
+    remainingCardCounts: { east: 7, south: 24, west: 24, north: 24 },
+  });
+
+  expect(describeNormalVNextAction(steelPlate, view)?.structureDamageCost).toBe(0);
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(steelPlate);
+});
+
+test("P6：从自然顺子抽取部分牌仍保留明显结构损伤", () => {
+  const partial = single("7", 7);
+  const view = baseView({
+    selfHand: ["6", "7", "8", "9", "10"].map((rank) => card(rank, rank as Card["rank"])),
+    legalActions: [partial],
+  });
+
+  expect(describeNormalVNextAction(partial, view)?.structureDamageCost).toBeGreaterThanOrEqual(800);
+});
+
+test("P6：普通早中盘跟小单时在多个散单中选择最小足够压制", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const six = single("6", 6);
+  const eight = single("8", 8);
+  const jack = single("J", 11);
+  const ace = single("A", 14);
+  const view = baseView({
+    selfHand: [card("6", "6"), card("8", "8"), card("J", "J"), card("A", "A")],
+    legalActions: [pass, ace, jack, eight, six],
+    remainingCardCounts: { east: 24, south: 24, west: 24, north: 24 },
+  });
+
+  expect(analyzeNextSeatEndgameThreat(view).mode).toBe("none");
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(six);
+});
+
+test("P6：普通早中盘保护小对子，使用合理散单而非最大牌", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const splitPair = single("6a", 6);
+  const eight = single("8", 8);
+  const jack = single("J", 11);
+  const ace = single("A", 14);
+  const view = baseView({
+    selfHand: [
+      card("6a", "6"),
+      card("6b", "6"),
+      card("8", "8"),
+      card("J", "J"),
+      card("A", "A"),
+    ],
+    legalActions: [pass, ace, jack, eight, splitPair],
+    remainingCardCounts: { east: 24, south: 24, west: 24, north: 24 },
+  });
+
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(eight);
+});
+
+test("P6：普通早中盘保护自然结构，使用低成本散单而非机械选最大牌", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const splitStraight = single("6", 6);
+  const queen = single("Q", 12);
+  const ace = single("A", 14);
+  const view = baseView({
+    selfHand: ["6", "7", "8", "9", "10"].map((rank) =>
+      card(rank, rank as Card["rank"]),
+    ).concat([card("Q", "Q"), card("A", "A")]),
+    legalActions: [pass, ace, queen, splitStraight],
+    remainingCardCounts: { east: 24, south: 24, west: 24, north: 24 },
+  });
+
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(queen);
+});
+
+test("P6：普通早中盘优先普通散单，不无必要使用控制资源", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const six = single("6", 6);
+  const ace = single("A", 14);
+  const level = single("level", 15);
+  const small = single("small", 16);
+  const big = single("big", 17);
+  const view = baseView({
+    selfHand: [
+      card("6", "6"),
+      card("A", "A"),
+      card("level", "2"),
+      card("small", "small-joker"),
+      card("big", "big-joker"),
+    ],
+    legalActions: [pass, big, small, level, ace, six],
+    remainingCardCounts: { east: 24, south: 24, west: 24, north: 24 },
+  });
+
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(six);
+});
+
+test("P6：下家只剩三张时仍保留强制阻断", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const six = single("6", 6);
+  const ace = single("A", 14);
+  const view = baseView({
+    selfHand: [card("6", "6"), card("A", "A")],
+    legalActions: [pass, ace, six],
+    remainingCardCounts: { east: 2, south: 24, west: 24, north: 3 },
+  });
+
+  expect(analyzeNextSeatEndgameThreat(view).mode).toBe("forced");
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(ace);
 });
