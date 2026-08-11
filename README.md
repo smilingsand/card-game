@@ -1,50 +1,100 @@
 # 双副牌扑克游戏平台
 
-可扩展的网页扑克游戏平台；当前可玩的产品是单人本地掼蛋（1 名人类南家 + 3 个机器人）。
+这是一个基于 TypeScript、React 和 Cloudflare Worker 架构开发的双副牌扑克游戏平台。当前已实现的完整游戏是掼蛋，提供单人本地游戏，以及可在本地开发环境中联机的多人房间。
 
-## 当前版本
+## 当前功能
 
-**P2.7 - normal-vNext 策略稳定化（Production，2026-07-23）**
+- 双副牌掼蛋的规则、牌型识别、合法动作校验与确定性游戏核心；
+- 单人模式：1 名玩家与 3 名机器人进行本地对局；
+- 多人模式：创建、加入与管理房间，支持 1–4 名真人玩家，空位由机器人补足；
+- 多人实时同步、断线后的临时机器人托管，以及重新连接后继续同一牌局；
+- 浏览器端牌桌与移动端基础适配。
 
-- 唯一产品机器人和“提示”策略：普通 normal-vNext。
-- normal-v1 仅作离线历史对照；P2.5 expert-24 已撤销为可恢复 Git 历史，详见 [ADR-0024](proj-info/adr/ADR-0024-normal-vnext-strategy-replacement.md)。
-- normal-vNext 只消费 BotView 和规则层 `legalActions`，不读取隐藏手牌。
-- 本地版本已包含：尾局下家阻断、合法动作兜底、自然中小结构争牌、控制资源保护，以及明牌时按出牌先后显示覆盖关系。
-- P2.7 已部署到 Vercel Production 并完成用户人工试玩验收；正式入口为 `https://card-game-wentop.vercel.app/`。未来的移动端/PWA 风险变更按需单独复测。
+掼蛋的具体玩法、计分与地方规则存在差异，请使用者自行参考可靠的网络规则资料。本项目实际采用的规则以代码与 `docs/` 中的说明为准。
 
-P3-01 至 P3-10 已在本地完成验收；P3-07 与 P3-11 仍等待四客户端人工验收。当前 P4 工作在 `codex/p3-11-singleplayer-table-modularization` 分支继续多人牌桌复用、动作生命周期和本地运行时稳定性收口；尚未部署。当前多人版本仅在本地 Vite、Wrangler/Miniflare 与 SQLite-backed Durable Object 中验证。入口为首页的单人/多人选择；多人支持创建/加入、准备/开始、牌桌退出到大厅、继续同一权威牌局，以及大厅右上角退出（房主关闭房间，非房主释放自身连接）。本机启动和故障恢复见 [P4 最新交接](proj-info/handoffs/HANDOFF-2026-07-30-P4-entry-exit-and-room-lifecycle.md)。
+## 单人游戏与多人游戏
 
-单人模式从首页进入时始终重新开赛；牌桌内刷新仍可恢复当前单人赛局。单人与多人牌桌共用桌面组件和视觉基线：底部显示本人名称与手牌数，且多人左右玩家的公开出牌会向牌桌中央留出间距。
+| 模式     | 适用场景                         | 启动方式                           | 当前部署状态                                  |
+| -------- | -------------------------------- | ---------------------------------- | --------------------------------------------- |
+| 单人游戏 | 1 名真人玩家 + 3 名机器人        | 直接访问 Vercel，或本地启动前端    | 已部署到 Vercel 公网                          |
+| 多人游戏 | 1–4 名真人玩家；空位由机器人补足 | 必须同时启动本地前端与本地权威后端 | 仅本地开发环境可用，尚未部署到公网 Cloudflare |
 
-## 本地运行多人游戏
+因此，Vercel 上的公开地址当前只提供单人游戏。多人模式虽然已在代码中实现，但必须使用本地 Wrangler/Miniflare 后端运行；不能通过 Vercel 公网地址创建或加入多人房间。
 
-在仓库根目录启动本地多人测试环境：
+## 机器人策略现状
+
+所有实际游戏中的机器人目前都使用 `normal-vNext`。它会基于自身手牌、公开出牌、各座剩余手牌数和规则层给出的合法动作选择出牌；不会读取其他玩家的隐藏手牌。
+
+该策略仍属于基础启发式策略，能够处理常见跟牌、结构保护、队友让牌和部分尾局阻断，但尚未达到成熟的人类玩家水平。它可能出现不够自然、资源取舍不佳或整体出牌路线不够优的情况；后续策略改进会在独立实验中验证后再进入产品。
+
+## 环境要求
+
+- Node.js 22（项目声明支持 `>=22.0.0 <25`）；
+- Windows PowerShell（本地多人一键脚本使用 PowerShell）；
+- npm。
+
+首次使用时，在仓库根目录安装依赖：
+
+```powershell
+npm.cmd install
+```
+
+## 运行单人游戏
+
+### 使用公网版本
+
+访问 Vercel 上已部署的单人游戏：
+
+<https://card-game-wentop.vercel.app/>
+
+### 本地启动前端
+
+在仓库根目录运行：
+
+```powershell
+npm.cmd --prefix frontend run dev
+```
+
+然后打开终端显示的 Vite 地址（默认通常为 <http://127.0.0.1:5173/>）。此方式只启动前端，适合单人游戏。
+
+## 运行本地多人游戏
+
+多人模式需要前端和权威后端同时运行。请在仓库根目录执行：
 
 ```powershell
 npm.cmd run p4:dev
 ```
 
-该脚本统一启动 Vite 前端（5173）与本地 Wrangler/Miniflare 权威后端（8788），并将两者日志镜像到当前终端。不要单独启动 Vite 或 Wrangler。正常结束时在同一终端按 `Ctrl+C`；如果终端被强制关闭、进程残留或端口需要清理，则从仓库根目录运行：
+该脚本会启动：
+
+- 前端：`http://127.0.0.1:5173/`；
+- 本地 Worker/Miniflare 权威后端：`http://127.0.0.1:8788/`；
+- 本地 SQLite-backed Durable Object 数据。
+
+浏览器打开前端地址后，选择“多人游戏”，即可创建或加入房间。局域网中的其他设备可访问 `http://<本机 IP>:5173/`；前端会将其 `/v1` HTTP 与 WebSocket 请求代理到运行在本机的后端。请勿把 `8788` 端口直接暴露到局域网或公网。
+
+正常结束时，在运行 `p4:dev` 的终端按 `Ctrl+C`。如遇异常关闭、残留进程或端口被占用，再执行：
 
 ```powershell
 npm.cmd run p4:stop
 ```
 
-本机访问 `http://127.0.0.1:5173/`；局域网设备可访问 `http://<本机IP>:5173/`。`p4:dev` 与 `p4:stop` 仅用于本地开发／验收，正式部署由托管前端和 Cloudflare Worker 运行，无需在用户机器上执行这些命令。
+## 目录说明
 
-## 文档入口
+- `frontend/`：React/Vite 浏览器应用；
+- `backend/`：本地多人房间、权威 Worker 与实时通信；
+- `packages/guandan-core/`：前后端共享的纯 TypeScript 规则、合法动作与机器人策略核心；
+- `docs/`：规则、架构和产品说明；
+- `tools/`：可复用的本地开发工具；
+- `temp/`：可删除的本地中间产物，不应提交。
 
-- [当前机器人策略说明](docs/基础机器人策略说明_V2.md)
-- [已采用的掼蛋规则](<docs/掼蛋规则(被采用)_V1.md>)
-- [统一规则口径](docs/resolved-rules.md)
-- [架构基线](docs/architecture.md)
-- [P2.7 发布记录](proj-info/phases/P2/release.md)
-- [阶段入口](proj-info/phases/README.md)
-- [策略收敛 ADR](proj-info/adr/ADR-0024-normal-vnext-strategy-replacement.md)
-- [最新 P4 交接说明](proj-info/handoffs/HANDOFF-2026-07-30-P4-entry-exit-and-room-lifecycle.md)
-- [座位、控制权与视图投影 ADR](proj-info/adr/ADR-0029-p3-seat-controller-and-view-projection.md)
-- [项目开发合同](AGENTS.md)
+## 开发检查
 
-## 目录
+常用前端检查命令：
 
-`docs/` 保存稳定规则和产品说明；`proj-info/` 保存计划、ADR、验收、发布与交接记录；`frontend/` 保存浏览器应用；`backend/` 保存 P3 Worker、Durable Object、实时协议与本地测试；`packages/guandan-core/` 是前后端共享的纯 TypeScript 规则核心；`tools/` 仅保存可复用工具；`temp/` 保存可删除中间产物且永不提交。
+```powershell
+npm.cmd --prefix frontend run format:check
+npm.cmd --prefix frontend run typecheck
+npm.cmd --prefix frontend run lint
+npm.cmd --prefix frontend run test:run
+```
