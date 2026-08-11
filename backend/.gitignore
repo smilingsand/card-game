@@ -1,0 +1,9 @@
+# Backend-local runtime, build, and secret state
+node_modules/
+dist/
+coverage/
+temp/
+.wrangler/
+.dev.vars
+.env.local
+.env.*.local

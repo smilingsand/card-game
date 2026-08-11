@@ -47,14 +47,13 @@ Desktop.ini
 .vscode/
 .idea/
 
-# Local Codex state; project documentation in proj-info/ is intentionally tracked
+# Local agent state and development-process records
+.agents/
 .codex/
+.planning/
 .playwright-cli/
+AGENTS.md
 task_plan.md
 findings.md
 progress.md
-
-# Curated historical logs are intentionally retained with the long-term roadmap.
-!proj-info/00-长期路线图与历史工作日志/task_plan.md
-!proj-info/00-长期路线图与历史工作日志/findings.md
-!proj-info/00-长期路线图与历史工作日志/progress.md
+proj-info/

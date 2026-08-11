@@ -1,1 +1,11 @@
-.vercel
+# Frontend-local build, deployment, and diagnostic state
+.vercel/
+node_modules/
+dist/
+.vite/
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.env.local
+.env.*.local
