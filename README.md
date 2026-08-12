@@ -1,98 +1,185 @@
-# 双副牌扑克游戏平台
+# Double-Deck Poker Game Platform
 
-这是一个基于 TypeScript、React 和 Cloudflare Worker 架构开发的双副牌扑克游戏平台。当前已实现的完整游戏是掼蛋，提供单人本地游戏，以及可在本地开发环境中联机的多人房间。
+[中文版 README](README_cn.md)
 
-## 当前功能
+A double-deck poker game platform built with TypeScript, React, and Cloudflare Worker architecture. The currently completed game is **Guandan**, with a local single-player mode and a multiplayer room mode available in the local development environment.
 
-- 双副牌掼蛋的规则、牌型识别、合法动作校验与确定性游戏核心；
-- 单人模式：1 名玩家与 3 名机器人进行本地对局；
-- 多人模式：创建、加入与管理房间，支持 1–4 名真人玩家，空位由机器人补足；
-- 多人实时同步、断线后的临时机器人托管，以及重新连接后继续同一牌局；
-- 浏览器端牌桌与移动端基础适配。
+## Features
 
-掼蛋的具体玩法、计分与地方规则存在差异，请使用者自行参考可靠的网络规则资料。
+- Deterministic Guandan game core with double-deck rules, hand-type recognition, legal-action validation, and card comparison;
+- Single-player mode: 1 human player vs 3 bots;
+- Multiplayer mode: create, join, and manage rooms with 1–4 human players; empty seats are filled by bots;
+- Real-time multiplayer synchronization;
+- Temporary bot takeover after disconnection and seamless continuation after reconnection;
+- Browser-based game table with basic mobile support.
 
-## 单人游戏与多人游戏
+Guandan rules, scoring conventions, and local variants differ between regions. Please refer to reliable external rule references when necessary.
 
-| 模式     | 适用场景                         | 启动方式                           | 当前部署状态                                  |
-| -------- | -------------------------------- | ---------------------------------- | --------------------------------------------- |
-| 单人游戏 | 1 名真人玩家 + 3 名机器人        | 直接访问 Vercel，或本地启动前端    | 已部署到 Vercel 公网                          |
-| 多人游戏 | 1–4 名真人玩家；空位由机器人补足 | 必须同时启动本地前端与本地权威后端 | 仅本地开发环境可用，尚未部署到公网 Cloudflare |
+## Single-Player and Multiplayer Modes
 
-因此，Vercel 上的公开地址当前只提供单人游戏。多人模式虽然已在代码中实现，但必须使用本地 Wrangler/Miniflare 后端运行；不能通过 Vercel 公网地址创建或加入多人房间。
+| Mode          | Use Case                          | How to Start                                            | Current Deployment                                                           |
+| ------------- | --------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Single-player | 1 human + 3 bots                  | Use the Vercel deployment or start the frontend locally | Publicly deployed on Vercel                                                  |
+| Multiplayer   | 1–4 humans; bots fill empty seats | Start both the local frontend and authoritative backend | Local development only; not yet deployed to public Cloudflare infrastructure |
 
-## 机器人策略现状
+The public Vercel deployment currently provides **single-player only**. Multiplayer is implemented in the repository, but it requires the local Wrangler/Miniflare backend and cannot currently be created or joined through the public Vercel site.
 
-所有实际游戏中的机器人目前都使用 `normal-vNext`。它会基于自身手牌、公开出牌、各座剩余手牌数和规则层给出的合法动作选择出牌；不会读取其他玩家的隐藏手牌。
+## Bot Strategy Status
 
-该策略仍属于基础启发式策略，能够处理常见跟牌、结构保护、队友让牌和部分尾局阻断，但尚未达到成熟的人类玩家水平。它可能出现不够自然、资源取舍不佳或整体出牌路线不够优的情况；后续策略改进会在独立实验中验证后再进入产品。
+All bots used in actual gameplay currently use `normal-vNext`.
 
-## 环境要求
+The bot chooses from legal actions based on:
 
-- Node.js 22（项目声明支持 `>=22.0.0 <25`）；
-- Windows PowerShell（本地多人一键脚本使用 PowerShell）；
-- npm。
+- its own hand;
+- public cards already played;
+- remaining-card counts for each seat;
+- current table/trick state;
+- the legal actions supplied by the rules engine.
 
-首次使用时，在仓库根目录安装依赖：
+It does **not** inspect hidden cards in other players' hands.
+
+The current strategy is still a relatively basic heuristic strategy. It can handle common follow-play decisions, some structure protection, partner pass behaviour, and some endgame blocking, but it has not yet reached the level of a mature human Guandan player.
+
+Typical remaining weaknesses include:
+
+- evaluating a move locally without sufficiently considering the quality of the remaining hand;
+- poor opportunity-cost decisions;
+- spending strong control cards too early;
+- using a valuable heart level card as a wildcard for a low-value combination;
+- using a very strong bomb when a cheaper alternative would be sufficient;
+- leading powerful structures too early without considering their future control value;
+- protecting weak structures at the cost of more valuable cards;
+- choosing technically legal but strategically unnatural plays.
+
+## 🤖 Bot Strategy Contributions Welcome
+
+The game engine and rule system are now sufficiently mature that the main open challenge is **playing strategy**.
+
+The goal is not necessarily to build a perfect or tournament-level Guandan AI. A very useful contribution would simply move the bot toward the level of a **reasonable ordinary human player** and reduce obvious strategic mistakes.
+
+Useful strategy improvements may include:
+
+- hand-state evaluation;
+- candidate-action scoring;
+- opportunity-cost models;
+- lead-play strategy;
+- follow-play strategy;
+- control-card management;
+- heart-level-card / wildcard usage;
+- bomb management;
+- partnership strategy;
+- public-threat evaluation;
+- endgame strategy;
+- deterministic benchmark scenarios;
+- lightweight search or look-ahead;
+- Monte Carlo or other experimental approaches using only legitimate public information.
+
+A particularly important design question is:
+
+> Given several legal actions, how should the bot evaluate the future value and opportunity cost of each choice?
+
+Possible factors include:
+
+- estimated number of turns required to finish the hand;
+- difficult remaining singles;
+- natural structures such as pairs, triples, straights, consecutive pairs, and plates;
+- control resources such as Aces, Twos, level cards, Jokers, and bombs;
+- heart-level-card flexibility;
+- future ability to regain the lead;
+- one-turn or two-turn finishing routes;
+- partner position;
+- opponent remaining-card threat.
+
+Contributions do **not** need to redesign the game engine, UI, networking, or multiplayer system.
+
+Please see [`CONTRIBUTING.md`](CONTRIBUTING.md) and the open GitHub issues labelled `strategy` and `help wanted`.
+
+If you understand Guandan strategy but do not want to implement code, concrete hand examples and human reasoning are also very valuable.
+
+## Requirements
+
+- Node.js 22 (the project declares support for `>=22.0.0 <25`);
+- Windows PowerShell (used by the local multiplayer convenience scripts);
+- npm.
+
+Install dependencies from the repository root:
 
 ```powershell
 npm.cmd install
 ```
 
-## 运行单人游戏
+## Running the Single-Player Game
 
-### 使用公网版本
+### Public Version
 
-访问 Vercel 上已部署的单人游戏：
+Open the deployed single-player version:
 
 <https://card-game-wentop.vercel.app/>
 
-### 使用本地版本
+### Local Version
 
-在仓库根目录运行以下命令，启动前端程序：
+From the repository root, start the frontend:
 
 ```powershell
 npm.cmd --prefix frontend run dev
 ```
 
-然后打开终端显示的 Vite 地址（默认通常为 <http://127.0.0.1:5173/>）。此方式只启动前端，适合单人游戏。
+Then open the Vite URL shown in the terminal, usually:
 
-## 运行本地多人游戏
+<http://127.0.0.1:5173/>
 
-### 目前仅支持本地服务器版本
+This starts the frontend only and is suitable for single-player games.
 
-多人模式需要前端和权威后端同时运行。请在仓库根目录执行：
+## Running the Local Multiplayer Game
+
+### Local Server Only
+
+Multiplayer requires both the frontend and authoritative backend.
+
+From the repository root, run:
 
 ```powershell
 npm.cmd run p4:dev
 ```
 
-该脚本会启动：
+This starts:
 
-- 前端：`http://127.0.0.1:5173/`；
-- 本地 Worker/Miniflare 权威后端：`http://127.0.0.1:8788/`；
-- 本地 SQLite-backed Durable Object 数据。
+- Frontend: `http://127.0.0.1:5173/`;
+- Local Worker/Miniflare authoritative backend: `http://127.0.0.1:8788/`;
+- Local SQLite-backed Durable Object data.
 
-浏览器打开前端地址后，选择“多人游戏”，即可创建或加入房间。局域网中的其他设备可访问 `http://<本机 IP>:5173/`；前端会将其 `/v1` HTTP 与 WebSocket 请求代理到运行在本机的后端。请勿把 `8788` 端口直接暴露到局域网或公网。
+Open the frontend address and select **Multiplayer** to create or join a room.
 
-正常结束时，在运行 `p4:dev` 的终端按 `Ctrl+C`。如遇异常关闭、残留进程或端口被占用，再执行：
+Other devices on the same LAN can access:
+
+```text
+http://<host-ip>:5173/
+```
+
+The frontend proxies `/v1` HTTP and WebSocket requests to the backend running on the host machine.
+
+Do **not** expose port `8788` directly to the LAN or public internet.
+
+To stop normally, press `Ctrl+C` in the terminal running `p4:dev`.
+
+If processes remain after an abnormal shutdown or ports are still occupied, run:
 
 ```powershell
 npm.cmd run p4:stop
 ```
 
-## 目录说明
+## Repository Structure
 
-- `frontend/`：React/Vite 浏览器应用；
-- `backend/`：本地多人房间、权威 Worker 与实时通信；
-- `packages/guandan-core/`：前后端共享的纯 TypeScript 规则、合法动作与机器人策略核心；
-- `docs/`：规则、架构和产品说明；
-- `tools/`：可复用的本地开发工具；
-- `temp/`：可删除的本地中间产物，不应提交。
+- `frontend/` — React/Vite browser application;
+- `backend/` — local multiplayer rooms, authoritative Worker, and real-time communication;
+- `packages/guandan-core/` — shared pure-TypeScript Guandan rules, legal actions, and bot strategy core;
+- `docs/` — rules, architecture, and product documentation;
+- `tools/` — reusable local development tools;
+- `temp/` — disposable local intermediate files; should not be committed.
 
-## 开发检查
+## Development Checks
 
-常用前端检查命令：
+Common frontend checks:
 
 ```powershell
 npm.cmd --prefix frontend run format:check
@@ -100,3 +187,18 @@ npm.cmd --prefix frontend run typecheck
 npm.cmd --prefix frontend run lint
 npm.cmd --prefix frontend run test:run
 ```
+
+## Contributing
+
+Contributions are welcome, especially in bot strategy.
+
+Before submitting a strategy change, please read [`CONTRIBUTING.md`](CONTRIBUTING.md). Strategy changes should preferably include:
+
+- a concrete hand scenario;
+- current bot behaviour;
+- expected human-like behaviour;
+- strategic reasoning;
+- deterministic regression tests;
+- confirmation that all selected actions remain legal.
+
+Please avoid using hidden opponent information or mixing unrelated UI/network changes into strategy pull requests.
