@@ -45,6 +45,7 @@ const CONTROL_HEART_LEVEL_COST = 220;
 const CONTROL_SMALL_JOKER_COST = 300;
 const CONTROL_BIG_JOKER_COST = 360;
 const LOW_VALUE_STRUCTURE_RANK_COST = 10;
+const LEAD_BOMB_SPLIT_ROUTE_ADVANTAGE = 2;
 
 type PlayAction = Extract<TurnAction, { readonly type: "play" }>;
 type PatternType = PlayAction["interpretation"]["type"];
@@ -752,19 +753,17 @@ function isNaturalWholeBomb(action: PlayAction, view: BotView): boolean {
 }
 
 /**
- * In a short hand, do not split every remaining natural bomb merely to avoid
- * leading a bomb. This is narrower than bomb economics: it applies only when
- * a whole bomb leaves a strictly shorter own-hand route than every non-bomb
- * lead, so the bomb is a finishing route rather than an early contest.
+ * A natural bomb is a protected resource when leading. It can be spent whole
+ * rather than split only when every non-bomb lead destroys a bomb and lacks a
+ * direct finish or a materially shorter route (two or more future turns).
  */
-function shouldPrioritizeLeadBombRoute(
+function shouldPrioritizeLeadIntactBomb(
   action: PlayAction,
   view: BotView,
   plays: readonly PlayAction[],
 ): boolean {
   if (
     !bombs.has(action.interpretation.type) ||
-    view.selfHand.length > 10 ||
     !isNaturalWholeBomb(action, view)
   )
     return false;
@@ -778,7 +777,9 @@ function shouldPrioritizeLeadBombRoute(
       const route = estimateNormalVNextSelfRoute(candidate, view)!;
       return (
         structureDamageCost(candidate, view) >= BREAK_BOMB_COST &&
-        route.estimatedSelfTurns > bombRoute.estimatedSelfTurns
+        !directFinish(candidate, view) &&
+        route.estimatedSelfTurns >
+          bombRoute.estimatedSelfTurns - LEAD_BOMB_SPLIT_ROUTE_ADVANTAGE
       );
     })
   );
@@ -997,7 +998,7 @@ function rankLeadCandidates(
   const isFinishingBomb = (action: PlayAction) => {
     const cached = finishingBombs.get(action);
     if (cached !== undefined) return cached;
-    const calculated = shouldPrioritizeLeadBombRoute(action, view, plays);
+    const calculated = shouldPrioritizeLeadIntactBomb(action, view, plays);
     finishingBombs.set(action, calculated);
     return calculated;
   };
@@ -1039,13 +1040,11 @@ function collectLeadAnalysisCandidates(
     candidates.push(action);
     if (candidates.length === 24) break;
   }
-  if (view.selfHand.length <= 10) {
-    for (const action of view.legalActions) {
-      if (!isPlay(action) || candidates.includes(action)) continue;
-      if (!isNaturalWholeBomb(action, view)) continue;
-      candidates.push(action);
-      if (candidates.length === 28) break;
-    }
+  for (const action of view.legalActions) {
+    if (!isPlay(action) || candidates.includes(action)) continue;
+    if (!isNaturalWholeBomb(action, view)) continue;
+    candidates.push(action);
+    if (candidates.length === 28) break;
   }
   return candidates;
 }

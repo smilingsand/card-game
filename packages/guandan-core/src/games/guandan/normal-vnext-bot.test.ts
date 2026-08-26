@@ -162,6 +162,71 @@ test("P7-09：仅剩两个完整炸弹时，领出不拆成三带二留下四张
   expect(decision?.action).toBe(threeBomb);
 });
 
+test("P7-10：即使不是短手牌，领出也不为普通三带二拆开完整炸弹", () => {
+  const fragmented = threeWithPair(
+    ["seven-a", "seven-b", "seven-c", "three-a", "three-b"],
+    7,
+  );
+  const sevenBomb = normalBomb(
+    ["seven-a", "seven-b", "seven-c", "seven-d", "seven-e"],
+    7,
+  );
+  const threeBomb = normalBomb(["three-a", "three-b", "three-c", "three-d"], 3);
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      highestSeat: undefined,
+      selfHand: [
+        card("seven-a", "7"),
+        card("seven-b", "7"),
+        card("seven-c", "7"),
+        card("seven-d", "7"),
+        card("seven-e", "7"),
+        card("three-a", "3"),
+        card("three-b", "3"),
+        card("three-c", "3"),
+        card("three-d", "3"),
+        card("four", "4"),
+        card("five", "5"),
+        card("six", "6"),
+        card("eight", "8"),
+      ],
+      legalActions: [fragmented, sevenBomb, threeBomb],
+      remainingCardCounts: { east: 13, south: 20, west: 20, north: 20 },
+    }),
+  );
+
+  expect(decision?.action).not.toBe(fragmented);
+  expect(decision?.action).toBe(threeBomb);
+});
+
+test("P7-10：拆炸后能减少至少两手路线时，允许以复合牌获得显著收益", () => {
+  const straight = pattern(
+    ["three", "four", "five", "six", "seven-a"],
+    "straight",
+    7,
+  );
+  const sevenBomb = normalBomb(["seven-a", "seven-b", "seven-c", "seven-d"], 7);
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      highestSeat: undefined,
+      selfHand: [
+        card("three", "3"),
+        card("four", "4"),
+        card("five", "5"),
+        card("six", "6"),
+        card("seven-a", "7"),
+        card("seven-b", "7"),
+        card("seven-c", "7"),
+        card("seven-d", "7"),
+      ],
+      legalActions: [straight, sevenBomb],
+      remainingCardCounts: { east: 8, south: 20, west: 20, north: 20 },
+    }),
+  );
+
+  expect(decision?.action).toBe(straight);
+});
+
 test("P7-02：候选评分逐项公开成本、收益与可复核总分", () => {
   const low = single("four", 4);
   const heartLevel = single("heart-2", 15);
