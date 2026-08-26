@@ -31,6 +31,12 @@
 - 基线入口已拆分为 `normal-vnext-simulation-runner.ts` 与 CLI 薄封装。运行器显式注入时钟、模拟、诊断与文件系统依赖，单测可在无真实牌局和无真实写盘的情况下覆盖成功、失败与报告行为。
 - `vite-node --script` 修复后，固定 seed 0 可稳定生成报告；五 seed 聚合在当前受控执行环境仍会在报告写出前结束。P7-00 只记录单 seed 可重放基线，不把该环境问题误写成五 seed 已通过。
 
+## P7-06 接入发现
+
+- `chooseNormalVNextBotAction` 当前实际消费了 P7-02 的候选评分与 `analyzeCooperationSignal`，但 `describeNormalVNextBombEconomics` 和 `estimateNormalVNextSelfRoute` 只被固定牌例调用。
+- `createStrategyObservation` 已可由 `BotView.publicActions` 纯函数重建，但当前选择器没有把它用于任何候选分项。
+- 接入必须保持所有候选来自 `view.legalActions`；公开牌统计只可降低或提高公开控制资源风险，不能推断具体对手手牌。
+
 ## 约束来源
 
 - `AGENTS.md`：规则和 BotView 必须位于 `packages/guandan-core`；机器人不得获得对手手牌；P2.5 expert 路线已撤销，恢复须 ADR。

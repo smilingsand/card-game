@@ -152,6 +152,9 @@ test("P7-02：候选评分逐项公开成本、收益与可复核总分", () => 
       wildcardOpportunityCost: 0,
       handSheddingBenefit: 0,
       interceptionBenefit: 0,
+      publicControlExposureBenefit: 0,
+      selfRouteCost: -3,
+      bombEconomicsBenefit: 0,
     },
   });
   expect(lowScore?.score).toBe(
@@ -161,7 +164,10 @@ test("P7-02：候选评分逐项公开成本、收益与可复核总分", () => 
       lowScore!.breakdown.wildcardOpportunityCost +
       lowScore!.breakdown.attachmentCost -
       lowScore!.breakdown.handSheddingBenefit -
-      lowScore!.breakdown.interceptionBenefit,
+      lowScore!.breakdown.interceptionBenefit -
+      lowScore!.breakdown.publicControlExposureBenefit +
+      lowScore!.breakdown.selfRouteCost -
+      lowScore!.breakdown.bombEconomicsBenefit,
   );
   expect(heartScore?.score).toBeGreaterThan(lowScore!.score);
   expect(heartScore?.reasons).toContain("保留红桃级牌逢人配");
@@ -253,6 +259,69 @@ test("P7-04：路线评估只看己方候选后的手牌，且固定输入可重
     estimatedSelfTurns: 1,
   });
   expect("opponentHands" in first!).toBe(false);
+});
+
+test("P7-06：公开已出控制牌进入最终候选选择，不读取对手手牌", () => {
+  const king = single("king", 13);
+  const ace = single("ace", 14);
+  const view = baseView({
+    selfHand: [card("king", "K"), card("ace", "A")],
+    legalActions: [king, ace],
+    publicActions: Array.from({ length: 5 }, (_, sequence) => ({
+      sequence: sequence + 1,
+      actor: "south" as const,
+      type: "play" as const,
+      patternType: "single" as const,
+      cards: [
+        {
+          id: `shown-ace-${sequence}`,
+          suit: "spades" as const,
+          rank: "A" as const,
+        },
+      ],
+    })),
+  });
+
+  const decision = chooseNormalVNextBotAction(view);
+
+  expect(decision?.action).toBe(ace);
+  expect(decision?.reasons).toContain("公开已出控制牌降低保留成本");
+});
+
+test("P7-06：己方路线评估进入最终候选选择", () => {
+  const splitPair = single("six-a", 6);
+  const preservePair = single("seven", 7);
+  const view = baseView({
+    selfHand: [card("six-a", "6"), card("six-b", "6"), card("seven", "7")],
+    legalActions: [splitPair, preservePair],
+  });
+
+  const decision = chooseNormalVNextBotAction(view);
+
+  expect(decision?.action).toBe(preservePair);
+  expect(decision?.reasons).toContain("己方路线评估");
+});
+
+test("P7-06：高收益炸弹经济可越过更伤结构且路线更差的普通响应", () => {
+  const ordinary = single("six-a", 6);
+  const bomb = normalBomb(["b1", "b2", "b3", "b4"], 7);
+  const view = baseView({
+    selfHand: [
+      card("six-a", "6"),
+      card("six-b", "6"),
+      card("b1", "7"),
+      card("b2", "7"),
+      card("b3", "7"),
+      card("b4", "7"),
+    ],
+    legalActions: [ordinary, bomb],
+    remainingCardCounts: { east: 6, south: 2, west: 8, north: 8 },
+  });
+
+  const decision = chooseNormalVNextBotAction(view);
+
+  expect(decision?.action).toBe(bomb);
+  expect(decision?.reasons).toContain("炸弹经济：普通响应的结构或路线损失更高");
 });
 
 test("normal-vNext：没有低单时保留规则不阻止使用 A", () => {

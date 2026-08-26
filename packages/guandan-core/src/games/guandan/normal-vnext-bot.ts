@@ -2,6 +2,7 @@
 import type { Card } from "../../platform/types";
 import type { BotView } from "./bot-view";
 import { chooseNormalBotAction, type NormalBotDecision } from "./normal-bot";
+import { createStrategyObservation } from "./strategy-observation";
 import type { TurnAction } from "./turns";
 
 const teammate: Record<BotView["selfSeat"], BotView["selfSeat"]> = {
@@ -89,8 +90,15 @@ export interface NormalVNextCandidateScore {
     readonly attachmentCost: number;
     readonly handSheddingBenefit: number;
     readonly interceptionBenefit: number;
+    readonly publicControlExposureBenefit: number;
+    readonly selfRouteCost: number;
+    readonly bombEconomicsBenefit: number;
   };
   readonly reasons: readonly string[];
+}
+
+interface NormalVNextScoreContext {
+  readonly publicControlExposure: number;
 }
 
 export interface NormalVNextContestBreakdown {
@@ -446,6 +454,7 @@ export function scoreNormalVNextCandidate(
 function scoreLegalNormalVNextCandidate(
   action: PlayAction,
   view: BotView,
+  scoreContext = createNormalVNextScoreContext(view),
 ): NormalVNextCandidateScore {
   const rank = actionRankCost(action, view);
   const structure = structureDamageCost(action, view);
@@ -461,12 +470,35 @@ function scoreLegalNormalVNextCandidate(
     opponentThreat(view, 3)
       ? action.cardIds.length * 30
       : 0;
+  const spentControlCards = selectedCards(action, view).filter(
+    (card) =>
+      card.rank === "A" ||
+      card.rank === view.levelRank ||
+      card.rank === "small-joker" ||
+      card.rank === "big-joker",
+  ).length;
+  // Publicly exposed controls reduce the value of retaining an equivalent
+  // unseen control resource. This is a public-card estimate, not a hand guess.
+  const publicControlExposureBenefit =
+    Math.min(6, scoreContext.publicControlExposure) * spentControlCards * 30;
+  const route = estimateNormalVNextSelfRoute(action, view)!;
+  const selfRouteCost =
+    route.estimatedSelfTurns * 18 +
+    route.deadSingles * 14 -
+    route.naturalGroups * 8 -
+    route.controlCardsRetained * 3;
+  const bombEconomicsBenefit = shouldPrioritizeBomb(action, view) ? 1_200 : 0;
   const reasons: string[] = ["规则层合法候选"];
   if (structure > 0) reasons.push("保留现有复合结构");
   if (control > 0) reasons.push("保留控制资源");
   if (wildcard > 0) reasons.push("保留红桃级牌逢人配");
   if (handSheddingBenefit > 0) reasons.push("自然复合牌卸载收益");
   if (interceptionBenefit > 0) reasons.push("公开残局拦截收益");
+  if (publicControlExposureBenefit > 0)
+    reasons.push("公开已出控制牌降低保留成本");
+  reasons.push("己方路线评估");
+  if (bombEconomicsBenefit > 0)
+    reasons.push("炸弹经济：普通响应的结构或路线损失更高");
   return {
     action,
     score:
@@ -476,7 +508,10 @@ function scoreLegalNormalVNextCandidate(
       wildcard +
       attachment -
       handSheddingBenefit -
-      interceptionBenefit,
+      interceptionBenefit -
+      publicControlExposureBenefit +
+      selfRouteCost -
+      bombEconomicsBenefit,
     breakdown: {
       rankCost: rank,
       structureDamageCost: structure,
@@ -485,8 +520,27 @@ function scoreLegalNormalVNextCandidate(
       attachmentCost: attachment,
       handSheddingBenefit,
       interceptionBenefit,
+      publicControlExposureBenefit,
+      selfRouteCost,
+      bombEconomicsBenefit,
     },
     reasons,
+  };
+}
+
+function createNormalVNextScoreContext(view: BotView): NormalVNextScoreContext {
+  const observation = createStrategyObservation(view);
+  const controlRanks: readonly Card["rank"][] = [
+    "A",
+    view.levelRank,
+    "small-joker",
+    "big-joker",
+  ];
+  return {
+    publicControlExposure: controlRanks.reduce(
+      (count, rank) => count + (observation.publicCards.rankCounts[rank] ?? 0),
+      0,
+    ),
   };
 }
 
@@ -655,6 +709,30 @@ export function describeNormalVNextBombEconomics(
   return { allowed: reasons.length > 0, reasons, publicControlExposure };
 }
 
+/**
+ * A bomb can move ahead of ordinary responses only when the public reason is
+ * positive and every ordinary response damages a structure while leaving a
+ * strictly worse one-ply route. This deliberately prevents a mere opponent
+ * card-count threat from spending a bomb over a cheap normal response.
+ */
+function shouldPrioritizeBomb(action: PlayAction, view: BotView): boolean {
+  const economics = describeNormalVNextBombEconomics(action, view);
+  if (!economics?.allowed || directFinish(action, view)) return false;
+  const ordinaryResponses = view.legalActions.filter(
+    (candidate): candidate is PlayAction =>
+      isPlay(candidate) && !bombs.has(candidate.interpretation.type),
+  );
+  if (ordinaryResponses.length === 0) return false;
+  const bombRoute = estimateNormalVNextSelfRoute(action, view)!;
+  return ordinaryResponses.every((candidate) => {
+    const route = estimateNormalVNextSelfRoute(candidate, view)!;
+    return (
+      structureDamageCost(candidate, view) > 0 &&
+      route.estimatedSelfTurns > bombRoute.estimatedSelfTurns
+    );
+  });
+}
+
 function compareDescending(
   left: PlayAction,
   right: PlayAction,
@@ -745,10 +823,34 @@ function allowedStructureDamage(view: BotView): number {
 
 function rankResponseCandidates(view: BotView): readonly PlayAction[] {
   const plays = view.legalActions.filter(isPlay);
+  const scoreContext = createNormalVNextScoreContext(view);
+  const scores = new Map<PlayAction, NormalVNextCandidateScore>();
+  const economicalBombs = new Map<PlayAction, boolean>();
+  const score = (action: PlayAction) => {
+    const cached = scores.get(action);
+    if (cached) return cached;
+    const calculated = scoreLegalNormalVNextCandidate(
+      action,
+      view,
+      scoreContext,
+    );
+    scores.set(action, calculated);
+    return calculated;
+  };
+  const isEconomicalBomb = (action: PlayAction) => {
+    const cached = economicalBombs.get(action);
+    if (cached !== undefined) return cached;
+    const calculated = shouldPrioritizeBomb(action, view);
+    economicalBombs.set(action, calculated);
+    return calculated;
+  };
   const hasNonBomb = plays.some(
     (action) => !bombs.has(action.interpretation.type),
   );
   return [...plays].sort((left, right) => {
+    const economicalBombDelta =
+      Number(isEconomicalBomb(right)) - Number(isEconomicalBomb(left));
+    if (economicalBombDelta !== 0) return economicalBombDelta;
     const bombDelta =
       Number(hasNonBomb && bombs.has(left.interpretation.type)) -
       Number(hasNonBomb && bombs.has(right.interpretation.type));
@@ -766,9 +868,7 @@ function rankResponseCandidates(view: BotView): readonly PlayAction[] {
         attachmentCost(left, view) - attachmentCost(right, view);
       if (attachmentDelta !== 0) return attachmentDelta;
     }
-    const costDelta =
-      scoreLegalNormalVNextCandidate(left, view).score -
-      scoreLegalNormalVNextCandidate(right, view).score;
+    const costDelta = score(left).score - score(right).score;
     if (costDelta !== 0) return costDelta;
     const comparisonDelta = compareNumberLists(
       comparisonCost(left),
@@ -777,6 +877,68 @@ function rankResponseCandidates(view: BotView): readonly PlayAction[] {
     if (comparisonDelta !== 0) return comparisonDelta;
     return JSON.stringify(left).localeCompare(JSON.stringify(right));
   });
+}
+
+function rankLeadCandidates(
+  view: BotView,
+  plays: readonly PlayAction[],
+): readonly PlayAction[] {
+  const scoreContext = createNormalVNextScoreContext(view);
+  const scores = new Map<PlayAction, NormalVNextCandidateScore>();
+  const economicalBombs = new Map<PlayAction, boolean>();
+  const score = (action: PlayAction) => {
+    const cached = scores.get(action);
+    if (cached) return cached;
+    const calculated = scoreLegalNormalVNextCandidate(
+      action,
+      view,
+      scoreContext,
+    );
+    scores.set(action, calculated);
+    return calculated;
+  };
+  const isEconomicalBomb = (action: PlayAction) => {
+    const cached = economicalBombs.get(action);
+    if (cached !== undefined) return cached;
+    const calculated = shouldPrioritizeBomb(action, view);
+    economicalBombs.set(action, calculated);
+    return calculated;
+  };
+  const hasNonBomb = plays.some(
+    (action) => !bombs.has(action.interpretation.type),
+  );
+  return [...plays].sort((left, right) => {
+    const economicalBombDelta =
+      Number(isEconomicalBomb(right)) - Number(isEconomicalBomb(left));
+    if (economicalBombDelta !== 0) return economicalBombDelta;
+    const bombDelta =
+      Number(hasNonBomb && bombs.has(left.interpretation.type)) -
+      Number(hasNonBomb && bombs.has(right.interpretation.type));
+    if (bombDelta !== 0) return bombDelta;
+    const scoreDelta = score(left).score - score(right).score;
+    if (scoreDelta !== 0) return scoreDelta;
+    return JSON.stringify(left).localeCompare(JSON.stringify(right));
+  });
+}
+
+/**
+ * Leading can have a very large wildcard-expanded legal set. Keep the frozen
+ * normal lead as an anchor and evaluate only a fixed, deterministic prefix of
+ * additional legal plays; this makes the P7 one-ply analysis bounded.
+ */
+function collectLeadAnalysisCandidates(
+  view: BotView,
+  baseline: PlayAction,
+): readonly PlayAction[] {
+  const candidates: PlayAction[] = [baseline];
+  const allowBombs = bombs.has(baseline.interpretation.type);
+  for (const action of view.legalActions) {
+    if (!isPlay(action) || action === baseline) continue;
+    if (!allowBombs && bombs.has(action.interpretation.type)) continue;
+    candidates.push(action);
+    if (candidates.length === 24) break;
+  }
+  return candidates;
 }
 
 function isContestRelevantPattern(action: PlayAction): boolean {
@@ -795,11 +957,17 @@ export function chooseNormalVNextBotAction(
   if (view.highestSeat === undefined) {
     if (nextSeatThreat.mode === "none") {
       const baseline = chooseNormalBotAction(view);
-      if (baseline) return baseline;
-      const fallback = legalActionFallback(view);
-      return fallback
-        ? { action: fallback, score: 0, reasons: ["legal-action fallback"] }
-        : undefined;
+      if (!baseline || !isPlay(baseline.action)) return baseline;
+      const selected = rankLeadCandidates(
+        view,
+        collectLeadAnalysisCandidates(view, baseline.action),
+      ).at(0)!;
+      const candidateScore = scoreLegalNormalVNextCandidate(selected, view);
+      return {
+        action: selected,
+        score: candidateScore.score,
+        reasons: ["领牌：综合公开信息与己方路线", ...candidateScore.reasons],
+      };
     }
     const selected =
       rankThreatLeadCandidates(view, nextSeatThreat).at(0) ??
