@@ -33,6 +33,7 @@ import {
   type TableSave,
   type TableSession
 } from "@card-game/guandan-core";
+import { selectVisibleTrickEvents, type VisibleTrickStart } from "./visible-trick";
 import {
   groupHumanDisplayCards,
   groupOrderedDisplayCards,
@@ -43,7 +44,6 @@ import {
 import type { TurnAction } from "@card-game/guandan-core";
 import {
   actionFromPublicEvent,
-  latestCompletedTrickActions,
   latestRecentActionLayerBySeat,
   latestRecentActionsBySeat
 } from "@card-game/guandan-core";
@@ -143,9 +143,10 @@ function SoloApp({
   const [showAllHands, setShowAllHands] = useState(false);
   const [handLayout, setHandLayout] = useState<HandLayout>("stacked");
   const [applyPwaUpdate, setApplyPwaUpdate] = useState<() => void>();
-  const [completedTrickActions, setCompletedTrickActions] = useState<readonly TurnAction[]>();
-  const completedTrickKeyRef = useRef<string | undefined>(undefined);
-  const [visibleTrickStartEventIndex, setVisibleTrickStartEventIndex] = useState(0);
+  const [visibleTrickStart, setVisibleTrickStart] = useState<VisibleTrickStart>({
+    roundNumber: session.match.roundNumber,
+    eventIndex: 0
+  });
   const clearedTrickKeyRef = useRef<string | undefined>(undefined);
   const levelRank = game.levelRank ?? session.match.levelRank;
   const finishIndex = (seat: Seat) => game.state.finished.indexOf(seat);
@@ -251,20 +252,25 @@ function SoloApp({
       ? `${game.publicEvents.length}:${game.state.current}:${game.state.finished.join("-")}`
       : undefined;
   useEffect(() => {
-    if (visibleTrickStartEventIndex <= game.publicEvents.length) return;
-    completedTrickKeyRef.current = undefined;
+    if (visibleTrickStart.roundNumber === session.match.roundNumber) return;
     clearedTrickKeyRef.current = undefined;
-    setCompletedTrickActions(undefined);
-    setVisibleTrickStartEventIndex(0);
-  }, [game.publicEvents.length, visibleTrickStartEventIndex]);
+    setVisibleTrickStart({ roundNumber: session.match.roundNumber, eventIndex: 0 });
+  }, [session.match.roundNumber, visibleTrickStart.roundNumber]);
   useEffect(() => {
     if (!clearedTrickKey || clearedTrickKeyRef.current === clearedTrickKey) return;
     clearedTrickKeyRef.current = clearedTrickKey;
-    setVisibleTrickStartEventIndex(game.publicEvents.length);
-    setCompletedTrickActions(undefined);
-  }, [clearedTrickKey, game.publicEvents.length]);
+    setVisibleTrickStart({
+      roundNumber: session.match.roundNumber,
+      eventIndex: game.publicEvents.length
+    });
+  }, [clearedTrickKey, game.publicEvents.length, session.match.roundNumber]);
 
-  const visibleTrickEvents = game.publicEvents.slice(visibleTrickStartEventIndex);
+  const visibleTrickEvents = selectVisibleTrickEvents(
+    game.publicEvents,
+    visibleTrickStart,
+    session.match.roundNumber,
+    !!clearedTrickKey
+  );
   const highestPlay = game.state.highestSeat
     ? [...visibleTrickEvents]
         .reverse()
@@ -276,22 +282,7 @@ function SoloApp({
     : undefined;
   const publicPlay = (seat: Seat) => (highestPlay?.actor === seat ? highestPlay : undefined);
   const recentActions = latestRecentActionsBySeat(visibleTrickEvents);
-  const latestCompletedActions = useMemo(
-    () => (clearedTrickKey ? [] : latestCompletedTrickActions(visibleTrickEvents)),
-    [clearedTrickKey, visibleTrickEvents]
-  );
-  const completedTrickKey = latestCompletedActions.length
-    ? `${visibleTrickStartEventIndex}:${visibleTrickEvents.length}:${latestCompletedActions.at(-1)?.actor}`
-    : undefined;
-  useEffect(() => {
-    if (!completedTrickKey || completedTrickKeyRef.current === completedTrickKey) return;
-    completedTrickKeyRef.current = completedTrickKey;
-    setCompletedTrickActions(latestCompletedActions);
-    const timer = window.setTimeout(() => setCompletedTrickActions(undefined), 900);
-    return () => window.clearTimeout(timer);
-  }, [completedTrickKey, latestCompletedActions]);
-  const isTrickCompletionVisible = completedTrickActions !== undefined;
-  const visibleRecentActions = completedTrickActions ?? recentActions;
+  const visibleRecentActions = recentActions;
   const recentActionLayers = latestRecentActionLayerBySeat(visibleTrickEvents);
   const recentActionsFor = (seat: Seat) =>
     visibleRecentActions.filter((action) => action.actor === seat);
@@ -339,7 +330,6 @@ function SoloApp({
   const humanCanAct =
     session.match.tributePhase === "ready" &&
     game.state.current === HUMAN_SEAT &&
-    !isTrickCompletionVisible &&
     !game.state.completed;
   const activeLevelTeam = levelTeam(session.match.previousFinish?.[0] ?? session.match.leader);
   const antiTributeProof = antiTributeReason(game, session.match.tributePlan.proof);
@@ -647,11 +637,7 @@ function SoloApp({
           />
         </SeatView>
         <section className="table-info" aria-label="桌面信息">
-          <p>
-            {isTrickCompletionVisible
-              ? "本墩全员不要，正在结墩。"
-              : `轮到：${seatName[game.state.current]}`}
-          </p>
+          <p>{`轮到：${seatName[game.state.current]}`}</p>
           <p>
             {game.state.highestSeat
               ? `当前牌由${seatName[game.state.highestSeat]}压住。`

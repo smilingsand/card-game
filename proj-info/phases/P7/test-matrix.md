@@ -72,3 +72,11 @@
 | 低价值跟牌 | `normal-vnext-bot.test.ts` | 普通中局可用低点数自然对子或三张拆出合法压制；原 777 过牌预期已按本任务替换。 |
 | 高价值保护 | 同一固定牌例与既有 P6 牌例 | A、级牌、大小王、红桃级牌、顺子、连对、钢板和炸弹仍不能通过此例外放宽。 |
 | 类型与性能 | `npm.cmd run typecheck`；`normal-vnext-benchmark.test.ts` | 2026-08-26：类型检查通过，normal-vNext 60/60；5 seed 专项基准通过，测试主体 3.517 秒。 |
+
+## P7-08（accepted）
+
+| 验收项 | 证据 | 结果 |
+| --- | --- | --- |
+| 头家走完后的清墩 | `frontend/src/visible-trick.test.ts` | 清墩状态立即投影为空，不会等待下一位动作或定时器而保留头家最后一手。 |
+| 新首出与跨局隔离 | 同一回归测试 | 同局新首出只显示新墩动作；`roundNumber` 变化时不复用上一局的事件下标，其他座位的后续出牌继续显示。 |
+| 前端回归 | `npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run format:check`、`npm.cmd run build` | 2026-08-26 通过；单人牌桌挂载/退出冒烟测试通过。 |
