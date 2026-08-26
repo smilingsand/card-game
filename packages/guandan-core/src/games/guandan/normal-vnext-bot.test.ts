@@ -241,6 +241,46 @@ test("P7-10：即使不是短手牌，领出也不为普通三带二拆开完整
   expect(decision?.action).toBe(threeBomb);
 });
 
+test("P7-13：领牌不以三连对同时拆开多副完整天然炸弹", () => {
+  const consecutivePairs = pattern(
+    ["four-a", "four-b", "five-a", "five-b", "six-a", "six-b"],
+    "three-consecutive-pairs",
+    6,
+  );
+  const fourBomb = normalBomb(
+    ["four-a", "four-b", "four-c", "four-d", "four-e", "four-f"],
+    4,
+  );
+  const fiveBomb = normalBomb(["five-a", "five-b", "five-c", "five-d"], 5);
+  const sixBomb = normalBomb(["six-a", "six-b", "six-c", "six-d"], 6);
+  const selfHand = [
+    ...["a", "b", "c", "d", "e", "f"].map((suffix) =>
+      card(`four-${suffix}`, "4"),
+    ),
+    ...["a", "b", "c", "d"].map((suffix) => card(`five-${suffix}`, "5")),
+    ...["a", "b", "c", "d"].map((suffix) => card(`six-${suffix}`, "6")),
+    card("other", "9"),
+  ];
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      selfSeat: "west",
+      leader: "west",
+      highestSeat: undefined,
+      selfHand,
+      legalActions: [consecutivePairs, fourBomb, fiveBomb, sixBomb],
+      remainingCardCounts: {
+        east: selfHand.length,
+        south: 5,
+        west: 20,
+        north: 20,
+      },
+    }),
+  );
+
+  expect(decision?.action).not.toBe(consecutivePairs);
+  expect([fourBomb, fiveBomb, sixBomb]).toContain(decision?.action);
+});
+
 test("P7-10：拆炸后能减少至少两手路线时，允许以复合牌获得显著收益", () => {
   const straight = pattern(
     ["three", "four", "five", "six", "seven-a"],

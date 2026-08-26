@@ -759,6 +759,35 @@ function isNaturalWholeBomb(action: PlayAction, view: BotView): boolean {
 }
 
 /**
+ * Natural bombs are a hard leading constraint, not merely a score bonus.
+ * Direct finishes and a route that saves at least two future plays remain the
+ * only non-forced exceptions; forced public endgame blocks are handled by the
+ * caller before applying this filter.
+ */
+function leadCandidatesPreservingNaturalBombs(
+  plays: readonly PlayAction[],
+  view: BotView,
+): readonly PlayAction[] {
+  const wholeBombs = plays.filter((action) => isNaturalWholeBomb(action, view));
+  if (wholeBombs.length === 0) return plays;
+  const preserved = plays.filter((action) => {
+    if (
+      directFinish(action, view) ||
+      structureDamageCost(action, view) < BREAK_BOMB_COST
+    )
+      return true;
+    const route = estimateNormalVNextSelfRoute(action, view)!;
+    return wholeBombs.some(
+      (bomb) =>
+        route.estimatedSelfTurns <=
+        estimateNormalVNextSelfRoute(bomb, view)!.estimatedSelfTurns -
+          LEAD_BOMB_SPLIT_ROUTE_ADVANTAGE,
+    );
+  });
+  return preserved.length > 0 ? preserved : plays;
+}
+
+/**
  * A natural bomb is a protected resource when leading. It can be spent whole
  * rather than split only when every non-bomb lead destroys a bomb and lacks a
  * direct finish or a materially shorter route (two or more future turns).
@@ -811,11 +840,15 @@ function rankThreatLeadCandidates(
   threat: NextSeatEndgameThreat,
 ): readonly PlayAction[] {
   const plays = view.legalActions.filter(isPlay);
+  const candidates =
+    threat.mode === "forced"
+      ? plays
+      : leadCandidatesPreservingNaturalBombs(plays, view);
   const likely = new Set(threat.likelyPatternTypes);
-  const hasNonBomb = plays.some(
+  const hasNonBomb = candidates.some(
     (action) => !bombs.has(action.interpretation.type),
   );
-  return [...plays].sort((left, right) => {
+  return [...candidates].sort((left, right) => {
     // Bombs remain backloaded when leading; the threat mode is not permission to burn one early.
     const bombDelta =
       Number(hasNonBomb && bombs.has(left.interpretation.type)) -
@@ -1045,6 +1078,7 @@ function rankLeadCandidates(
   view: BotView,
   plays: readonly PlayAction[],
 ): readonly PlayAction[] {
+  const candidates = leadCandidatesPreservingNaturalBombs(plays, view);
   const scoreContext = createNormalVNextScoreContext(view);
   const scores = new Map<PlayAction, NormalVNextCandidateScore>();
   const economicalBombs = new Map<PlayAction, boolean>();
@@ -1074,10 +1108,10 @@ function rankLeadCandidates(
     finishingBombs.set(action, calculated);
     return calculated;
   };
-  const hasNonBomb = plays.some(
+  const hasNonBomb = candidates.some(
     (action) => !bombs.has(action.interpretation.type),
   );
-  return [...plays].sort((left, right) => {
+  return [...candidates].sort((left, right) => {
     const finishingBombDelta =
       Number(isFinishingBomb(right)) - Number(isFinishingBomb(left));
     if (finishingBombDelta !== 0) return finishingBombDelta;
