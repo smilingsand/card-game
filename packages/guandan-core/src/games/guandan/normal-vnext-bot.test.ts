@@ -6,6 +6,8 @@ import {
   chooseNormalVNextBotAction,
   describeNormalVNextContest,
   describeNormalVNextAction,
+  describeNormalVNextBombEconomics,
+  analyzeCooperationSignal,
   scoreNormalVNextCandidate,
 } from "./normal-vnext-bot";
 import type { Card } from "../../platform/types";
@@ -175,6 +177,61 @@ test("P7-02：评分器只接收规则层合法候选，并以稳定 tie-break �
 
   expect(scoreNormalVNextCandidate(illegal, scoredView)).toBeUndefined();
   expect(chooseNormalVNextBotAction(scoredView)?.action).toBe(first);
+});
+
+test("P7-03：协同信号只由公开座位、手数和当前牌权构成", () => {
+  expect(
+    analyzeCooperationSignal(
+      baseView({
+        highestSeat: "west",
+        remainingCardCounts: { east: 8, south: 5, west: 2, north: 7 },
+      }),
+    ),
+  ).toMatchObject({ mode: "yield", teammate: "west", reason: "队友持权" });
+  expect(
+    analyzeCooperationSignal(
+      baseView({
+        highestSeat: "south",
+        remainingCardCounts: { east: 8, south: 7, west: 1, north: 6 },
+      }),
+    ),
+  ).toMatchObject({
+    mode: "feed",
+    teammateRemainingCards: 1,
+    reason: "队友临门",
+  });
+});
+
+test("P7-03：炸弹经济只允许公开可解释的保队友、断对手或直接收尾场景", () => {
+  const bomb = normalBomb(["b1", "b2", "b3", "b4"], 7);
+  const threatView = baseView({
+    selfHand: [
+      card("b1", "7"),
+      card("b2", "7"),
+      card("b3", "7"),
+      card("b4", "7"),
+      card("x", "4"),
+    ],
+    legalActions: [bomb],
+    remainingCardCounts: { east: 5, south: 2, west: 8, north: 8 },
+    publicActions: [
+      {
+        sequence: 1,
+        actor: "south",
+        type: "play",
+        patternType: "single",
+        cards: [{ id: "shown-A", suit: "hearts", rank: "A" }],
+      },
+    ],
+  });
+  const economics = describeNormalVNextBombEconomics(bomb, threatView);
+
+  expect(economics).toMatchObject({
+    allowed: true,
+    reasons: expect.arrayContaining(["阻断公开临门对手"]),
+    publicControlExposure: { A: 1 },
+  });
+  expect("opponentHands" in economics!).toBe(false);
 });
 
 test("normal-vNext：没有低单时保留规则不阻止使用 A", () => {

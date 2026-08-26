@@ -54,6 +54,21 @@ export interface NextSeatEndgameThreat {
   readonly likelyPatternTypes: readonly PatternType[];
 }
 
+export interface CooperationSignal {
+  readonly teammate: BotView["selfSeat"];
+  readonly teammateRemainingCards: number;
+  readonly mode: "yield" | "feed" | "neutral";
+  readonly reason: string;
+}
+
+export interface NormalVNextBombEconomics {
+  readonly allowed: boolean;
+  readonly reasons: readonly string[];
+  readonly publicControlExposure: Readonly<
+    Partial<Record<Card["rank"], number>>
+  >;
+}
+
 export interface NormalVNextCostBreakdown {
   readonly rankCost: number;
   readonly structureDamageCost: number;
@@ -537,6 +552,57 @@ export function analyzeNextSeatEndgameThreat(
   };
 }
 
+/** Cooperation is a public signal, never a guess about the teammate's cards. */
+export function analyzeCooperationSignal(view: BotView): CooperationSignal {
+  const teammateSeat = teammate[view.selfSeat];
+  const teammateRemainingCards = view.remainingCardCounts[teammateSeat];
+  if (view.highestSeat === teammateSeat)
+    return {
+      teammate: teammateSeat,
+      teammateRemainingCards,
+      mode: "yield",
+      reason: "队友持权",
+    };
+  if (teammateRemainingCards >= 1 && teammateRemainingCards <= 2)
+    return {
+      teammate: teammateSeat,
+      teammateRemainingCards,
+      mode: "feed",
+      reason: "队友临门",
+    };
+  return {
+    teammate: teammateSeat,
+    teammateRemainingCards,
+    mode: "neutral",
+    reason: "无公开协同信号",
+  };
+}
+
+/** Bombs stay expensive unless their value is visible from the BotView. */
+export function describeNormalVNextBombEconomics(
+  action: TurnAction,
+  view: BotView,
+): NormalVNextBombEconomics | undefined {
+  if (!isPlay(action) || !bombs.has(action.interpretation.type))
+    return undefined;
+  const publicControlExposure: Partial<Record<Card["rank"], number>> = {};
+  for (const publicAction of view.publicActions ?? [])
+    for (const card of publicAction.cards)
+      if (["A", view.levelRank, "small-joker", "big-joker"].includes(card.rank))
+        publicControlExposure[card.rank] =
+          (publicControlExposure[card.rank] ?? 0) + 1;
+  const reasons: string[] = [];
+  const cooperation = analyzeCooperationSignal(view);
+  if (
+    view.highestSeat === cooperation.teammate &&
+    cooperation.teammateRemainingCards <= 2
+  )
+    reasons.push("保队友临门牌权");
+  if (opponentThreat(view, 2)) reasons.push("阻断公开临门对手");
+  if (directFinish(action, view)) reasons.push("炸后直接收尾");
+  return { allowed: reasons.length > 0, reasons, publicControlExposure };
+}
+
 function compareDescending(
   left: PlayAction,
   right: PlayAction,
@@ -631,6 +697,11 @@ function rankResponseCandidates(view: BotView): readonly PlayAction[] {
     (action) => !bombs.has(action.interpretation.type),
   );
   return [...plays].sort((left, right) => {
+    const leftBomb = describeNormalVNextBombEconomics(left, view);
+    const rightBomb = describeNormalVNextBombEconomics(right, view);
+    const justifiedBombDelta =
+      Number(rightBomb?.allowed ?? false) - Number(leftBomb?.allowed ?? false);
+    if (justifiedBombDelta !== 0) return justifiedBombDelta;
     const bombDelta =
       Number(hasNonBomb && bombs.has(left.interpretation.type)) -
       Number(hasNonBomb && bombs.has(right.interpretation.type));
@@ -702,7 +773,7 @@ export function chooseNormalVNextBotAction(
   const pass = view.legalActions.find((action) => action.type === "pass");
   const candidates = rankResponseCandidates(view);
   const finish = candidates.find((action) => directFinish(action, view));
-  if (view.highestSeat === teammate[view.selfSeat] && pass && !finish)
+  if (analyzeCooperationSignal(view).mode === "yield" && pass && !finish)
     return {
       action: pass,
       score: 0,
