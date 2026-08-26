@@ -47,6 +47,7 @@ const CONTROL_BIG_JOKER_COST = 360;
 const LOW_VALUE_STRUCTURE_RANK_COST = 10;
 const LEAD_BOMB_SPLIT_ROUTE_ADVANTAGE = 2;
 const WILDCARD_DOWNGRADE_COST = 700;
+const RESPONSE_ANALYSIS_CANDIDATE_LIMIT = 24;
 
 type PlayAction = Extract<TurnAction, { readonly type: "play" }>;
 type PatternType = PlayAction["interpretation"]["type"];
@@ -916,8 +917,10 @@ function isLowValueNaturalStructureSpend(
   return brokeLowNaturalGroup;
 }
 
-function rankResponseCandidates(view: BotView): readonly PlayAction[] {
-  const plays = view.legalActions.filter(isPlay);
+function rankResponseCandidates(
+  view: BotView,
+  plays: readonly PlayAction[],
+): readonly PlayAction[] {
   const scoreContext = createNormalVNextScoreContext(view);
   const scores = new Map<PlayAction, NormalVNextCandidateScore>();
   const economicalBombs = new Map<PlayAction, boolean>();
@@ -972,6 +975,70 @@ function rankResponseCandidates(view: BotView): readonly PlayAction[] {
     if (comparisonDelta !== 0) return comparisonDelta;
     return JSON.stringify(left).localeCompare(JSON.stringify(right));
   });
+}
+
+/**
+ * Following can contain thousands of wildcard interpretations for the same
+ * physical response. Rules must retain the complete legal set, but route
+ * scoring every projection is neither necessary nor safe for the UI thread.
+ * Keep a deterministic, low-resource response pool and score only that pool.
+ */
+function collectResponseAnalysisCandidates(
+  view: BotView,
+): readonly PlayAction[] {
+  const plays = view.legalActions.filter(isPlay);
+  if (plays.length <= RESPONSE_ANALYSIS_CANDIDATE_LIMIT) return plays;
+
+  const priority = new Map<PlayAction, readonly number[]>();
+  const compareByPriority = (left: PlayAction, right: PlayAction) => {
+    const getPriority = (action: PlayAction) => {
+      const cached = priority.get(action);
+      if (cached) return cached;
+      const calculated = [
+        wildcardOpportunityCost(action, view),
+        controlResourceCost(action, view),
+        actionRankCost(action, view),
+        attachmentCost(action, view),
+      ] as const;
+      priority.set(action, calculated);
+      return calculated;
+    };
+    const delta = compareNumberLists(getPriority(left), getPriority(right));
+    if (delta !== 0) return delta;
+    const comparisonDelta = compareNumberLists(
+      comparisonCost(left),
+      comparisonCost(right),
+    );
+    if (comparisonDelta !== 0) return comparisonDelta;
+    return JSON.stringify(left).localeCompare(JSON.stringify(right));
+  };
+  const candidates = new Set<PlayAction>();
+  const baseline = chooseNormalBotAction(view)?.action;
+  if (baseline && isPlay(baseline)) candidates.add(baseline);
+
+  const directFinishCandidate = plays
+    .filter((action) => directFinish(action, view))
+    .sort(compareByPriority)
+    .at(0);
+  if (directFinishCandidate) candidates.add(directFinishCandidate);
+
+  const nonBombs = plays.filter(
+    (action) => !bombs.has(action.interpretation.type),
+  );
+  const bestBomb = plays
+    .filter((action) => bombs.has(action.interpretation.type))
+    .sort(compareByPriority)
+    .at(0);
+  const standardResponses = (nonBombs.length > 0 ? nonBombs : plays).sort(
+    compareByPriority,
+  );
+  for (const action of standardResponses) {
+    if (candidates.size >= RESPONSE_ANALYSIS_CANDIDATE_LIMIT) break;
+    candidates.add(action);
+  }
+  if (bestBomb && candidates.size < RESPONSE_ANALYSIS_CANDIDATE_LIMIT)
+    candidates.add(bestBomb);
+  return [...candidates];
 }
 
 function rankLeadCandidates(
@@ -1097,7 +1164,10 @@ export function chooseNormalVNextBotAction(
   }
 
   const pass = view.legalActions.find((action) => action.type === "pass");
-  const candidates = rankResponseCandidates(view);
+  const candidates = rankResponseCandidates(
+    view,
+    collectResponseAnalysisCandidates(view),
+  );
   const finish = candidates.find((action) => directFinish(action, view));
   if (analyzeCooperationSignal(view).mode === "yield" && pass && !finish)
     return {

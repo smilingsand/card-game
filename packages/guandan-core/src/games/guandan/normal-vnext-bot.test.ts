@@ -129,6 +129,48 @@ test("normal-vNext：敌方持权时以最低普通单张压制并保留 A 与�
   expect(decision?.action).toBe(low);
 });
 
+test("P7-12：大量配牌投影的三带二跟牌仍取最小普通压制", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const ordinary = threeWithPair(
+    ["seven-a", "seven-b", "seven-c", "three-a", "three-b"],
+    7,
+  );
+  const wildcardVariants = Array.from({ length: 160 }, (_, index) => ({
+    ...threeWithPair(
+      ["eight-a", "eight-b", "heart-level", "four-a", "four-b"],
+      8,
+    ),
+    interpretation: {
+      type: "three-with-pair" as const,
+      comparisonKey: [8],
+      cardIds: ["eight-a", "eight-b", "heart-level", "four-a", "four-b"],
+      wildcardAs: {
+        "heart-level": {
+          rank: "8" as const,
+          suit: (["spades", "hearts", "diamonds", "clubs"] as const)[index % 4],
+        },
+      },
+    },
+  }));
+  const view = baseView({
+    selfHand: [
+      card("seven-a", "7"),
+      card("seven-b", "7"),
+      card("seven-c", "7"),
+      card("three-a", "3"),
+      card("three-b", "3"),
+      card("eight-a", "8"),
+      card("eight-b", "8"),
+      { ...card("heart-level", "2"), suit: "hearts" },
+      card("four-a", "4"),
+      card("four-b", "4"),
+    ],
+    legalActions: [pass, ...wildcardVariants, ordinary],
+  });
+
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(ordinary);
+});
+
 test("P7-09：仅剩两个完整炸弹时，领出不拆成三带二留下四张散牌", () => {
   const fragmented = threeWithPair(
     ["seven-a", "seven-b", "seven-c", "three-a", "three-b"],
