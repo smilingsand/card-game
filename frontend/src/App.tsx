@@ -145,6 +145,8 @@ function SoloApp({
   const [applyPwaUpdate, setApplyPwaUpdate] = useState<() => void>();
   const [completedTrickActions, setCompletedTrickActions] = useState<readonly TurnAction[]>();
   const completedTrickKeyRef = useRef<string | undefined>(undefined);
+  const [visibleTrickStartEventIndex, setVisibleTrickStartEventIndex] = useState(0);
+  const clearedTrickKeyRef = useRef<string | undefined>(undefined);
   const levelRank = game.levelRank ?? session.match.levelRank;
   const finishIndex = (seat: Seat) => game.state.finished.indexOf(seat);
 
@@ -242,8 +244,29 @@ function SoloApp({
   }));
   const selectedActions = getSelectedPlayActions(game, selectedCardIds);
   const canPass = game.state.current === HUMAN_SEAT && game.state.highest !== undefined;
+  const revealedHand = (seat: BotSeat) =>
+    groupHumanDisplayCards(game.state.hands[seat], game.cardsById, levelRank);
+  const clearedTrickKey =
+    game.state.highestSeat === undefined && game.publicEvents.length > 0
+      ? `${game.publicEvents.length}:${game.state.current}:${game.state.finished.join("-")}`
+      : undefined;
+  useEffect(() => {
+    if (visibleTrickStartEventIndex <= game.publicEvents.length) return;
+    completedTrickKeyRef.current = undefined;
+    clearedTrickKeyRef.current = undefined;
+    setCompletedTrickActions(undefined);
+    setVisibleTrickStartEventIndex(0);
+  }, [game.publicEvents.length, visibleTrickStartEventIndex]);
+  useEffect(() => {
+    if (!clearedTrickKey || clearedTrickKeyRef.current === clearedTrickKey) return;
+    clearedTrickKeyRef.current = clearedTrickKey;
+    setVisibleTrickStartEventIndex(game.publicEvents.length);
+    setCompletedTrickActions(undefined);
+  }, [clearedTrickKey, game.publicEvents.length]);
+
+  const visibleTrickEvents = game.publicEvents.slice(visibleTrickStartEventIndex);
   const highestPlay = game.state.highestSeat
-    ? [...game.publicEvents]
+    ? [...visibleTrickEvents]
         .reverse()
         .map(actionFromPublicEvent)
         .find(
@@ -251,16 +274,14 @@ function SoloApp({
             action?.type === "play" && action.actor === game.state.highestSeat
         )
     : undefined;
-  const revealedHand = (seat: BotSeat) =>
-    groupHumanDisplayCards(game.state.hands[seat], game.cardsById, levelRank);
   const publicPlay = (seat: Seat) => (highestPlay?.actor === seat ? highestPlay : undefined);
-  const recentActions = latestRecentActionsBySeat(game.publicEvents);
+  const recentActions = latestRecentActionsBySeat(visibleTrickEvents);
   const latestCompletedActions = useMemo(
-    () => latestCompletedTrickActions(game.publicEvents),
-    [game.publicEvents]
+    () => (clearedTrickKey ? [] : latestCompletedTrickActions(visibleTrickEvents)),
+    [clearedTrickKey, visibleTrickEvents]
   );
   const completedTrickKey = latestCompletedActions.length
-    ? `${game.publicEvents.length}:${latestCompletedActions.at(-1)?.actor}`
+    ? `${visibleTrickStartEventIndex}:${visibleTrickEvents.length}:${latestCompletedActions.at(-1)?.actor}`
     : undefined;
   useEffect(() => {
     if (!completedTrickKey || completedTrickKeyRef.current === completedTrickKey) return;
@@ -271,7 +292,7 @@ function SoloApp({
   }, [completedTrickKey, latestCompletedActions]);
   const isTrickCompletionVisible = completedTrickActions !== undefined;
   const visibleRecentActions = completedTrickActions ?? recentActions;
-  const recentActionLayers = latestRecentActionLayerBySeat(game.publicEvents);
+  const recentActionLayers = latestRecentActionLayerBySeat(visibleTrickEvents);
   const recentActionsFor = (seat: Seat) =>
     visibleRecentActions.filter((action) => action.actor === seat);
 
