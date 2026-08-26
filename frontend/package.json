@@ -16,7 +16,7 @@
     "test": "vitest",
     "test:run": "vitest run --exclude ../packages/guandan-core/src/games/guandan/bot-benchmark.10k.test.ts",
     "test:core": "vitest run --config core.vitest.config.ts",
-    "guandan:normal-vnext-simulation": "vite-node scripts/normal-vnext-simulation.ts",
+    "guandan:normal-vnext-simulation": "vite-node --script scripts/normal-vnext-simulation.ts",
     "benchmark:p2": "vitest run --configLoader runner src/games/guandan/bot-benchmark.10k.test.ts -t \"分批基准 1\" && vitest run --configLoader runner src/games/guandan/bot-benchmark.10k.test.ts -t \"分批基准 2\" && vitest run --configLoader runner src/games/guandan/bot-benchmark.10k.test.ts -t \"分批基准 3\" && vitest run --configLoader runner src/games/guandan/bot-benchmark.10k.test.ts -t \"分批基准 4\""
   },
   "dependencies": {

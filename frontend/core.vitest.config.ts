@@ -29,7 +29,8 @@ export default defineConfig({
       "../packages/guandan-core/src/games/guandan/table-controller.test.ts",
       "../packages/guandan-core/src/games/guandan/table-session.test.ts",
       "../packages/guandan-core/src/games/guandan/tribute.test.ts",
-      "../packages/guandan-core/src/games/guandan/turns.test.ts"
+      "../packages/guandan-core/src/games/guandan/turns.test.ts",
+      "scripts/normal-vnext-simulation-runner.test.ts"
     ],
     exclude: ["**/bot-benchmark.10k.test.ts"]
   }
