@@ -10,6 +10,7 @@ import { chooseBasicBotAction } from "./basic-bot";
 import { chooseNormalBotAction } from "./normal-bot";
 import { chooseNormalVNextBotAction } from "./normal-vnext-bot";
 import { createBotView, type BotView } from "./bot-view";
+import { projectPublicActions } from "./public-action-projection";
 import { getCompleteLegalCandidates } from "./rule-complete-legal-actions";
 import { settleRound, type Settlement } from "./settlement";
 import {
@@ -149,6 +150,7 @@ export function createInitialSimulationBotView(seed: number): BotView {
     levelRank: INITIAL_LEVEL,
     hand,
     publicEvents: [],
+    publicActions: [],
     remainingCardCounts: Object.fromEntries(
       SEATS.map((seat) => [seat, initial.state.hands[seat].length]),
     ) as Record<Seat, number>,
@@ -210,6 +212,7 @@ function botAction(
     levelRank: INITIAL_LEVEL,
     hand,
     publicEvents,
+    publicActions: projectPublicActions(publicEvents, cardsById),
     remainingCardCounts: Object.fromEntries(
       SEATS.map((seat) => [seat, state.hands[seat].length]),
     ) as Record<Seat, number>,

@@ -34,6 +34,7 @@ import {
   type TributeReturn,
 } from "./tribute";
 import type { TurnAction, TurnResult, TurnState } from "./turns";
+import type { StrategyMatchContext } from "./bot-view";
 
 export const TABLE_RULES_VERSION = GUANDAN_CORE_RULES_VERSION;
 export const TABLE_SAVE_SCHEMA_VERSION = 4;
@@ -131,6 +132,33 @@ function initialMatch(
     tributePhase: "ready",
     submittedTributes: [],
     submittedReturns: [],
+  };
+}
+
+function strategyMatchContext(match: MatchSessionState): StrategyMatchContext {
+  return {
+    roundNumber: match.roundNumber,
+    teamLevels: { ...match.levels },
+    aStageTeams: (
+      Object.entries(match.levels) as Array<
+        ["northSouth" | "eastWest", MatchSessionState["levelRank"]]
+      >
+    )
+      .filter(([, level]) => level === "A")
+      .map(([team]) => team),
+    tribute: {
+      phase: match.tributePhase,
+      kind: match.tributePlan.kind,
+      antiTribute: match.tributePlan.antiTribute,
+    },
+    firstLeadSource:
+      match.roundNumber === 1
+        ? "initial-south"
+        : match.tributePlan.antiTribute
+          ? "anti-tribute"
+          : match.tributePlan.kind === "none"
+            ? "round-leader"
+            : "tribute",
   };
 }
 
@@ -248,9 +276,13 @@ function createSessionFromGame(
   stream: EventStream<TableSessionEvent>,
   humanDisplayOrder?: readonly string[],
 ): TableSession {
+  const contextualGame: TableGame = {
+    ...game,
+    strategyMatchContext: strategyMatchContext(match),
+  };
   const session = {
     seed,
-    game,
+    game: contextualGame,
     match,
     stream,
     snapshot: undefined as unknown as Snapshot<TableSnapshotState>,
@@ -831,7 +863,10 @@ export function restoreTableSession(save: RestorableTableSave): TableSession {
   }
   return {
     seed: save.seed,
-    game: replayed.game,
+    game: {
+      ...replayed.game,
+      strategyMatchContext: strategyMatchContext(replayed.match),
+    },
     match: replayed.match,
     stream: save.stream,
     snapshot: save.snapshot,

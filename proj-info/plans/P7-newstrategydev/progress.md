@@ -43,3 +43,12 @@
 - 按用户要求完成运行器重构：新增 `frontend/scripts/normal-vnext-simulation-runner.ts`，CLI 仅保留参数解析、校验和调用；`vite-node --script` 作为命令入口保证业务参数传入 CLI。
 - 新增运行器单测，覆盖固定 seed 调度、依赖注入、报告输出和失败局拒绝；已纳入 `test:core`。
 - 已新增 ADR-0035 与 P7 阶段 README、任务表、测试矩阵、发布记录。固定 seed 0 自动对局生成报告并完成合法结算（126 动作，north/south/west/east）。
+
+## 2026-08-26：P7-01 完成
+
+- **状态：** accepted。
+- 新增 `public-action-projection.ts`：从按 sequence 排序的公开动作中，只投影已经出牌的 `{ id, suit, rank }`、动作类型和牌型；不返回 `deckIndex`、牌堆、未出牌或 seed。
+- 新增 `strategy-observation.ts`：纯函数生成公开牌/牌型统计、四座剩余手数、最近动作、自己/队友/对手关系及可选赛局公共上下文。
+- `TableSession` 由 MatchSession 纯函数重建双方等级、A 关、进贡/抗贡阶段和首出来源；该上下文不进入规则裁决、事件动作或快照。
+- 回归中发现存档恢复遗漏该派生上下文，已在 `restoreTableSession` 重建；P3 secure-seed 事件流等价测试随后通过。
+- 新增 4 个 P7-01 固定牌例，覆盖公开牌面、顺序重放、旧投影兼容、四座泄露边界与赛局上下文。

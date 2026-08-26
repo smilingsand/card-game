@@ -10,6 +10,7 @@ import { chooseNormalVNextBotAction } from "./normal-vnext-bot";
 import { describeNormalVNextAction } from "./normal-vnext-bot";
 import { diagnoseNormalVNextAction } from "./normal-vnext-metrics";
 import { createBotView } from "./bot-view";
+import { projectPublicActions } from "./public-action-projection";
 import { getLegalActions } from "./legal-actions";
 import { recognizePatterns, type PatternInterpretation } from "./patterns";
 import { getCompleteLegalCandidates } from "./rule-complete-legal-actions";
@@ -42,6 +43,8 @@ export interface TableGame {
   readonly levelRank?: Exclude<Rank, "small-joker" | "big-joker">;
   /** 所有已提交动作的公开事实；机器人只能从这里记牌。 */
   readonly publicEvents: readonly Event[];
+  /** 连续赛局提供的公共上下文；不进入规则裁决或手牌状态。 */
+  readonly strategyMatchContext?: import("./bot-view").StrategyMatchContext;
 }
 
 export function createTableGame(
@@ -142,6 +145,8 @@ function createTableBotView(
       .map((cardId) => game.cardsById.get(cardId))
       .filter((card): card is Card => card !== undefined),
     publicEvents: game.publicEvents,
+    publicActions: projectPublicActions(game.publicEvents, game.cardsById),
+    matchContext: game.strategyMatchContext,
     remainingCardCounts: Object.fromEntries(
       SEATS.map((seat) => [seat, game.state.hands[seat].length]),
     ) as Record<Seat, number>,

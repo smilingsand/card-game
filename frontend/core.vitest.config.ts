@@ -26,6 +26,7 @@ export default defineConfig({
       "../packages/guandan-core/src/games/guandan/settlement.test.ts",
       "../packages/guandan-core/src/games/guandan/simulation.test.ts",
       "../packages/guandan-core/src/games/guandan/strategy-analysis.test.ts",
+      "../packages/guandan-core/src/games/guandan/strategy-observation.test.ts",
       "../packages/guandan-core/src/games/guandan/table-controller.test.ts",
       "../packages/guandan-core/src/games/guandan/table-session.test.ts",
       "../packages/guandan-core/src/games/guandan/tribute.test.ts",
