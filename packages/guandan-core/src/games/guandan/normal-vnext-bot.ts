@@ -118,6 +118,16 @@ export interface NormalVNextHandAnalysis {
   readonly controlCards: number;
 }
 
+export interface NormalVNextSelfRouteEstimate {
+  readonly action: PlayAction;
+  readonly remainingCards: number;
+  readonly directFinish: boolean;
+  readonly deadSingles: number;
+  readonly naturalGroups: number;
+  readonly controlCardsRetained: number;
+  readonly estimatedSelfTurns: number;
+}
+
 function isPlay(action: TurnAction): action is PlayAction {
   return action.type === "play";
 }
@@ -217,6 +227,40 @@ export function analyzeNormalVNextHand(view: BotView): NormalVNextHandAnalysis {
     bombs: counts.filter((count) => count >= 4).length,
     wildcardCount,
     controlCards,
+  };
+}
+
+/**
+ * Fixed, one-ply route estimate over our own hand only. It never generates an
+ * opponent action and has no wall-clock or mutable-state budget.
+ */
+export function estimateNormalVNextSelfRoute(
+  action: TurnAction,
+  view: BotView,
+): NormalVNextSelfRouteEstimate | undefined {
+  if (!isLegalCandidate(action, view)) return undefined;
+  const selectedIds = new Set(action.cardIds);
+  const remaining = view.selfHand.filter((card) => !selectedIds.has(card.id));
+  const groups = naturalGroupsForCards(remaining, view.levelRank);
+  const counts = [...groups.values()].map((group) => group.length);
+  const deadSingles = counts.filter((count) => count === 1).length;
+  const naturalGroups = counts.filter((count) => count >= 2).length;
+  const controlCardsRetained = remaining.filter(
+    (card) =>
+      card.rank === "A" ||
+      card.rank === view.levelRank ||
+      card.rank === "small-joker" ||
+      card.rank === "big-joker",
+  ).length;
+  return {
+    action,
+    remainingCards: remaining.length,
+    directFinish: remaining.length === 0,
+    deadSingles,
+    naturalGroups,
+    controlCardsRetained,
+    estimatedSelfTurns:
+      remaining.length === 0 ? 0 : deadSingles + naturalGroups,
   };
 }
 

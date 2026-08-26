@@ -8,6 +8,7 @@ import {
   describeNormalVNextAction,
   describeNormalVNextBombEconomics,
   analyzeCooperationSignal,
+  estimateNormalVNextSelfRoute,
   scoreNormalVNextCandidate,
 } from "./normal-vnext-bot";
 import type { Card } from "../../platform/types";
@@ -232,6 +233,26 @@ test("P7-03：炸弹经济只允许公开可解释的保队友、断对手或直
     publicControlExposure: { A: 1 },
   });
   expect("opponentHands" in economics!).toBe(false);
+});
+
+test("P7-04：路线评估只看己方候选后的手牌，且固定输入可重放", () => {
+  const sixes = pair(["six-a", "six-b"], 6);
+  const view = baseView({
+    selfHand: [card("six-a", "6"), card("six-b", "6"), card("ace", "A")],
+    legalActions: [sixes],
+  });
+  const first = estimateNormalVNextSelfRoute(sixes, view);
+  const second = estimateNormalVNextSelfRoute(sixes, view);
+
+  expect(first).toEqual(second);
+  expect(first).toMatchObject({
+    remainingCards: 1,
+    deadSingles: 1,
+    naturalGroups: 0,
+    controlCardsRetained: 1,
+    estimatedSelfTurns: 1,
+  });
+  expect("opponentHands" in first!).toBe(false);
 });
 
 test("normal-vNext：没有低单时保留规则不阻止使用 A", () => {
