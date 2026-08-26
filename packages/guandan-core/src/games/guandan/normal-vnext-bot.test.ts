@@ -1305,6 +1305,35 @@ test("开中局：44422 对自然 88866 的争牌收益高于 pass", () => {
   });
 });
 
+test("P7-14：中等三带二对完整 KKK44 应主动压制，不把 K 误作最高控制牌", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const kingsWithFours = threeWithPair(
+    ["king-a", "king-b", "king-c", "four-a", "four-b"],
+    13,
+  );
+  const view = baseView({
+    selfHand: [
+      card("king-a", "K"),
+      card("king-b", "K"),
+      card("king-c", "K"),
+      card("four-a", "4"),
+      card("four-b", "4"),
+      ...["7", "8", "9", "10"].flatMap((rank) =>
+        ["a", "b", "c", "d"].map((suffix) =>
+          card(`${rank}-${suffix}`, rank as Card["rank"]),
+        ),
+      ),
+    ],
+    legalActions: [pass, kingsWithFours],
+  });
+
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(kingsWithFours);
+  expect(describeNormalVNextContest(kingsWithFours, view)).toMatchObject({
+    structureDamageCost: 0,
+    highValuePenalty: 0,
+  });
+});
+
 test("开中局：44422 对 AAAKK 的高控制资源组合倾向 pass", () => {
   const pass: TurnAction = { type: "pass", actor: "east" };
   const high = threeWithPair(

@@ -602,8 +602,7 @@ export function describeNormalVNextContest(
       card.rank === "A" ||
       card.rank === view.levelRank ||
       card.rank === "small-joker" ||
-      card.rank === "big-joker" ||
-      rankCost(card, view.levelRank) >= 13,
+      card.rank === "big-joker",
   );
   const handSheddingBenefit = naturalMiddle ? action.cardIds.length * 60 : 0;
   const contestBenefit = naturalMiddle ? 120 : 0;
