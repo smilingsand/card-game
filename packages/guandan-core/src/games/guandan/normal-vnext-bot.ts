@@ -46,6 +46,7 @@ const CONTROL_SMALL_JOKER_COST = 300;
 const CONTROL_BIG_JOKER_COST = 360;
 const LOW_VALUE_STRUCTURE_RANK_COST = 10;
 const LEAD_BOMB_SPLIT_ROUTE_ADVANTAGE = 2;
+const WILDCARD_DOWNGRADE_COST = 700;
 
 type PlayAction = Extract<TurnAction, { readonly type: "play" }>;
 type PatternType = PlayAction["interpretation"]["type"];
@@ -370,11 +371,15 @@ function controlResourceCost(action: PlayAction, view: BotView): number {
 }
 
 function wildcardOpportunityCost(action: PlayAction, view: BotView): number {
-  return selectedCards(action, view).some(
+  const wildcards = selectedCards(action, view).filter(
     (card) => card.suit === "hearts" && card.rank === view.levelRank,
-  )
-    ? 420
-    : 0;
+  );
+  if (wildcards.length === 0) return 0;
+  const downgradedWildcards = wildcards.filter((card) => {
+    const assignedRank = action.interpretation.wildcardAs[card.id]?.rank;
+    return assignedRank !== undefined && assignedRank !== view.levelRank;
+  }).length;
+  return 420 + downgradedWildcards * WILDCARD_DOWNGRADE_COST;
 }
 
 function actionRankCost(action: PlayAction, view: BotView): number {

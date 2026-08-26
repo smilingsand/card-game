@@ -227,6 +227,107 @@ test("P7-10：拆炸后能减少至少两手路线时，允许以复合牌获得
   expect(decision?.action).toBe(straight);
 });
 
+test("P7-11：级牌对子可压过时，不把两张红桃级牌降配成普通对", () => {
+  const nativeLevelPair: TurnAction = {
+    type: "play",
+    actor: "east",
+    cardIds: ["heart-level-a", "heart-level-b"],
+    interpretation: {
+      type: "pair",
+      comparisonKey: [15],
+      cardIds: ["heart-level-a", "heart-level-b"],
+      wildcardAs: {
+        "heart-level-a": { rank: "2", suit: "hearts" },
+        "heart-level-b": { rank: "2", suit: "hearts" },
+      },
+    },
+  };
+  const downgradedNinePair: TurnAction = {
+    type: "play",
+    actor: "east",
+    cardIds: ["heart-level-a", "heart-level-b"],
+    interpretation: {
+      type: "pair",
+      comparisonKey: [9],
+      cardIds: ["heart-level-a", "heart-level-b"],
+      wildcardAs: {
+        "heart-level-a": { rank: "9", suit: "spades" },
+        "heart-level-b": { rank: "9", suit: "hearts" },
+      },
+    },
+  };
+  const view = baseView({
+    selfHand: [
+      { ...card("heart-level-a", "2"), suit: "hearts" as const },
+      { ...card("heart-level-b", "2"), suit: "hearts" as const },
+    ],
+    legalActions: [
+      { type: "pass", actor: "east" },
+      downgradedNinePair,
+      nativeLevelPair,
+    ],
+    remainingCardCounts: { east: 2, south: 20, west: 20, north: 20 },
+  });
+
+  expect(
+    scoreNormalVNextCandidate(nativeLevelPair, view)?.breakdown
+      .wildcardOpportunityCost,
+  ).toBe(420);
+  expect(
+    scoreNormalVNextCandidate(downgradedNinePair, view)?.breakdown
+      .wildcardOpportunityCost,
+  ).toBe(1_820);
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(nativeLevelPair);
+});
+
+test("P7-11：有普通对 9、10、K、A 时，以最低普通对压过对 8", () => {
+  const nine = pair(["nine-a", "nine-b"], 9);
+  const ten = pair(["ten-a", "ten-b"], 10);
+  const king = pair(["king-a", "king-b"], 13);
+  const ace = pair(["ace-a", "ace-b"], 14);
+  const downgradedNinePair: TurnAction = {
+    type: "play",
+    actor: "east",
+    cardIds: ["heart-level-a", "heart-level-b"],
+    interpretation: {
+      type: "pair",
+      comparisonKey: [9],
+      cardIds: ["heart-level-a", "heart-level-b"],
+      wildcardAs: {
+        "heart-level-a": { rank: "9", suit: "spades" },
+        "heart-level-b": { rank: "9", suit: "hearts" },
+      },
+    },
+  };
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      selfHand: [
+        card("nine-a", "9"),
+        card("nine-b", "9"),
+        card("ten-a", "10"),
+        card("ten-b", "10"),
+        card("king-a", "K"),
+        card("king-b", "K"),
+        card("ace-a", "A"),
+        card("ace-b", "A"),
+        { ...card("heart-level-a", "2"), suit: "hearts" as const },
+        { ...card("heart-level-b", "2"), suit: "hearts" as const },
+      ],
+      legalActions: [
+        { type: "pass", actor: "east" },
+        ace,
+        downgradedNinePair,
+        king,
+        ten,
+        nine,
+      ],
+      remainingCardCounts: { east: 10, south: 20, west: 20, north: 20 },
+    }),
+  );
+
+  expect(decision?.action).toBe(nine);
+});
+
 test("P7-02：候选评分逐项公开成本、收益与可复核总分", () => {
   const low = single("four", 4);
   const heartLevel = single("heart-2", 15);
