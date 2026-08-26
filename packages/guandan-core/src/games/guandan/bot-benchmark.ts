@@ -1,5 +1,6 @@
 // Shared Guandan core source.
-import { runSimulation } from "./simulation";
+import { createInitialSimulationBotView, runSimulation } from "./simulation";
+import { chooseNormalVNextBotAction } from "./normal-vnext-bot";
 import { monotonicNow } from "../../platform/clock";
 
 export interface BotBenchmark {
@@ -9,6 +10,47 @@ export interface BotBenchmark {
   readonly averageActionCount: number;
   readonly averageDecisionMs: number;
   readonly maxDecisionMs: number;
+}
+
+export interface NormalVNextDecisionBenchmark {
+  readonly seeds: readonly number[];
+  readonly completedDecisions: number;
+  readonly totalLegalActions: number;
+  readonly averageDecisionMs: number;
+  readonly maxDecisionMs: number;
+}
+
+/**
+ * Small, deterministic P7 performance gate. It measures the production
+ * normal-vNext selector on the exact initial BotView for each fixed seed,
+ * rather than coupling P7 to the long historical normal/basic 100-game run.
+ */
+export function benchmarkNormalVNextDecisions(
+  seeds: readonly number[],
+): NormalVNextDecisionBenchmark {
+  let completedDecisions = 0;
+  let totalLegalActions = 0;
+  let totalDecisionMs = 0;
+  let maxDecisionMs = 0;
+  for (const seed of seeds) {
+    const view = createInitialSimulationBotView(seed);
+    const started = monotonicNow();
+    const decision = chooseNormalVNextBotAction(view);
+    const elapsed = monotonicNow() - started;
+    if (!decision || !view.legalActions.includes(decision.action))
+      throw new Error(`normal-vNext chose no legal action for seed ${seed}`);
+    completedDecisions += 1;
+    totalLegalActions += view.legalActions.length;
+    totalDecisionMs += elapsed;
+    maxDecisionMs = Math.max(maxDecisionMs, elapsed);
+  }
+  return {
+    seeds: [...seeds],
+    completedDecisions,
+    totalLegalActions,
+    averageDecisionMs: totalDecisionMs / Math.max(1, completedDecisions),
+    maxDecisionMs,
+  };
 }
 export function benchmarkBots(options: {
   readonly startSeed: number;

@@ -439,6 +439,14 @@ export function scoreNormalVNextCandidate(
   view: BotView,
 ): NormalVNextCandidateScore | undefined {
   if (!isLegalCandidate(action, view)) return undefined;
+  return scoreLegalNormalVNextCandidate(action, view);
+}
+
+/** Internal fast path: callers already iterate rule-engine legalActions. */
+function scoreLegalNormalVNextCandidate(
+  action: PlayAction,
+  view: BotView,
+): NormalVNextCandidateScore {
   const rank = actionRankCost(action, view);
   const structure = structureDamageCost(action, view);
   const control = controlResourceCost(action, view);
@@ -741,11 +749,6 @@ function rankResponseCandidates(view: BotView): readonly PlayAction[] {
     (action) => !bombs.has(action.interpretation.type),
   );
   return [...plays].sort((left, right) => {
-    const leftBomb = describeNormalVNextBombEconomics(left, view);
-    const rightBomb = describeNormalVNextBombEconomics(right, view);
-    const justifiedBombDelta =
-      Number(rightBomb?.allowed ?? false) - Number(leftBomb?.allowed ?? false);
-    if (justifiedBombDelta !== 0) return justifiedBombDelta;
     const bombDelta =
       Number(hasNonBomb && bombs.has(left.interpretation.type)) -
       Number(hasNonBomb && bombs.has(right.interpretation.type));
@@ -764,10 +767,8 @@ function rankResponseCandidates(view: BotView): readonly PlayAction[] {
       if (attachmentDelta !== 0) return attachmentDelta;
     }
     const costDelta =
-      (scoreNormalVNextCandidate(left, view)?.score ??
-        Number.MAX_SAFE_INTEGER) -
-      (scoreNormalVNextCandidate(right, view)?.score ??
-        Number.MAX_SAFE_INTEGER);
+      scoreLegalNormalVNextCandidate(left, view).score -
+      scoreLegalNormalVNextCandidate(right, view).score;
     if (costDelta !== 0) return costDelta;
     const comparisonDelta = compareNumberLists(
       comparisonCost(left),

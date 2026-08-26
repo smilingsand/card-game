@@ -1,6 +1,6 @@
 # P7：normal-vNext 公开信息策略升级
 
-状态：P7-00 至 P7-02 `accepted`；P7-03 至 P7-05 尚未启动。
+状态：P7-00 至 P7-04 `accepted`；P7-05 `ready_for_acceptance`（未发布）。
 
 P7 在不改变 `guandan-v1` 规则、不恢复 P2.5 expert/master 路线的前提下，逐步吸收
 协同、控牌、炸弹经济和残局路线评估的优点。产品策略仍只有 normal-vNext；normal-v1
@@ -22,3 +22,7 @@ P7-01 以纯公共动作投影生成 `StrategyObservation`：只包含已打出�
 
 P7-02 为 normal-vNext 的响应候选提供固定评分分项。策略只排序规则层合法动作，并公开
 点数、结构破坏、控制资源、红桃级牌机会成本、卸载收益与公开残局拦截收益。
+
+P7-05 新增 normal-vNext 专项固定 seed 决策基准，避免将 P7 策略门槛耦合到既有的
+normal/basic 百局历史基准。2026-08-26 的本地复测中，5 个 seed 的首次决策均合法，最慢
+决策未超过 5 秒；策略行为尚未进入 Preview 或 Production。

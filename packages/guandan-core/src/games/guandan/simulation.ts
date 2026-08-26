@@ -205,6 +205,7 @@ function botAction(
     levelRank: INITIAL_LEVEL,
   });
   const legalActionsGenerationMs = monotonicNow() - legalStarted;
+  const profile = difficulties[state.current];
   const view = createBotView({
     selfSeat: state.current,
     leader: state.leader,
@@ -212,13 +213,17 @@ function botAction(
     levelRank: INITIAL_LEVEL,
     hand,
     publicEvents,
-    publicActions: projectPublicActions(publicEvents, cardsById),
+    // Only normal-vNext consumes the P7 public-card projection. Keeping it
+    // out of historical normal/basic benchmark paths avoids rebuilding the
+    // full public history for strategies that cannot observe it.
+    ...(profile === "normal-vNext"
+      ? { publicActions: projectPublicActions(publicEvents, cardsById) }
+      : {}),
     remainingCardCounts: Object.fromEntries(
       SEATS.map((seat) => [seat, state.hands[seat].length]),
     ) as Record<Seat, number>,
     legalActions,
   });
-  const profile = difficulties[state.current];
   const decisionStarted = monotonicNow();
   if (profile === "basic")
     return {
