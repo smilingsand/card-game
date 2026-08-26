@@ -129,6 +129,39 @@ test("normal-vNext：敌方持权时以最低普通单张压制并保留 A 与�
   expect(decision?.action).toBe(low);
 });
 
+test("P7-09：仅剩两个完整炸弹时，领出不拆成三带二留下四张散牌", () => {
+  const fragmented = threeWithPair(
+    ["seven-a", "seven-b", "seven-c", "three-a", "three-b"],
+    7,
+  );
+  const sevenBomb = normalBomb(
+    ["seven-a", "seven-b", "seven-c", "seven-d", "seven-e"],
+    7,
+  );
+  const threeBomb = normalBomb(["three-a", "three-b", "three-c", "three-d"], 3);
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      highestSeat: undefined,
+      selfHand: [
+        card("seven-a", "7"),
+        card("seven-b", "7"),
+        card("seven-c", "7"),
+        card("seven-d", "7"),
+        card("seven-e", "7"),
+        card("three-a", "3"),
+        card("three-b", "3"),
+        card("three-c", "3"),
+        card("three-d", "3"),
+      ],
+      legalActions: [fragmented, sevenBomb, threeBomb],
+      remainingCardCounts: { east: 9, south: 12, west: 12, north: 12 },
+    }),
+  );
+
+  expect(decision?.action).not.toBe(fragmented);
+  expect(decision?.action).toBe(threeBomb);
+});
+
 test("P7-02：候选评分逐项公开成本、收益与可复核总分", () => {
   const low = single("four", 4);
   const heartLevel = single("heart-2", 15);
@@ -171,6 +204,73 @@ test("P7-02：候选评分逐项公开成本、收益与可复核总分", () => 
   );
   expect(heartScore?.score).toBeGreaterThan(lowScore!.score);
   expect(heartScore?.reasons).toContain("保留红桃级牌逢人配");
+});
+
+test("P7-09：红桃级牌作为非收尾候选的机会成本显著高于普通小牌", () => {
+  const ordinary = single("four", 4);
+  const heartLevel = single("heart-2", 15);
+  const view = baseView({
+    selfHand: [
+      card("four", "4"),
+      { ...card("heart-2", "2"), suit: "hearts" as const },
+    ],
+    legalActions: [ordinary, heartLevel],
+  });
+
+  expect(
+    scoreNormalVNextCandidate(heartLevel, view)?.breakdown
+      .wildcardOpportunityCost,
+  ).toBe(420);
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(ordinary);
+});
+
+test("P7-09：开局跟小单时选择最小充分普通单张，不用最大单张过度压制", () => {
+  const smallest = single("five", 5);
+  const largest = single("king", 13);
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      selfHand: [card("five", "5"), card("king", "K")],
+      legalActions: [{ type: "pass", actor: "east" }, largest, smallest],
+      remainingCardCounts: { east: 2, south: 27, west: 27, north: 27 },
+    }),
+  );
+
+  expect(decision?.action).toBe(smallest);
+});
+
+test("P7-09：首轮领出有普通结构可选时，不先消耗 AAA222 高控制钢板", () => {
+  const lowStraight = pattern(
+    ["three", "four", "five", "six", "seven"],
+    "straight",
+    7,
+  );
+  const highSteelPlate = pattern(
+    ["ace-a", "ace-b", "ace-c", "level-a", "level-b", "level-c"],
+    "steel-plate",
+    15,
+  );
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      highestSeat: undefined,
+      selfHand: [
+        card("three", "3"),
+        card("four", "4"),
+        card("five", "5"),
+        card("six", "6"),
+        card("seven", "7"),
+        card("ace-a", "A"),
+        card("ace-b", "A"),
+        card("ace-c", "A"),
+        card("level-a", "2"),
+        card("level-b", "2"),
+        card("level-c", "2"),
+      ],
+      legalActions: [highSteelPlate, lowStraight],
+      remainingCardCounts: { east: 11, south: 27, west: 27, north: 27 },
+    }),
+  );
+
+  expect(decision?.action).toBe(lowStraight);
 });
 
 test("P7-02：评分器只接收规则层合法候选，并以稳定 tie-break 排序", () => {

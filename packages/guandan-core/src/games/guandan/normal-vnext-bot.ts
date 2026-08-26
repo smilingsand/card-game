@@ -372,7 +372,7 @@ function wildcardOpportunityCost(action: PlayAction, view: BotView): number {
   return selectedCards(action, view).some(
     (card) => card.suit === "hearts" && card.rank === view.levelRank,
   )
-    ? 120
+    ? 420
     : 0;
 }
 
@@ -734,6 +734,56 @@ function shouldPrioritizeBomb(action: PlayAction, view: BotView): boolean {
   });
 }
 
+function isNaturalWholeBomb(action: PlayAction, view: BotView): boolean {
+  if (action.interpretation.type !== "normal-bomb") return false;
+  const selected = selectedCards(action, view);
+  return (
+    selected.length === action.cardIds.length &&
+    selected.length >= 4 &&
+    selected.every(
+      (card) =>
+        card.suit !== "joker" &&
+        !(card.suit === "hearts" && card.rank === view.levelRank) &&
+        card.rank === selected[0]?.rank,
+    ) &&
+    (naturalGroups(view).get(selected[0]?.rank ?? "2")?.length ?? 0) ===
+      selected.length
+  );
+}
+
+/**
+ * In a short hand, do not split every remaining natural bomb merely to avoid
+ * leading a bomb. This is narrower than bomb economics: it applies only when
+ * a whole bomb leaves a strictly shorter own-hand route than every non-bomb
+ * lead, so the bomb is a finishing route rather than an early contest.
+ */
+function shouldPrioritizeLeadBombRoute(
+  action: PlayAction,
+  view: BotView,
+  plays: readonly PlayAction[],
+): boolean {
+  if (
+    !bombs.has(action.interpretation.type) ||
+    view.selfHand.length > 10 ||
+    !isNaturalWholeBomb(action, view)
+  )
+    return false;
+  const bombRoute = estimateNormalVNextSelfRoute(action, view)!;
+  const nonBombs = plays.filter(
+    (candidate) => !bombs.has(candidate.interpretation.type),
+  );
+  return (
+    nonBombs.length > 0 &&
+    nonBombs.every((candidate) => {
+      const route = estimateNormalVNextSelfRoute(candidate, view)!;
+      return (
+        structureDamageCost(candidate, view) >= BREAK_BOMB_COST &&
+        route.estimatedSelfTurns > bombRoute.estimatedSelfTurns
+      );
+    })
+  );
+}
+
 function compareDescending(
   left: PlayAction,
   right: PlayAction,
@@ -925,6 +975,7 @@ function rankLeadCandidates(
   const scoreContext = createNormalVNextScoreContext(view);
   const scores = new Map<PlayAction, NormalVNextCandidateScore>();
   const economicalBombs = new Map<PlayAction, boolean>();
+  const finishingBombs = new Map<PlayAction, boolean>();
   const score = (action: PlayAction) => {
     const cached = scores.get(action);
     if (cached) return cached;
@@ -943,10 +994,20 @@ function rankLeadCandidates(
     economicalBombs.set(action, calculated);
     return calculated;
   };
+  const isFinishingBomb = (action: PlayAction) => {
+    const cached = finishingBombs.get(action);
+    if (cached !== undefined) return cached;
+    const calculated = shouldPrioritizeLeadBombRoute(action, view, plays);
+    finishingBombs.set(action, calculated);
+    return calculated;
+  };
   const hasNonBomb = plays.some(
     (action) => !bombs.has(action.interpretation.type),
   );
   return [...plays].sort((left, right) => {
+    const finishingBombDelta =
+      Number(isFinishingBomb(right)) - Number(isFinishingBomb(left));
+    if (finishingBombDelta !== 0) return finishingBombDelta;
     const economicalBombDelta =
       Number(isEconomicalBomb(right)) - Number(isEconomicalBomb(left));
     if (economicalBombDelta !== 0) return economicalBombDelta;
@@ -970,12 +1031,21 @@ function collectLeadAnalysisCandidates(
   baseline: PlayAction,
 ): readonly PlayAction[] {
   const candidates: PlayAction[] = [baseline];
-  const allowBombs = bombs.has(baseline.interpretation.type);
+  const allowBombs =
+    bombs.has(baseline.interpretation.type) || view.selfHand.length <= 10;
   for (const action of view.legalActions) {
     if (!isPlay(action) || action === baseline) continue;
     if (!allowBombs && bombs.has(action.interpretation.type)) continue;
     candidates.push(action);
     if (candidates.length === 24) break;
+  }
+  if (view.selfHand.length <= 10) {
+    for (const action of view.legalActions) {
+      if (!isPlay(action) || candidates.includes(action)) continue;
+      if (!isNaturalWholeBomb(action, view)) continue;
+      candidates.push(action);
+      if (candidates.length === 28) break;
+    }
   }
   return candidates;
 }
