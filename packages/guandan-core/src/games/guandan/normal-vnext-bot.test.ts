@@ -6,6 +6,7 @@ import {
   chooseNormalVNextBotAction,
   describeNormalVNextContest,
   describeNormalVNextAction,
+  scoreNormalVNextCandidate,
 } from "./normal-vnext-bot";
 import type { Card } from "../../platform/types";
 import type { TurnAction } from "./turns";
@@ -82,13 +83,18 @@ const normalBomb = (ids: readonly string[], key: number): TurnAction => ({
 
 const pattern = (
   ids: readonly string[],
-  type: Extract<TurnAction, { type: "play" }>['interpretation']['type'],
+  type: Extract<TurnAction, { type: "play" }>["interpretation"]["type"],
   key: number,
 ): TurnAction => ({
   type: "play",
   actor: "east",
   cardIds: [...ids],
-  interpretation: { type, comparisonKey: [key], cardIds: [...ids], wildcardAs: {} },
+  interpretation: {
+    type,
+    comparisonKey: [key],
+    cardIds: [...ids],
+    wildcardAs: {},
+  },
 });
 
 const baseView = (overrides: Record<string, unknown> = {}) => ({
@@ -118,6 +124,57 @@ test("normal-vNext：敌方持权时以最低普通单张压制并保留 A 与�
   );
 
   expect(decision?.action).toBe(low);
+});
+
+test("P7-02：候选评分逐项公开成本、收益与可复核总分", () => {
+  const low = single("four", 4);
+  const heartLevel = single("heart-2", 15);
+  const scoredView = baseView({
+    selfHand: [
+      card("four", "4"),
+      { ...card("heart-2", "2"), suit: "hearts" as const },
+    ],
+    legalActions: [low, heartLevel],
+  });
+
+  const lowScore = scoreNormalVNextCandidate(low, scoredView);
+  const heartScore = scoreNormalVNextCandidate(heartLevel, scoredView);
+
+  expect(lowScore).toMatchObject({
+    action: low,
+    breakdown: {
+      rankCost: 4,
+      structureDamageCost: 0,
+      controlResourceCost: 0,
+      wildcardOpportunityCost: 0,
+      handSheddingBenefit: 0,
+      interceptionBenefit: 0,
+    },
+  });
+  expect(lowScore?.score).toBe(
+    lowScore!.breakdown.rankCost +
+      lowScore!.breakdown.structureDamageCost +
+      lowScore!.breakdown.controlResourceCost +
+      lowScore!.breakdown.wildcardOpportunityCost +
+      lowScore!.breakdown.attachmentCost -
+      lowScore!.breakdown.handSheddingBenefit -
+      lowScore!.breakdown.interceptionBenefit,
+  );
+  expect(heartScore?.score).toBeGreaterThan(lowScore!.score);
+  expect(heartScore?.reasons).toContain("保留红桃级牌逢人配");
+});
+
+test("P7-02：评分器只接收规则层合法候选，并以稳定 tie-break 排序", () => {
+  const first = single("four-a", 4);
+  const second = single("four-b", 4);
+  const illegal = single("ace", 14);
+  const scoredView = baseView({
+    selfHand: [card("four-a", "4"), card("four-b", "4"), card("ace", "A")],
+    legalActions: [second, first],
+  });
+
+  expect(scoreNormalVNextCandidate(illegal, scoredView)).toBeUndefined();
+  expect(chooseNormalVNextBotAction(scoredView)?.action).toBe(first);
 });
 
 test("normal-vNext：没有低单时保留规则不阻止使用 A", () => {
@@ -893,7 +950,9 @@ test("P6：完整更大顺子跟牌不是拆顺子，应压制而非 pass", () =
     remainingCardCounts: { east: 5, south: 24, west: 24, north: 24 },
   });
 
-  expect(describeNormalVNextAction(straight, view)?.structureDamageCost).toBe(0);
+  expect(describeNormalVNextAction(straight, view)?.structureDamageCost).toBe(
+    0,
+  );
   expect(chooseNormalVNextBotAction(view)?.action).toBe(straight);
 });
 
@@ -918,13 +977,19 @@ test("P6：完整更大连对跟牌不是拆连对，应压制而非 pass", () =
     remainingCardCounts: { east: 7, south: 24, west: 24, north: 24 },
   });
 
-  expect(describeNormalVNextAction(consecutivePairs, view)?.structureDamageCost).toBe(0);
+  expect(
+    describeNormalVNextAction(consecutivePairs, view)?.structureDamageCost,
+  ).toBe(0);
   expect(chooseNormalVNextBotAction(view)?.action).toBe(consecutivePairs);
 });
 
 test("P6：完整更大钢板跟牌不是拆钢板，应压制而非 pass", () => {
   const pass: TurnAction = { type: "pass", actor: "east" };
-  const steelPlate = pattern(["7a", "7b", "7c", "8a", "8b", "8c"], "steel-plate", 8);
+  const steelPlate = pattern(
+    ["7a", "7b", "7c", "8a", "8b", "8c"],
+    "steel-plate",
+    8,
+  );
   const view = baseView({
     selfHand: [
       card("3", "3"),
@@ -939,18 +1004,24 @@ test("P6：完整更大钢板跟牌不是拆钢板，应压制而非 pass", () =
     remainingCardCounts: { east: 7, south: 24, west: 24, north: 24 },
   });
 
-  expect(describeNormalVNextAction(steelPlate, view)?.structureDamageCost).toBe(0);
+  expect(describeNormalVNextAction(steelPlate, view)?.structureDamageCost).toBe(
+    0,
+  );
   expect(chooseNormalVNextBotAction(view)?.action).toBe(steelPlate);
 });
 
 test("P6：从自然顺子抽取部分牌仍保留明显结构损伤", () => {
   const partial = single("7", 7);
   const view = baseView({
-    selfHand: ["6", "7", "8", "9", "10"].map((rank) => card(rank, rank as Card["rank"])),
+    selfHand: ["6", "7", "8", "9", "10"].map((rank) =>
+      card(rank, rank as Card["rank"]),
+    ),
     legalActions: [partial],
   });
 
-  expect(describeNormalVNextAction(partial, view)?.structureDamageCost).toBeGreaterThanOrEqual(800);
+  expect(
+    describeNormalVNextAction(partial, view)?.structureDamageCost,
+  ).toBeGreaterThanOrEqual(800);
 });
 
 test("P6：普通早中盘跟小单时在多个散单中选择最小足够压制", () => {
@@ -996,9 +1067,9 @@ test("P6：普通早中盘保护自然结构，使用低成本散单而非机械
   const queen = single("Q", 12);
   const ace = single("A", 14);
   const view = baseView({
-    selfHand: ["6", "7", "8", "9", "10"].map((rank) =>
-      card(rank, rank as Card["rank"]),
-    ).concat([card("Q", "Q"), card("A", "A")]),
+    selfHand: ["6", "7", "8", "9", "10"]
+      .map((rank) => card(rank, rank as Card["rank"]))
+      .concat([card("Q", "Q"), card("A", "A")]),
     legalActions: [pass, ace, queen, splitStraight],
     remainingCardCounts: { east: 24, south: 24, west: 24, north: 24 },
   });

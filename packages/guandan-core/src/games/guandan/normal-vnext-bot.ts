@@ -62,6 +62,22 @@ export interface NormalVNextCostBreakdown {
   readonly responseCost: number;
 }
 
+export interface NormalVNextCandidateScore {
+  readonly action: PlayAction;
+  /** Smaller is better: cost minus directly explainable public-information benefits. */
+  readonly score: number;
+  readonly breakdown: {
+    readonly rankCost: number;
+    readonly structureDamageCost: number;
+    readonly controlResourceCost: number;
+    readonly wildcardOpportunityCost: number;
+    readonly attachmentCost: number;
+    readonly handSheddingBenefit: number;
+    readonly interceptionBenefit: number;
+  };
+  readonly reasons: readonly string[];
+}
+
 export interface NormalVNextContestBreakdown {
   readonly structureDamageCost: number;
   readonly controlResourceCost: number;
@@ -139,7 +155,9 @@ function naturalGroupsForCards(
     }, new Map());
 }
 
-function naturalGroups(view: BotView): ReadonlyMap<Card["rank"], readonly Card[]> {
+function naturalGroups(
+  view: BotView,
+): ReadonlyMap<Card["rank"], readonly Card[]> {
   return naturalGroupsForCards(view.selfHand, view.levelRank);
 }
 
@@ -197,7 +215,10 @@ function naturalStructureCount(
   ).length;
 }
 
-function naturalStructureAllowance(action: PlayAction, view: BotView): {
+function naturalStructureAllowance(
+  action: PlayAction,
+  view: BotView,
+): {
   readonly straight: number;
   readonly consecutivePairs: number;
   readonly steelPlates: number;
@@ -211,7 +232,8 @@ function naturalStructureAllowance(action: PlayAction, view: BotView): {
   if (!natural) return { straight: 0, consecutivePairs: 0, steelPlates: 0 };
   return {
     straight: action.interpretation.type === "straight" ? 1 : 0,
-    consecutivePairs: action.interpretation.type === "three-consecutive-pairs" ? 1 : 0,
+    consecutivePairs:
+      action.interpretation.type === "three-consecutive-pairs" ? 1 : 0,
     steelPlates: action.interpretation.type === "steel-plate" ? 1 : 0,
   };
 }
@@ -334,6 +356,70 @@ export function describeNormalVNextAction(
     wildcardOpportunityCost: wildcard,
     responseCost:
       rank + structure + control + wildcard + attachmentCost(action, view),
+  };
+}
+
+function isLegalCandidate(
+  action: TurnAction,
+  view: BotView,
+): action is PlayAction {
+  return (
+    isPlay(action) &&
+    view.legalActions.some(
+      (candidate) => JSON.stringify(candidate) === JSON.stringify(action),
+    )
+  );
+}
+
+/**
+ * Scores only a rule-engine legal play. The breakdown is stable and can be
+ * shown to diagnostics without exposing hidden cards or mutable search state.
+ */
+export function scoreNormalVNextCandidate(
+  action: TurnAction,
+  view: BotView,
+): NormalVNextCandidateScore | undefined {
+  if (!isLegalCandidate(action, view)) return undefined;
+  const rank = actionRankCost(action, view);
+  const structure = structureDamageCost(action, view);
+  const control = controlResourceCost(action, view);
+  const wildcard = wildcardOpportunityCost(action, view);
+  const attachment = attachmentCost(action, view);
+  const handSheddingBenefit = isNaturalMiddleStructure(action, view)
+    ? action.cardIds.length * 60
+    : 0;
+  const interceptionBenefit =
+    view.highestSeat !== undefined &&
+    view.highestSeat !== teammate[view.selfSeat] &&
+    opponentThreat(view, 3)
+      ? action.cardIds.length * 30
+      : 0;
+  const reasons: string[] = ["规则层合法候选"];
+  if (structure > 0) reasons.push("保留现有复合结构");
+  if (control > 0) reasons.push("保留控制资源");
+  if (wildcard > 0) reasons.push("保留红桃级牌逢人配");
+  if (handSheddingBenefit > 0) reasons.push("自然复合牌卸载收益");
+  if (interceptionBenefit > 0) reasons.push("公开残局拦截收益");
+  return {
+    action,
+    score:
+      rank +
+      structure +
+      control +
+      wildcard +
+      attachment -
+      handSheddingBenefit -
+      interceptionBenefit,
+    breakdown: {
+      rankCost: rank,
+      structureDamageCost: structure,
+      controlResourceCost: control,
+      wildcardOpportunityCost: wildcard,
+      attachmentCost: attachment,
+      handSheddingBenefit,
+      interceptionBenefit,
+    },
+    reasons,
   };
 }
 
@@ -562,7 +648,11 @@ function rankResponseCandidates(view: BotView): readonly PlayAction[] {
         attachmentCost(left, view) - attachmentCost(right, view);
       if (attachmentDelta !== 0) return attachmentDelta;
     }
-    const costDelta = responseCost(left, view) - responseCost(right, view);
+    const costDelta =
+      (scoreNormalVNextCandidate(left, view)?.score ??
+        Number.MAX_SAFE_INTEGER) -
+      (scoreNormalVNextCandidate(right, view)?.score ??
+        Number.MAX_SAFE_INTEGER);
     if (costDelta !== 0) return costDelta;
     const comparisonDelta = compareNumberLists(
       comparisonCost(left),
@@ -643,6 +733,10 @@ export function chooseNormalVNextBotAction(
   const selectedWithFallback = selected ?? legalActionFallback(view);
   if (!selectedWithFallback) return undefined;
 
+  const candidateScore =
+    selectedWithFallback.type === "play"
+      ? scoreNormalVNextCandidate(selectedWithFallback, view)
+      : undefined;
   const reasons = [
     selectedWithFallback.type === "pass"
       ? "normal-vNext：避免高结构损伤，合理 pass"
@@ -670,5 +764,9 @@ export function chooseNormalVNextBotAction(
   )
     reasons.push("已计入结构损伤成本");
   if (finish) reasons.push("直接出完例外");
-  return { action: selectedWithFallback, score: 0, reasons };
+  return {
+    action: selectedWithFallback,
+    score: candidateScore?.score ?? 0,
+    reasons: [...reasons, ...(candidateScore?.reasons ?? [])],
+  };
 }

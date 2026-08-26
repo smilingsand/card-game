@@ -21,3 +21,12 @@
 | 旧投影兼容 | 同一固定牌例 | 没有 `publicActions` 的旧 BotView 返回空公开牌统计，不抛错或反查隐藏牌。 |
 | 四座泄露边界 | 同一固定牌例与 `BotView` 类型断言 | 四座共享相同公开牌事实，只改变自己/队友/对手座位关系；输出无 `seed`、`opponentHands`。 |
 | 连续赛局上下文与重放 | `table-session.test.ts`、`secure-seed.test.ts` | 上下文从 MatchSession 纯函数生成；存档恢复后重建相同上下文，secure seed 回放等价仍通过。 |
+
+## P7-02（accepted）
+
+| 验收项 | 证据 | 结果 |
+| --- | --- | --- |
+| 分项可复核 | `normal-vnext-bot.test.ts` 的 P7-02 固定牌例 | 总分严格等于点数、结构、控制、红桃级牌、附带牌成本减卸载/拦截收益。 |
+| 机会成本 | 同上及既有 normal-vNext 牌例 | 非必要红桃级牌成本更高；炸弹/三张/连续结构的拆分成本继续生效。 |
+| 合法性与稳定排序 | 同上 | 非规则层合法动作不评分；同分动作按 JSON 固定 tie-break，重复决策确定。 |
+| 核心回归 | `cd frontend; npm.cmd run test:core` | P7-02 完成时执行，所有核心固定牌例、存档回放和运行器测试必须通过。 |
