@@ -522,7 +522,7 @@ test("A：对手出 6 时，777 与独立 8 并存应出独立 8", () => {
   ).toBe(independentEight);
 });
 
-test("A：普通中局只有 777 能压单张 6 时允许 pass", () => {
+test("P7-07：普通中局只有低点数 777 能压单张 6 时应接牌", () => {
   const pass: TurnAction = { type: "pass", actor: "east" };
   const splitTriple = single("seven-1", 7);
 
@@ -535,6 +535,47 @@ test("A：普通中局只有 777 能压单张 6 时允许 pass", () => {
           card("seven-3", "7"),
         ],
         legalActions: [pass, splitTriple],
+      }),
+    )?.action,
+  ).toBe(splitTriple);
+});
+
+test("P7-07：普通中局允许拆低点数自然对子压制小单", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const six = single("six-a", 6);
+  const view = baseView({
+    selfHand: [card("six-a", "6"), card("six-b", "6")],
+    legalActions: [pass, six],
+    remainingCardCounts: { east: 20, south: 20, west: 20, north: 20 },
+  });
+
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(six);
+});
+
+test("P7-07：普通中局允许拆低点数自然三张，但继续保护高控制三张", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const lowTriple = single("seven-a", 7);
+  const highTriple = single("ace-a", 14);
+
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        selfHand: [
+          card("seven-a", "7"),
+          card("seven-b", "7"),
+          card("seven-c", "7"),
+        ],
+        legalActions: [pass, lowTriple],
+        remainingCardCounts: { east: 20, south: 20, west: 20, north: 20 },
+      }),
+    )?.action,
+  ).toBe(lowTriple);
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        selfHand: [card("ace-a", "A"), card("ace-b", "A"), card("ace-c", "A")],
+        legalActions: [pass, highTriple],
+        remainingCardCounts: { east: 20, south: 20, west: 20, north: 20 },
       }),
     )?.action,
   ).toBe(pass);

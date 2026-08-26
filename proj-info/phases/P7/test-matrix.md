@@ -64,3 +64,11 @@
 | 炸弹经济接入最终选牌 | 同一文件的 P7-06 炸弹牌例 | 仅当公开收益成立，且全部普通响应均更伤结构并留下更差路线时，炸弹可越过普通响应。 |
 | 有界性能 | `normal-vnext-benchmark.test.ts` | 首次实现曾对全部领牌候选做路线排序，最慢决策达 203.833 秒；已修为 normal 基线锚点加 23 个额外候选的固定上限。2026-08-26：5 seed 专项基准通过，测试主体 4.452 秒。 |
 | 类型与共享入口回归 | `npm.cmd run typecheck`；`table-controller.test.ts`；`strategy-observation.test.ts` | 2026-08-26：类型检查通过；桌面控制器 13/13、公开 observation 4/4、normal-vNext 58/58 通过。 |
+
+## P7-07（accepted）
+
+| 验收项 | 证据 | 结果 |
+| --- | --- | --- |
+| 低价值跟牌 | `normal-vnext-bot.test.ts` | 普通中局可用低点数自然对子或三张拆出合法压制；原 777 过牌预期已按本任务替换。 |
+| 高价值保护 | 同一固定牌例与既有 P6 牌例 | A、级牌、大小王、红桃级牌、顺子、连对、钢板和炸弹仍不能通过此例外放宽。 |
+| 类型与性能 | `npm.cmd run typecheck`；`normal-vnext-benchmark.test.ts` | 2026-08-26：类型检查通过，normal-vNext 60/60；5 seed 专项基准通过，测试主体 3.517 秒。 |

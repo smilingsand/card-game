@@ -44,6 +44,7 @@ const CONTROL_LEVEL_COST = 140;
 const CONTROL_HEART_LEVEL_COST = 220;
 const CONTROL_SMALL_JOKER_COST = 300;
 const CONTROL_BIG_JOKER_COST = 360;
+const LOW_VALUE_STRUCTURE_RANK_COST = 10;
 
 type PlayAction = Extract<TurnAction, { readonly type: "play" }>;
 type PatternType = PlayAction["interpretation"]["type"];
@@ -821,6 +822,44 @@ function allowedStructureDamage(view: BotView): number {
   return BREAK_PAIR_COST - 1;
 }
 
+/**
+ * A normal midgame response may spend a low natural pair or triple, but never
+ * a control card, wildcard, sequence, bomb, or other high-value structure.
+ * This is a bounded exception to the general structure-preservation gate.
+ */
+function isLowValueNaturalStructureSpend(
+  action: PlayAction,
+  view: BotView,
+): boolean {
+  if (structureDamageCost(action, view) > BREAK_TRIPLE_COST) return false;
+  const selected = selectedCards(action, view);
+  if (
+    selected.some(
+      (card) =>
+        card.rank === "A" ||
+        card.rank === view.levelRank ||
+        card.rank === "small-joker" ||
+        card.rank === "big-joker" ||
+        (card.suit === "hearts" && card.rank === view.levelRank) ||
+        rankCost(card, view.levelRank) > LOW_VALUE_STRUCTURE_RANK_COST,
+    )
+  )
+    return false;
+  const groups = naturalGroups(view);
+  const selectedByRank = selected.reduce<Map<Card["rank"], number>>(
+    (counts, card) => counts.set(card.rank, (counts.get(card.rank) ?? 0) + 1),
+    new Map(),
+  );
+  let brokeLowNaturalGroup = false;
+  for (const [rank, count] of selectedByRank) {
+    const available = groups.get(rank)?.length ?? 0;
+    if (count >= available) continue;
+    if (available < 2 || available > 3) return false;
+    brokeLowNaturalGroup = true;
+  }
+  return brokeLowNaturalGroup;
+}
+
 function rankResponseCandidates(view: BotView): readonly PlayAction[] {
   const plays = view.legalActions.filter(isPlay);
   const scoreContext = createNormalVNextScoreContext(view);
@@ -998,7 +1037,8 @@ export function chooseNormalVNextBotAction(
   const safeCandidates = candidates.filter(
     (action) =>
       directFinish(action, view) ||
-      structureDamageCost(action, view) <= damageLimit,
+      structureDamageCost(action, view) <= damageLimit ||
+      isLowValueNaturalStructureSpend(action, view),
   );
   const onlyHighCostStructureResponses =
     candidates.length > 0 &&
