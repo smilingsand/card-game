@@ -1485,6 +1485,99 @@ test("P7-16：重叠连对抵销不用于跟牌", () => {
   ).toBe(0);
 });
 
+test("P7-18：完整自然顺子即使排在领牌枚举后段也必须进入评分", () => {
+  const lowSingle = single("five", 5);
+  const naturalStraight = pattern(
+    ["five", "six", "seven", "eight", "nine"],
+    "straight",
+    9,
+  );
+  const laterOrdinaryCandidates = Array.from({ length: 23 }, () =>
+    single("ace", 14),
+  );
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      highestSeat: undefined,
+      selfHand: [
+        card("five", "5"),
+        card("six", "6"),
+        card("seven", "7"),
+        card("eight", "8"),
+        card("nine", "9"),
+        card("ace", "A"),
+      ],
+      legalActions: [lowSingle, ...laterOrdinaryCandidates, naturalStraight],
+      remainingCardCounts: { east: 6, south: 27, west: 27, north: 27 },
+    }),
+  );
+
+  expect(decision?.action).toBe(naturalStraight);
+});
+
+test("P7-18：完整自然连对即使排在领牌枚举后段也必须进入评分", () => {
+  const lowSingle = single("four-a", 4);
+  const naturalConsecutivePairs = pattern(
+    ["four-a", "four-b", "five-a", "five-b", "six-a", "six-b"],
+    "three-consecutive-pairs",
+    6,
+  );
+  const laterOrdinaryCandidates = Array.from({ length: 23 }, () =>
+    single("ace", 14),
+  );
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      highestSeat: undefined,
+      selfHand: [
+        card("four-a", "4"),
+        card("four-b", "4"),
+        card("five-a", "5"),
+        card("five-b", "5"),
+        card("six-a", "6"),
+        card("six-b", "6"),
+        card("ace", "A"),
+      ],
+      legalActions: [
+        lowSingle,
+        ...laterOrdinaryCandidates,
+        naturalConsecutivePairs,
+      ],
+      remainingCardCounts: { east: 7, south: 27, west: 27, north: 27 },
+    }),
+  );
+
+  expect(decision?.action).toBe(naturalConsecutivePairs);
+});
+
+test("P7-18：完整自然钢板即使排在领牌枚举后段也必须进入评分", () => {
+  const lowSingle = single("four-a", 4);
+  const naturalSteelPlate = pattern(
+    ["four-a", "four-b", "four-c", "five-a", "five-b", "five-c"],
+    "steel-plate",
+    5,
+  );
+  const laterOrdinaryCandidates = Array.from({ length: 23 }, () =>
+    single("ace", 14),
+  );
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      highestSeat: undefined,
+      selfHand: [
+        card("four-a", "4"),
+        card("four-b", "4"),
+        card("four-c", "4"),
+        card("five-a", "5"),
+        card("five-b", "5"),
+        card("five-c", "5"),
+        card("ace", "A"),
+      ],
+      legalActions: [lowSingle, ...laterOrdinaryCandidates, naturalSteelPlate],
+      remainingCardCounts: { east: 7, south: 27, west: 27, north: 27 },
+    }),
+  );
+
+  expect(decision?.action).toBe(naturalSteelPlate);
+});
+
 test("开中局：44422 对 AAAKK 的高控制资源组合倾向 pass", () => {
   const pass: TurnAction = { type: "pass", actor: "east" };
   const high = threeWithPair(

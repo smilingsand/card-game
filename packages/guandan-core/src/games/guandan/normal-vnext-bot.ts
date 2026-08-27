@@ -49,6 +49,7 @@ const WILDCARD_DOWNGRADE_COST = 700;
 const RESPONSE_ANALYSIS_CANDIDATE_LIMIT = 24;
 const NATURAL_FOLLOW_CONTEST_BONUS_PER_CARD = 20;
 const LOW_VALUE_CONSECUTIVE_PAIR_MAX_KEY = 10;
+const LEAD_STRUCTURE_ANCHORS_PER_PATTERN = 2;
 
 type PlayAction = Extract<TurnAction, { readonly type: "play" }>;
 type PatternType = PlayAction["interpretation"]["type"];
@@ -1224,6 +1225,47 @@ function rankLeadCandidates(
   });
 }
 
+const leadStructureTypes = [
+  "straight",
+  "three-consecutive-pairs",
+  "steel-plate",
+] as const satisfies readonly PatternType[];
+const leadStructureTypeSet = new Set<PatternType>(leadStructureTypes);
+
+function isCompleteNaturalLeadStructure(
+  action: PlayAction,
+  view: BotView,
+): boolean {
+  if (!leadStructureTypeSet.has(action.interpretation.type)) return false;
+  const copiesByType: Partial<Record<PatternType, number>> = {
+    straight: 1,
+    "three-consecutive-pairs": 2,
+    "steel-plate": 3,
+  };
+  const expectedCopies = copiesByType[action.interpretation.type];
+  if (expectedCopies === undefined) return false;
+  const selected = selectedCards(action, view);
+  if (
+    selected.length !== action.cardIds.length ||
+    selected.some(
+      (card) =>
+        card.suit === "joker" ||
+        (card.suit === "hearts" && card.rank === view.levelRank),
+    )
+  )
+    return false;
+  const groups = naturalGroups(view);
+  const selectedByRank = selected.reduce<Map<Card["rank"], number>>(
+    (counts, card) => counts.set(card.rank, (counts.get(card.rank) ?? 0) + 1),
+    new Map(),
+  );
+  return [...selectedByRank].every(
+    ([rank, count]) =>
+      count === expectedCopies &&
+      (groups.get(rank)?.length ?? 0) === expectedCopies,
+  );
+}
+
 /**
  * Leading can have a very large wildcard-expanded legal set. Keep the frozen
  * normal lead as an anchor and evaluate only a fixed, deterministic prefix of
@@ -1234,10 +1276,34 @@ function collectLeadAnalysisCandidates(
   baseline: PlayAction,
 ): readonly PlayAction[] {
   const candidates: PlayAction[] = [baseline];
+  const structuralAnchors = view.legalActions
+    .filter(
+      (action): action is PlayAction =>
+        isPlay(action) && isCompleteNaturalLeadStructure(action, view),
+    )
+    .sort((left, right) => {
+      const rankDelta = actionRankCost(left, view) - actionRankCost(right, view);
+      if (rankDelta !== 0) return rankDelta;
+      return JSON.stringify(left).localeCompare(JSON.stringify(right));
+    });
+  for (const type of leadStructureTypes) {
+    for (const action of structuralAnchors.filter(
+      (candidate) => candidate.interpretation.type === type,
+    )) {
+      if (candidates.length === 24) break;
+      if (candidates.includes(action)) continue;
+      candidates.push(action);
+      if (
+        candidates.filter((candidate) => candidate.interpretation.type === type)
+          .length >= LEAD_STRUCTURE_ANCHORS_PER_PATTERN
+      )
+        break;
+    }
+  }
   const allowBombs =
     bombs.has(baseline.interpretation.type) || view.selfHand.length <= 10;
   for (const action of view.legalActions) {
-    if (!isPlay(action) || action === baseline) continue;
+    if (!isPlay(action) || candidates.includes(action)) continue;
     if (!allowBombs && bombs.has(action.interpretation.type)) continue;
     candidates.push(action);
     if (candidates.length === 24) break;
