@@ -48,6 +48,7 @@ const LOW_VALUE_STRUCTURE_RANK_COST = 10;
 const LEAD_BOMB_SPLIT_ROUTE_ADVANTAGE = 2;
 const WILDCARD_DOWNGRADE_COST = 700;
 const RESPONSE_ANALYSIS_CANDIDATE_LIMIT = 24;
+const NATURAL_FOLLOW_CONTEST_BONUS_PER_CARD = 20;
 
 type PlayAction = Extract<TurnAction, { readonly type: "play" }>;
 type PatternType = PlayAction["interpretation"]["type"];
@@ -471,7 +472,9 @@ function scoreLegalNormalVNextCandidate(
   const attachment = attachmentCost(action, view);
   const handSheddingBenefit = isNaturalMiddleStructure(action, view)
     ? action.cardIds.length * 60
-    : 0;
+    : isNaturalOrdinaryFollowResponse(action, view)
+      ? action.cardIds.length * NATURAL_FOLLOW_CONTEST_BONUS_PER_CARD
+      : 0;
   const interceptionBenefit =
     view.highestSeat !== undefined &&
     view.highestSeat !== teammate[view.selfSeat] &&
@@ -500,7 +503,7 @@ function scoreLegalNormalVNextCandidate(
   if (structure > 0) reasons.push("保留现有复合结构");
   if (control > 0) reasons.push("保留控制资源");
   if (wildcard > 0) reasons.push("保留红桃级牌逢人配");
-  if (handSheddingBenefit > 0) reasons.push("自然复合牌卸载收益");
+  if (handSheddingBenefit > 0) reasons.push("自然牌型卸载收益");
   if (interceptionBenefit > 0) reasons.push("公开残局拦截收益");
   if (publicControlExposureBenefit > 0)
     reasons.push("公开已出控制牌降低保留成本");
@@ -569,6 +572,43 @@ function isNaturalMiddleStructure(action: PlayAction, view: BotView): boolean {
   const selectedByRank = selectedCards(action, view).reduce<
     Map<Card["rank"], number>
   >(
+    (counts, card) => counts.set(card.rank, (counts.get(card.rank) ?? 0) + 1),
+    new Map(),
+  );
+  return [...selectedByRank].every(
+    ([rank, count]) => count === (groups.get(rank)?.length ?? 0),
+  );
+}
+
+/**
+ * A complete, non-control response should normally be used to contest an
+ * opponent's lead. This deliberately covers every ordinary pattern, while
+ * leaving each pattern's established comparison order intact.
+ */
+function isNaturalOrdinaryFollowResponse(
+  action: PlayAction,
+  view: BotView,
+): boolean {
+  if (view.highestSeat === undefined || bombs.has(action.interpretation.type))
+    return false;
+  if (
+    structureDamageCost(action, view) !== 0 ||
+    wildcardOpportunityCost(action, view) !== 0
+  )
+    return false;
+  const selected = selectedCards(action, view);
+  if (
+    selected.some(
+      (card) =>
+        card.rank === "A" ||
+        card.rank === view.levelRank ||
+        card.rank === "small-joker" ||
+        card.rank === "big-joker",
+    )
+  )
+    return false;
+  const groups = naturalGroups(view);
+  const selectedByRank = selected.reduce<Map<Card["rank"], number>>(
     (counts, card) => counts.set(card.rank, (counts.get(card.rank) ?? 0) + 1),
     new Map(),
   );

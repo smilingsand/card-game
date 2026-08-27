@@ -431,7 +431,7 @@ test("P7-02：候选评分逐项公开成本、收益与可复核总分", () => 
       structureDamageCost: 0,
       controlResourceCost: 0,
       wildcardOpportunityCost: 0,
-      handSheddingBenefit: 0,
+      handSheddingBenefit: 20,
       interceptionBenefit: 0,
       publicControlExposureBenefit: 0,
       selfRouteCost: -3,
@@ -1332,6 +1332,62 @@ test("P7-14：中等三带二对完整 KKK44 应主动压制，不把 K 误作�
     structureDamageCost: 0,
     highValuePenalty: 0,
   });
+});
+
+test("P7-15：对手持权时，普通完整牌型优先最小充分压制而非 pass 或控制牌", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const lowPair = pair(["five-a", "five-b"], 5);
+  const lowTriple = triple(["seven-a", "seven-b", "seven-c"], 7);
+  const lowStraight = pattern(
+    ["three", "four", "five", "six", "seven"],
+    "straight",
+    7,
+  );
+  const highPair = pair(["level-a", "level-b"], 15);
+  const highTriple = triple(["level-a", "level-b", "level-c"], 15);
+  const highStraight = pattern(
+    ["nine", "ten", "jack", "queen", "king"],
+    "straight",
+    13,
+  );
+  const pairHand = [
+    card("five-a", "5"),
+    card("five-b", "5"),
+    card("level-a", "2"),
+    card("level-b", "2"),
+  ];
+  const tripleHand = [
+    card("seven-a", "7"),
+    card("seven-b", "7"),
+    card("seven-c", "7"),
+    card("level-a", "2"),
+    card("level-b", "2"),
+    card("level-c", "2"),
+  ];
+  const straightHand = [
+    card("three", "3"),
+    card("four", "4"),
+    card("five", "5"),
+    card("six", "6"),
+    card("seven", "7"),
+    card("nine", "9"),
+    card("ten", "10"),
+    card("jack", "J"),
+    card("queen", "Q"),
+    card("king", "K"),
+  ];
+  const decide = (
+    selfHand: readonly Card[],
+    legalActions: readonly TurnAction[],
+  ) => chooseNormalVNextBotAction(baseView({ selfHand, legalActions }));
+
+  expect(decide(pairHand, [pass, highPair, lowPair])?.action).toBe(lowPair);
+  expect(decide(tripleHand, [pass, highTriple, lowTriple])?.action).toBe(
+    lowTriple,
+  );
+  expect(decide(straightHand, [pass, highStraight, lowStraight])?.action).toBe(
+    lowStraight,
+  );
 });
 
 test("开中局：44422 对 AAAKK 的高控制资源组合倾向 pass", () => {
