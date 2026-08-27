@@ -6,7 +6,7 @@
 
 ## 当前实现状态（P2 已交付；P7 策略收敛已发布）
 
-- 浏览器应用位于 `frontend/`，使用 React、TypeScript、Vite；Vercel 项目 Root Directory 为 `frontend`。
+- 浏览器应用位于 `frontend/`，使用 React、TypeScript、Vite。当前 Vercel Production 采用在完整工作区本地构建后的预构建静态输出发布；项目尚未连接 GitHub。若后续启用 Git 自动部署，须从仓库根目录安装工作区依赖，并配置构建命令 `npm --prefix frontend run build`、输出目录 `frontend/dist`，不能只将 `frontend/` 子目录交给远端构建。
 - 当前实现为 1 名人类南家与 3 个 normal-vNext 机器人的本地掼蛋；规则版本为 `guandan-v5`，存档 schema 为 4。P7-00 至 P7-23 已合入 `main` 并于 2026-08-27 完成 Vercel Preview/Production 验收，不改变规则或存档版本；旧规则/存档不做静默迁移。
 - 连续多局状态（双方等级、局号、进贡阶段、贡/还贡和首出者）由 `TableSession` 的版本化事件流与快照保存；手动理牌仅为南家的显示偏好，不属于规则事实。
 - P2 不引入后端、账号或多人联网；P3 建立本地权威服务端，但公网部署仍需 P3-12。根目录 `settings.ini` 默认禁用多人入口，以支持单人 Vercel 发布。
