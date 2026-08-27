@@ -45,7 +45,6 @@ const CONTROL_HEART_LEVEL_COST = 220;
 const CONTROL_SMALL_JOKER_COST = 300;
 const CONTROL_BIG_JOKER_COST = 360;
 const LOW_VALUE_STRUCTURE_RANK_COST = 10;
-const LEAD_BOMB_SPLIT_ROUTE_ADVANTAGE = 2;
 const WILDCARD_DOWNGRADE_COST = 700;
 const RESPONSE_ANALYSIS_CANDIDATE_LIMIT = 24;
 const NATURAL_FOLLOW_CONTEST_BONUS_PER_CARD = 20;
@@ -827,7 +826,9 @@ function shouldPrioritizeBomb(action: PlayAction, view: BotView): boolean {
   if (!economics?.allowed || directFinish(action, view)) return false;
   const ordinaryResponses = view.legalActions.filter(
     (candidate): candidate is PlayAction =>
-      isPlay(candidate) && !bombs.has(candidate.interpretation.type),
+      isPlay(candidate) &&
+      !bombs.has(candidate.interpretation.type) &&
+      !splitsNaturalBomb(candidate, view),
   );
   if (ordinaryResponses.length === 0) return false;
   const bombRoute = estimateNormalVNextSelfRoute(action, view)!;
@@ -858,38 +859,33 @@ function isNaturalWholeBomb(action: PlayAction, view: BotView): boolean {
 }
 
 /**
- * Natural bombs are a hard leading constraint, not merely a score bonus.
- * Direct finishes and a route that saves at least two future plays remain the
- * only non-forced exceptions; forced public endgame blocks are handled by the
- * caller before applying this filter.
+ * Strategy-level hard rule: an existing natural bomb is only spent as a
+ * whole. Rule generation remains complete, so this never changes what a
+ * human may play.
+ */
+function splitsNaturalBomb(action: PlayAction, view: BotView): boolean {
+  const selectedIds = new Set(action.cardIds);
+  return [...naturalGroups(view).values()].some((group) => {
+    if (group.length < 4) return false;
+    const selectedCount = group.filter((card) => selectedIds.has(card.id)).length;
+    return selectedCount > 0 && selectedCount < group.length;
+  });
+}
+
+/**
+ * Natural bombs are a hard strategy constraint. No direct-finish, route, or
+ * public-endgame exception may split one.
  */
 function leadCandidatesPreservingNaturalBombs(
   plays: readonly PlayAction[],
   view: BotView,
 ): readonly PlayAction[] {
-  const wholeBombs = plays.filter((action) => isNaturalWholeBomb(action, view));
-  if (wholeBombs.length === 0) return plays;
-  const preserved = plays.filter((action) => {
-    if (
-      directFinish(action, view) ||
-      structureDamageCost(action, view) < BREAK_BOMB_COST
-    )
-      return true;
-    const route = estimateNormalVNextSelfRoute(action, view)!;
-    return wholeBombs.some(
-      (bomb) =>
-        route.estimatedSelfTurns <=
-        estimateNormalVNextSelfRoute(bomb, view)!.estimatedSelfTurns -
-          LEAD_BOMB_SPLIT_ROUTE_ADVANTAGE,
-    );
-  });
-  return preserved.length > 0 ? preserved : plays;
+  return plays.filter((action) => !splitsNaturalBomb(action, view));
 }
 
 /**
- * A natural bomb is a protected resource when leading. It can be spent whole
- * rather than split only when every non-bomb lead destroys a bomb and lacks a
- * direct finish or a materially shorter route (two or more future turns).
+ * A complete natural bomb remains a candidate when every alternative is
+ * excluded by the no-split rule.
  */
 function shouldPrioritizeLeadIntactBomb(
   action: PlayAction,
@@ -901,20 +897,13 @@ function shouldPrioritizeLeadIntactBomb(
     !isNaturalWholeBomb(action, view)
   )
     return false;
-  const bombRoute = estimateNormalVNextSelfRoute(action, view)!;
   const nonBombs = plays.filter(
     (candidate) => !bombs.has(candidate.interpretation.type),
   );
   return (
     nonBombs.length > 0 &&
     nonBombs.every((candidate) => {
-      const route = estimateNormalVNextSelfRoute(candidate, view)!;
-      return (
-        structureDamageCost(candidate, view) >= BREAK_BOMB_COST &&
-        !directFinish(candidate, view) &&
-        route.estimatedSelfTurns >
-          bombRoute.estimatedSelfTurns - LEAD_BOMB_SPLIT_ROUTE_ADVANTAGE
-      );
+      return splitsNaturalBomb(candidate, view);
     })
   );
 }
@@ -938,11 +927,10 @@ function rankThreatLeadCandidates(
   view: BotView,
   threat: NextSeatEndgameThreat,
 ): readonly PlayAction[] {
-  const plays = view.legalActions.filter(isPlay);
-  const candidates =
-    threat.mode === "forced"
-      ? plays
-      : leadCandidatesPreservingNaturalBombs(plays, view);
+  const candidates = leadCandidatesPreservingNaturalBombs(
+    view.legalActions.filter(isPlay),
+    view,
+  );
   const likely = new Set(threat.likelyPatternTypes);
   const hasNonBomb = candidates.some(
     (action) => !bombs.has(action.interpretation.type),
@@ -962,11 +950,14 @@ function rankThreatLeadCandidates(
 }
 
 function rankForcedBlockCandidates(view: BotView): readonly PlayAction[] {
-  const plays = view.legalActions.filter(isPlay);
+  const plays = leadCandidatesPreservingNaturalBombs(
+    view.legalActions.filter(isPlay),
+    view,
+  );
   const nonBombs = plays.filter(
     (action) => !bombs.has(action.interpretation.type),
   );
-  return (nonBombs.length > 0 ? nonBombs : plays).sort((left, right) =>
+  return [...(nonBombs.length > 0 ? nonBombs : plays)].sort((left, right) =>
     compareDescending(left, right, view),
   );
 }
@@ -974,7 +965,10 @@ function rankForcedBlockCandidates(view: BotView): readonly PlayAction[] {
 /** Final bot safety net: strategy may rank actions, but never removes rule-engine actions. */
 function legalActionFallback(view: BotView): TurnAction | undefined {
   return (
-    view.legalActions.find(isPlay) ??
+    view.legalActions.find(
+      (action): action is PlayAction =>
+        isPlay(action) && !splitsNaturalBomb(action, view),
+    ) ??
     view.legalActions.find((action) => action.type === "pass")
   );
 }
@@ -1118,7 +1112,10 @@ function rankResponseCandidates(
 function collectResponseAnalysisCandidates(
   view: BotView,
 ): readonly PlayAction[] {
-  const plays = view.legalActions.filter(isPlay);
+  const plays = view.legalActions.filter(
+    (action): action is PlayAction =>
+      isPlay(action) && !splitsNaturalBomb(action, view),
+  );
   if (plays.length <= RESPONSE_ANALYSIS_CANDIDATE_LIMIT) return plays;
 
   const priority = new Map<PlayAction, readonly number[]>();

@@ -281,7 +281,7 @@ test("P7-13：领牌不以三连对同时拆开多副完整天然炸弹", () => 
   expect([fourBomb, fiveBomb, sixBomb]).toContain(decision?.action);
 });
 
-test("P7-10：拆炸后能减少至少两手路线时，允许以复合牌获得显著收益", () => {
+test("P7-17：即使拆炸能减少路线，领牌也不拆完整天然炸弹", () => {
   const straight = pattern(
     ["three", "four", "five", "six", "seven-a"],
     "straight",
@@ -306,7 +306,35 @@ test("P7-10：拆炸后能减少至少两手路线时，允许以复合牌获得
     }),
   );
 
-  expect(decision?.action).toBe(straight);
+  expect(decision?.action).toBe(sevenBomb);
+});
+
+test("P7-17：强制阻断也不拆完整天然炸弹，宁可 pass", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const splitStraight = pattern(
+    ["three", "four", "five", "six", "seven-a"],
+    "straight",
+    7,
+  );
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      highestSeat: "south",
+      selfHand: [
+        card("three", "3"),
+        card("four", "4"),
+        card("five", "5"),
+        card("six", "6"),
+        card("seven-a", "7"),
+        card("seven-b", "7"),
+        card("seven-c", "7"),
+        card("seven-d", "7"),
+      ],
+      legalActions: [pass, splitStraight],
+      remainingCardCounts: { east: 8, south: 1, west: 20, north: 20 },
+    }),
+  );
+
+  expect(decision?.action).toBe(pass);
 });
 
 test("P7-11：级牌对子可压过时，不把两张红桃级牌降配成普通对", () => {
@@ -1168,7 +1196,7 @@ test("下家剩 5 张时，三带二风险下优先出较大主三张", () => {
   ).toBe(high);
 });
 
-test("下家剩 3 张时可拆自己的炸弹夺回牌权", () => {
+test("下家剩 3 张时可出完整炸弹夺回牌权", () => {
   const pass: TurnAction = { type: "pass", actor: "east" };
   const bomb = normalBomb(["seven-a", "seven-b", "seven-c", "seven-d"], 7);
   const decision = chooseNormalVNextBotAction(
