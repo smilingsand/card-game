@@ -50,6 +50,7 @@ const RESPONSE_ANALYSIS_CANDIDATE_LIMIT = 24;
 const NATURAL_FOLLOW_CONTEST_BONUS_PER_CARD = 20;
 const LOW_VALUE_CONSECUTIVE_PAIR_MAX_KEY = 10;
 const LEAD_STRUCTURE_ANCHORS_PER_PATTERN = 2;
+const LEAD_ORDINARY_ANCHORS_PER_PATTERN = 1;
 
 type PlayAction = Extract<TurnAction, { readonly type: "play" }>;
 type PatternType = PlayAction["interpretation"]["type"];
@@ -1231,6 +1232,8 @@ const leadStructureTypes = [
   "steel-plate",
 ] as const satisfies readonly PatternType[];
 const leadStructureTypeSet = new Set<PatternType>(leadStructureTypes);
+const leadOrdinaryTypes = ["single", "pair", "triple", "three-with-pair"] as const satisfies readonly PatternType[];
+const leadOrdinaryTypeSet = new Set<PatternType>(leadOrdinaryTypes);
 
 function isCompleteNaturalLeadStructure(
   action: PlayAction,
@@ -1266,6 +1269,22 @@ function isCompleteNaturalLeadStructure(
   );
 }
 
+function isCompleteNaturalOrdinaryLead(
+  action: PlayAction,
+  view: BotView,
+): boolean {
+  if (!leadOrdinaryTypeSet.has(action.interpretation.type)) return false;
+  const selected = selectedCards(action, view);
+  return (
+    selected.length === action.cardIds.length &&
+    selected.every(
+      (card) =>
+        card.suit !== "joker" &&
+        !(card.suit === "hearts" && card.rank === view.levelRank),
+    )
+  );
+}
+
 /**
  * Leading can have a very large wildcard-expanded legal set. Keep the frozen
  * normal lead as an anchor and evaluate only a fixed, deterministic prefix of
@@ -1276,21 +1295,42 @@ function collectLeadAnalysisCandidates(
   baseline: PlayAction,
 ): readonly PlayAction[] {
   const candidates: PlayAction[] = [baseline];
+  const compareByRank = (left: PlayAction, right: PlayAction) => {
+    const rankDelta = actionRankCost(left, view) - actionRankCost(right, view);
+    if (rankDelta !== 0) return rankDelta;
+    return JSON.stringify(left).localeCompare(JSON.stringify(right));
+  };
+  const ordinaryAnchors = view.legalActions
+    .filter(
+      (action): action is PlayAction =>
+        isPlay(action) && isCompleteNaturalOrdinaryLead(action, view),
+    )
+    .sort(compareByRank);
+  for (const type of leadOrdinaryTypes) {
+    for (const action of ordinaryAnchors.filter(
+      (candidate) => candidate.interpretation.type === type,
+    )) {
+      if (candidates.length >= RESPONSE_ANALYSIS_CANDIDATE_LIMIT) break;
+      if (candidates.includes(action)) continue;
+      candidates.push(action);
+      if (
+        candidates.filter((candidate) => candidate.interpretation.type === type)
+          .length >= LEAD_ORDINARY_ANCHORS_PER_PATTERN
+      )
+        break;
+    }
+  }
   const structuralAnchors = view.legalActions
     .filter(
       (action): action is PlayAction =>
         isPlay(action) && isCompleteNaturalLeadStructure(action, view),
     )
-    .sort((left, right) => {
-      const rankDelta = actionRankCost(left, view) - actionRankCost(right, view);
-      if (rankDelta !== 0) return rankDelta;
-      return JSON.stringify(left).localeCompare(JSON.stringify(right));
-    });
+    .sort(compareByRank);
   for (const type of leadStructureTypes) {
     for (const action of structuralAnchors.filter(
       (candidate) => candidate.interpretation.type === type,
     )) {
-      if (candidates.length === 24) break;
+      if (candidates.length >= RESPONSE_ANALYSIS_CANDIDATE_LIMIT) break;
       if (candidates.includes(action)) continue;
       candidates.push(action);
       if (
@@ -1306,7 +1346,7 @@ function collectLeadAnalysisCandidates(
     if (!isPlay(action) || candidates.includes(action)) continue;
     if (!allowBombs && bombs.has(action.interpretation.type)) continue;
     candidates.push(action);
-    if (candidates.length === 24) break;
+    if (candidates.length >= RESPONSE_ANALYSIS_CANDIDATE_LIMIT) break;
   }
   for (const action of view.legalActions) {
     if (!isPlay(action) || candidates.includes(action)) continue;

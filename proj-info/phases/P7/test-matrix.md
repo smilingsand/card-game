@@ -165,3 +165,11 @@
 | 后段完整结构候选保留     | `normal-vnext-bot.test.ts` 的 P7-18 顺子、连对、钢板固定牌例                                            | 即使三类完整自然结构排在 23 个普通候选之后，仍进入领牌评分并优先于拆结构的单张。                                           |
 | 候选池有界               | `collectLeadAnalysisCandidates`                                                                           | 保持最多 24 个常规深度评分候选；在填充普通候选前，对顺子、连对、钢板每类固定保留至多 2 个完整自然结构锚点。                |
 | 类型、格式、lint 与性能  | `npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run format:check`、normal-vNext 专项测试与性能门槛 | 2026-08-27：均通过；78/78 专项固定牌例、5 seed 基准通过，测试主体 3.187 秒，最慢单次决策低于 5 秒。                       |
+
+## P7-19（accepted）
+
+| 验收项 | 证据 | 结果 |
+| --- | --- | --- |
+| 自然普通牌型候选保留 | `normal-vnext-bot.test.ts` 的 P7-19 固定牌例 | 即使前段存在 23 个红桃级牌降配为低对子投影，后段自然对子仍进入领牌评分并被选中。 |
+| 候选池有界 | `collectLeadAnalysisCandidates` | 在既有顺子、连对、钢板锚点之外，对单张、对子、三张、三带二每类至多保留一个完整自然候选；常规深度评分仍最多 24 个候选。 |
+| 类型、格式、lint 与性能 | `npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run format:check`、normal-vNext 专项测试与性能门槛 | 2026-08-27：79/79 专项固定牌例通过；类型、lint、格式通过；5 seed 基准测试主体 3.191 秒，最慢单次决策低于 5 秒。 |

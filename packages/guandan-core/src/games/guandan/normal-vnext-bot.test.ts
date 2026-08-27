@@ -1578,6 +1578,44 @@ test("P7-18：完整自然钢板即使排在领牌枚举后段也必须进入评
   expect(decision?.action).toBe(naturalSteelPlate);
 });
 
+test("P7-19：自然对子不能被前段配牌投影挤出领牌评分", () => {
+  const lowSingle = single("three", 3);
+  const naturalNinePair = pair(["nine-a", "nine-b"], 9);
+  const wildcardFourPairs = Array.from({ length: 23 }, (_, index): TurnAction => ({
+    type: "play",
+    actor: "east",
+    cardIds: ["four", "heart-level"],
+    interpretation: {
+      type: "pair",
+      comparisonKey: [4],
+      cardIds: ["four", "heart-level"],
+      wildcardAs: {
+        "heart-level": {
+          rank: "4",
+          suit: (["spades", "hearts", "diamonds", "clubs"] as const)[index % 4],
+        },
+      },
+    },
+  }));
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      highestSeat: undefined,
+      levelRank: "5",
+      selfHand: [
+        card("three", "3"),
+        card("four", "4"),
+        { ...card("heart-level", "5"), suit: "hearts" },
+        card("nine-a", "9"),
+        card("nine-b", "9"),
+      ],
+      legalActions: [lowSingle, ...wildcardFourPairs, naturalNinePair],
+      remainingCardCounts: { east: 5, south: 27, west: 27, north: 27 },
+    }),
+  );
+
+  expect(decision?.action).toBe(naturalNinePair);
+});
+
 test("开中局：44422 对 AAAKK 的高控制资源组合倾向 pass", () => {
   const pass: TurnAction = { type: "pass", actor: "east" };
   const high = threeWithPair(
