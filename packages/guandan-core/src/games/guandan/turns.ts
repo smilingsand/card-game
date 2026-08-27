@@ -65,8 +65,12 @@ export function applyAction(state: TurnState, action: TurnAction): TurnResult {
     const hand = state.hands[action.actor].filter(
       (id) => !action.cardIds.includes(id),
     );
-    const finished =
+    const playerFinished =
       hand.length === 0 ? [...state.finished, action.actor] : state.finished;
+    const finished =
+      playerFinished.length === 3
+        ? [...playerFinished, next(action.actor, playerFinished)]
+        : playerFinished;
     const hands = { ...state.hands, [action.actor]: hand };
     if (finished.length === 4)
       return {

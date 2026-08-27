@@ -105,6 +105,30 @@ test("最后一名出完进入受控终局而不轮转", () => {
     state: { completed: true, finished: ["south", "west", "north", "east"] },
   });
 });
+test("第三家出完时自动记末游并立即结束本局", () => {
+  const s: TurnState = {
+    ...state({ east: [], south: ["s"], west: ["w"], north: [] }),
+    current: "west",
+    leader: "west",
+    finished: ["east", "north"],
+  };
+
+  expect(
+    applyAction(s, {
+      type: "play",
+      actor: "west",
+      cardIds: ["w"],
+      interpretation: p(3, "w"),
+    }),
+  ).toMatchObject({
+    ok: true,
+    state: {
+      completed: true,
+      finished: ["east", "north", "west", "south"],
+      hands: { south: ["s"] },
+    },
+  });
+});
 test("已出完领出者及其对家均不可接风时，清轮跳过完成座位", () => {
   let s: TurnState = {
     ...state({ east: [], south: ["s"], west: [], north: ["n"] }),
