@@ -36,3 +36,14 @@ Vite 会把同源 `/v1` HTTP 和 WebSocket 请求代理到 `http://127.0.0.1:878
 ## Vercel 预案
 
 Vercel 项目为 `wentop/card-game`：Repository Root 保持仓库根目录，Project Root Directory 设为 `frontend`。使用 Git 集成时，功能分支为 Preview，`main` 为 Production。Service Worker 只缓存版本化静态壳，不缓存 IndexedDB 牌局数据；部署后应按根目录 P2 验收矩阵复测更新与离线启动。
+
+## 发布功能开关
+
+仓库根目录的 `settings.ini` 在 Vite 启动和构建时读取。当前唯一开关为：
+
+```ini
+[features]
+multiplayers-game = false
+```
+
+设为 `false` 时，首页的多人入口会禁用，`?room=` 链接也不会绕过该限制；单人游戏不受影响。修改后需要重启本地 Vite，或重新构建并部署 Vercel。多人 API 地址、密钥和其他服务端配置不得写入此文件，应使用部署环境变量。

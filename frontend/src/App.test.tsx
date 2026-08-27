@@ -60,11 +60,26 @@ describe("App", () => {
   });
 
   it("首页通过多人联机游戏按钮进入多人大厅", async () => {
-    render(<App initialMode="home" storage={memoryStorage()} />);
+    render(<App initialMode="home" multiplayerGameEnabled={true} storage={memoryStorage()} />);
 
     expect(screen.getByRole("heading", { name: "掼蛋游戏" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "多人掼蛋游戏" }));
     expect(await screen.findByLabelText("多人大厅")).toBeInTheDocument();
+  });
+
+  it("关闭多人发布开关时首页禁用入口且不接受房间链接", () => {
+    window.history.replaceState(undefined, "", "?room=room-123");
+    render(<App initialMode="home" multiplayerGameEnabled={false} storage={memoryStorage()} />);
+
+    expect(screen.getByRole("button", { name: "多人掼蛋游戏" })).toBeDisabled();
+    expect(screen.queryByLabelText("多人大厅")).not.toBeInTheDocument();
+    window.history.replaceState(undefined, "", "/");
+
+    cleanup();
+    render(
+      <App initialMode="multiplayer" multiplayerGameEnabled={false} storage={memoryStorage()} />
+    );
+    expect(screen.getByLabelText("掼蛋游戏首页")).toBeInTheDocument();
   });
 
   it("从首页进入单人游戏时忽略旧存档并开始新赛局", async () => {

@@ -51,6 +51,7 @@ import { botThinkDelayMs } from "@card-game/guandan-core";
 import { registerPwaServiceWorker } from "./pwa/service-worker";
 import { MultiplayerApp } from "./multiplayer/MultiplayerApp";
 import type { MultiplayerClient } from "./multiplayer/client";
+import { appSettings } from "./app-settings";
 import { ActionControls } from "./components/table/ActionControls";
 import { CardFace, PlayerCardCount } from "./components/table/CardFace";
 import { HandView, type HandViewGroup } from "./components/table/HandView";
@@ -757,10 +758,12 @@ function SoloApp({
 
 function HomePage({
   onSelectSolo,
-  onSelectMultiplayer
+  onSelectMultiplayer,
+  multiplayerGameEnabled
 }: {
   readonly onSelectSolo: () => void;
   readonly onSelectMultiplayer: () => void;
+  readonly multiplayerGameEnabled: boolean;
 }) {
   return (
     <main className="game-home" aria-label="掼蛋游戏首页">
@@ -769,7 +772,12 @@ function HomePage({
         <button type="button" onClick={onSelectSolo}>
           单人掼蛋游戏
         </button>
-        <button type="button" onClick={onSelectMultiplayer}>
+        <button
+          type="button"
+          disabled={!multiplayerGameEnabled}
+          onClick={onSelectMultiplayer}
+          title={multiplayerGameEnabled ? undefined : "当前发布版本未启用多人游戏"}
+        >
           多人掼蛋游戏
         </button>
       </div>
@@ -781,15 +789,20 @@ function HomePage({
 export function App({
   storage,
   multiplayerClient,
-  initialMode = "home"
+  initialMode = "home",
+  multiplayerGameEnabled = appSettings.multiplayerGameEnabled
 }: {
   readonly storage?: StorageBoundary<TableSave>;
   readonly multiplayerClient?: MultiplayerClient;
   readonly initialMode?: "home" | "solo" | "multiplayer";
+  readonly multiplayerGameEnabled?: boolean;
 }) {
   const initialRoomId = new URLSearchParams(window.location.search).get("room") ?? undefined;
+  const requestedInitialMode = initialRoomId ? "multiplayer" : initialMode;
   const [mode, setMode] = useState<"home" | "solo" | "multiplayer">(
-    initialRoomId ? "multiplayer" : initialMode
+    !multiplayerGameEnabled && requestedInitialMode === "multiplayer"
+      ? "home"
+      : requestedInitialMode
   );
   const setOnlineRoom = (roomId: string | undefined) => {
     const url = new URL(window.location.href);
@@ -797,7 +810,7 @@ export function App({
     else url.searchParams.delete("room");
     window.history.replaceState(undefined, "", url);
   };
-  if (mode === "multiplayer")
+  if (mode === "multiplayer" && multiplayerGameEnabled)
     return (
       <MultiplayerApp
         client={multiplayerClient}
@@ -814,6 +827,7 @@ export function App({
       <HomePage
         onSelectSolo={() => setMode("solo")}
         onSelectMultiplayer={() => setMode("multiplayer")}
+        multiplayerGameEnabled={multiplayerGameEnabled}
       />
     );
   return (
