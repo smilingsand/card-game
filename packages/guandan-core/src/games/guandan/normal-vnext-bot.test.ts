@@ -461,6 +461,7 @@ test("P7-02：候选评分逐项公开成本、收益与可复核总分", () => 
       wildcardOpportunityCost: 0,
       handSheddingBenefit: 20,
       leadConsecutivePairOverlapBenefit: 0,
+      leadLowStraightUnloadBenefit: 0,
       interceptionBenefit: 0,
       publicControlExposureBenefit: 0,
       selfRouteCost: -3,
@@ -475,6 +476,7 @@ test("P7-02：候选评分逐项公开成本、收益与可复核总分", () => 
       lowScore!.breakdown.attachmentCost -
       lowScore!.breakdown.handSheddingBenefit -
       lowScore!.breakdown.leadConsecutivePairOverlapBenefit -
+      lowScore!.breakdown.leadLowStraightUnloadBenefit -
       lowScore!.breakdown.interceptionBenefit -
       lowScore!.breakdown.publicControlExposureBenefit +
       lowScore!.breakdown.selfRouteCost -
@@ -1197,6 +1199,49 @@ test("P7-20：临门强制跟牌仍用最小充分牌，保留后续接牌资源
   );
 
   expect(decision?.action).toBe(ten);
+});
+
+test("P7-21：低点数散牌与三张重叠时，领牌优先完整顺子卸载", () => {
+  const straight34567 = pattern(
+    ["three", "four-a", "five", "six", "seven"],
+    "straight",
+    7,
+  );
+  const straight56789 = pattern(
+    ["five", "six", "seven", "eight", "nine"],
+    "straight",
+    9,
+  );
+  const singleThree = single("three", 3);
+  const singleFour = single("four-a", 4);
+  const singleFive = single("five", 5);
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      highestSeat: undefined,
+      selfHand: [
+        card("three", "3"),
+        card("four-a", "4"),
+        card("four-b", "4"),
+        card("four-c", "4"),
+        card("five", "5"),
+        card("six", "6"),
+        card("seven", "7"),
+        card("eight", "8"),
+        card("nine", "9"),
+        card("ten", "10"),
+      ],
+      legalActions: [
+        singleThree,
+        singleFour,
+        singleFive,
+        straight56789,
+        straight34567,
+      ],
+      remainingCardCounts: { east: 10, south: 27, west: 27, north: 27 },
+    }),
+  );
+
+  expect([straight34567, straight56789]).toContain(decision?.action);
 });
 
 test("下家剩 4、5 张时公开推测包含炸弹与三带二风险", () => {

@@ -181,3 +181,11 @@
 | 临门领牌保留回收控制 | `normal-vnext-bot.test.ts` 的 P7-20 固定牌例 | 大王两张均已公开打出时，小王为不可压制后手；下家两张而己方尚有 A、10 时，领 A 而非无意义先耗小王；仅剩小王可直接收尾时仍可出。 |
 | 强制跟牌最小充分 | `normal-vnext-bot.test.ts` P7-20 与 `table-controller.test.ts` 回归 | 临门强制跟牌改用最小充分合法牌；小王足够时不烧大王，普通 6 足够时不烧 A。 |
 | 类型、格式、lint 与性能 | `npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run format:check`、normal-vNext 专项测试与性能门槛 | 2026-08-27：normal-vNext 与桌面控制器回归 94/94 通过；类型、lint、格式通过；5 seed 基准测试主体 2.945 秒，最慢单次决策低于 5 秒。 |
+
+## P7-21（accepted）
+
+| 验收项 | 证据 | 结果 |
+| --- | --- | --- |
+| 低点数顺子路线卸载 | `normal-vnext-bot.test.ts` 的 P7-21 通用结构回归 | 领牌时，完整低点数自然顺子若仅将一组自然三张降为仍保留的对子，会进入优先卸载路线，不再被逐张低牌压过。 |
+| 适用边界 | `leadingLowStraightUnloadBenefit` | 仅适用于领牌、五张自然顺子、最高点数不超过 10、无王/红桃级牌，且三张必须保留为对子；跟牌、控制牌、高点数顺子与天然炸弹保护均不放宽。 |
+| 类型、格式、lint 与性能 | `npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run format:check`、normal-vNext 与桌面控制器回归、性能门槛 | 2026-08-27：95/95 回归通过；类型、lint、格式通过；5 seed 基准测试主体 2.785 秒，最慢单次决策低于 5 秒。 |

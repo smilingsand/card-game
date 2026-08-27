@@ -97,6 +97,7 @@ export interface NormalVNextCandidateScore {
     readonly attachmentCost: number;
     readonly handSheddingBenefit: number;
     readonly leadConsecutivePairOverlapBenefit: number;
+    readonly leadLowStraightUnloadBenefit: number;
     readonly interceptionBenefit: number;
     readonly publicControlExposureBenefit: number;
     readonly selfRouteCost: number;
@@ -475,6 +476,10 @@ function scoreLegalNormalVNextCandidate(
   const attachment = attachmentCost(action, view);
   const leadConsecutivePairOverlapBenefit =
     leadingConsecutivePairOverlapBenefit(action, view);
+  const leadLowStraightUnloadBenefit = leadingLowStraightUnloadBenefit(
+    action,
+    view,
+  );
   const handSheddingBenefit = isNaturalMiddleStructure(action, view)
     ? action.cardIds.length * 60
     : isNaturalOrdinaryFollowResponse(action, view)
@@ -510,6 +515,8 @@ function scoreLegalNormalVNextCandidate(
   if (wildcard > 0) reasons.push("保留红桃级牌逢人配");
   if (leadConsecutivePairOverlapBenefit > 0)
     reasons.push("领牌：完整低连对抵销重叠连对损伤");
+  if (leadLowStraightUnloadBenefit > 0)
+    reasons.push("领牌：低点数自然顺子优先卸载并保留对子");
   if (handSheddingBenefit > 0) reasons.push("自然牌型卸载收益");
   if (interceptionBenefit > 0) reasons.push("公开残局拦截收益");
   if (publicControlExposureBenefit > 0)
@@ -527,6 +534,7 @@ function scoreLegalNormalVNextCandidate(
       attachment -
       handSheddingBenefit -
       leadConsecutivePairOverlapBenefit -
+      leadLowStraightUnloadBenefit -
       interceptionBenefit -
       publicControlExposureBenefit +
       selfRouteCost -
@@ -539,6 +547,7 @@ function scoreLegalNormalVNextCandidate(
       attachmentCost: attachment,
       handSheddingBenefit,
       leadConsecutivePairOverlapBenefit,
+      leadLowStraightUnloadBenefit,
       interceptionBenefit,
       publicControlExposureBenefit,
       selfRouteCost,
@@ -639,6 +648,50 @@ function leadingConsecutivePairOverlapBenefit(
       1,
   );
   return overlappingPairsLost * BREAK_CONSECUTIVE_PAIR_COST;
+}
+
+/**
+ * Leading may convert one low natural triple into a retained pair to unload a
+ * complete natural straight. This is a route improvement, not an invitation
+ * to fragment a structure: bombs, high/control cards, responses and a triple
+ * reduced below a pair remain fully protected.
+ */
+function leadingLowStraightUnloadBenefit(
+  action: PlayAction,
+  view: BotView,
+): number {
+  if (
+    view.highestSeat !== undefined ||
+    action.interpretation.type !== "straight" ||
+    (comparisonCost(action).at(-1) ?? Number.MAX_SAFE_INTEGER) > 10
+  )
+    return 0;
+  const selected = selectedCards(action, view);
+  if (
+    selected.length !== 5 ||
+    selected.some(
+      (card) =>
+        card.suit === "joker" ||
+        (card.suit === "hearts" && card.rank === view.levelRank),
+    )
+  )
+    return 0;
+  const groups = naturalGroups(view);
+  const selectedByRank = selected.reduce<Map<Card["rank"], number>>(
+    (counts, card) => counts.set(card.rank, (counts.get(card.rank) ?? 0) + 1),
+    new Map(),
+  );
+  const remainingGroups = naturalGroupsForCards(
+    view.selfHand.filter((card) => !action.cardIds.includes(card.id)),
+    view.levelRank,
+  );
+  const retainsPairFromTriple = [...selectedByRank].some(
+    ([rank, count]) =>
+      count === 1 &&
+      (groups.get(rank)?.length ?? 0) === 3 &&
+      (remainingGroups.get(rank)?.length ?? 0) === 2,
+  );
+  return retainsPairFromTriple ? structureDamageCost(action, view) : 0;
 }
 
 /**
