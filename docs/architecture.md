@@ -4,10 +4,10 @@
 
 本地多人仍遵循 `Vite → Wrangler Worker → SQLite-backed Durable Object` 的权威边界。浏览器默认显示首页；多人客户端只持有自己的个人投影。牌桌“退出”仅改变本地展示状态，返回房间大厅并抑制旧的实时投影；“继续游戏”必须重新向 Authority 读取个人 `game-view`。大厅右上角退出才改变服务端生命周期：房主关闭整个房间，非房主仅断开自己的 presence/WebSocket。关闭房间会协调清理 Room、Authority 与 Realtime 的持久状态和本地 alarm/task，且向在线客户端广播 `roomClosed`。完整决策见 `proj-info/adr/ADR-0034-p4-explicit-room-exit-and-resume.md`。
 
-## 当前实现状态（P2 已交付；P7 策略收敛已合入本地 main，待发布验收）
+## 当前实现状态（P2 已交付；P7 策略收敛已发布）
 
 - 浏览器应用位于 `frontend/`，使用 React、TypeScript、Vite；Vercel 项目 Root Directory 为 `frontend`。
-- 当前实现为 1 名人类南家与 3 个 normal-vNext 机器人的本地掼蛋；规则版本为 `guandan-v5`，存档 schema 为 4。P7-00 至 P7-04、P7-06 至 P7-23 已合入本地 `main`，不改变规则或存档版本；旧规则/存档不做静默迁移。线上 Production 仍是已验收的 P2.7，P7 仍待新的 Preview/Production 验收。
+- 当前实现为 1 名人类南家与 3 个 normal-vNext 机器人的本地掼蛋；规则版本为 `guandan-v5`，存档 schema 为 4。P7-00 至 P7-23 已合入 `main` 并于 2026-08-27 完成 Vercel Preview/Production 验收，不改变规则或存档版本；旧规则/存档不做静默迁移。
 - 连续多局状态（双方等级、局号、进贡阶段、贡/还贡和首出者）由 `TableSession` 的版本化事件流与快照保存；手动理牌仅为南家的显示偏好，不属于规则事实。
 - P2 不引入后端、账号或多人联网；P3 建立本地权威服务端，但公网部署仍需 P3-12。根目录 `settings.ini` 默认禁用多人入口，以支持单人 Vercel 发布。
 

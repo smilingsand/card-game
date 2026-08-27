@@ -1,10 +1,17 @@
 # P7 发布记录
 
-尚未发布。
-
 P7-00 仅建立策略治理和离线基线运行器，不改变 normal-vNext 决策、规则、UI、存档或网络协议，
 因此不需要 Preview 或 Production 验收。任何 P7 策略行为变更均须在 P7-05 完成新的
 Preview 与 Production 验收后才可发布。
+
+## 2026-08-27：P7-05 Preview 与 Production 验收
+
+- 发布源：`main` 提交 `8edfb8058bbc7a0fc5dfb394252f445074c1eb7c`；在完整本地工作区执行 `typecheck` 及 Vite 生产构建后，按 Vercel Build Output API 的预构建静态输出发布。根目录并非可独立构建的 Vite 应用，不能将 `frontend/` 子目录直接交给远端构建，否则缺少工作区依赖 `@card-game/guandan-core`。
+- Preview：`dpl_AW5J4NCiwdBBZERdgohhmXpF6veM`，<https://card-game-brh7so63t-wentop.vercel.app>，匿名 HTTPS 复核 HTTP 200，返回本次 bundle `index-C2m5Phf-.js`。
+- Production：`dpl_DcwqGuGDGW83dSGTNfm1jS7sq1Js`，<https://card-game-jofwrutct-wentop.vercel.app>；已别名到 <https://frontend-sand-three-66.vercel.app>，匿名 HTTPS 复核 HTTP 200，返回同一 bundle。
+- 本地收敛证据仍采用固定 seed `0, 1, 7, 42, 99`；2026-08-26 用户复测的测试主体为 10.917 秒，单次决策均合法且最慢低于 5 秒。P7-05 至此 accepted。
+- 回滚：在 Vercel 项目的 Deployments 中将 `dpl_EdpHsAKzhmCUyjHUTPuHBXJjxnYQ`（P2.7）重新 Promote；随后以该变更对应提交回退 GitHub `main`。
+- GitHub 自动部署尚未启用：现有项目 `link` 为空。团队限定访问令牌可部署、但无 GitHub OAuth 用户身份，无法通过 CLI 建立仓库关联；须由项目所有者在 Vercel Dashboard 完成一次 GitHub 连接。
 
 ## 2026-08-26：P7-05 本地收敛证据
 

@@ -7,7 +7,7 @@
 | [P1](P1/README.md)                        | 历史完成                                                      | 单人本地掼蛋 MVP 的任务、测试、发布与收口证据。                 |
 | [P2](P2/README.md)                        | 已完成；P2.7 Production 已人工验收                            | 移动/PWA、normal-vNext 产品策略和发布记录。                     |
 | [P2.5](P2.5/tasks.md)                     | 历史归档，已撤销                                              | expert-24 路线的可恢复 Git 历史；不是执行入口。                 |
-| [P7](P7/README.md)                        | P7-00 至 P7-04、P7-06 至 P7-23 已验收；P7-05 待发布验收       | normal-vNext 的公开信息策略升级；不恢复 P2.5。                  |
+| [P7](P7/README.md)                        | P7-00 至 P7-23 已验收；2026-08-27 已完成 Preview/Production | normal-vNext 的公开信息策略升级；不恢复 P2.5。                  |
 | [P3](P3/README.md)                        | 本地多人已完成 P3-01 至 P3-10；P3-11 待人工验收，P3-12 未启动 | 权威多人后端仅限本地 Vite/Miniflare/SQLite 联调，尚未公网部署。 |
 | [P1-P3 执行计划](P1-P3-execution-plan.md) | 当前总表                                                      | 唯一的跨阶段依赖、状态和验收门槛来源。                          |
 
@@ -15,7 +15,7 @@
 
 - 当前唯一产品策略为 normal-vNext；normal-v1 仅作离线历史对照。
 - P2.7 - normal-vNext 策略稳定化已在本地和 GitHub 版本化，并于 2026-07-23 部署到 Vercel Production；正式入口为 `https://card-game-wentop.vercel.app/`，用户已完成试玩并确认验收。
-- P7-23 和单人发布开关已合入本地 `main`，但尚未创建 P7 Preview 或新的 Production 验收；线上仍是已验收的 P2.7 版本。根目录 `settings.ini` 默认禁用多人入口。
+- P7-23 和单人发布开关已随 P7 Production 发布；根目录 `settings.ini` 默认禁用多人入口。GitHub 自动部署仍须在 Vercel Dashboard 完成一次 GitHub OAuth 关联。
 - 当前 P3 收口工作是 P3-11 的本地人工验收；P3-12 的公网部署仍未获得启动条件。
 
 ## 维护规则

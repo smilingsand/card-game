@@ -46,14 +46,14 @@
 | 己方路线固定牌例 | `estimateNormalVNextSelfRoute` | 对每个规则层合法候选只分析己方剩余牌，输出死单、自然组、控制牌保留与固定估计手数。 |
 | 确定性与边界     | 同一固定牌例                   | 同输入重复结果相同；无对手手牌、搜索、随机或墙钟预算。                             |
 
-## P7-05（ready_for_acceptance）
+## P7-05（accepted）
 
 | 验收项                    | 证据                                               | 结果                                                                                                                                                         |
 | ------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | normal-vNext 专项性能门槛 | `normal-vnext-benchmark.test.ts`                   | 固定 seed `0, 1, 7, 42, 99` 只测生产选择器的首次决策；每个返回动作均属于规则层 `legalActions`。                                                              |
 | 性能回归上限              | 同一测试                                           | 2026-08-26 用户本地复测通过：5 个 seed 的测试主体为 10.917 秒，最慢单次决策低于 5 秒。5 秒上限由 P7-00 的约 3.57 秒基线加回归余量确定，不把基线误述为 2 秒。 |
 | 历史基准隔离              | `bot-benchmark.test.ts` 与 `core.vitest.config.ts` | 保留 normal/basic 百局历史基准作为独立慢测；`test:core` 改为执行 P7 专项基准，避免以不覆盖 normal-vNext 的长跑阻塞 P7 验收。                                 |
-| 发布验收                  | Preview、Production 与 `release.md`                | 未执行；需在用户授权发布后按项目流程完成。                                                                                                                   |
+| 发布验收                  | Preview、Production 与 `release.md`                | 2026-08-27 已完成：Preview `dpl_AW5J4NCiwdBBZERdgohhmXpF6veM` 与 Production `dpl_DcwqGuGDGW83dSGTNfm1jS7sq1Js` 均匿名 HTTPS 复核 HTTP 200，并返回当前 bundle。 |
 
 ## P7-06（accepted）
 
