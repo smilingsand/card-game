@@ -197,3 +197,11 @@
 | 完整自然对子优先跟牌 | `normal-vnext-bot.test.ts` 的 P7-22 通用结构回归 | 对手持权时，低对子即使同时参与潜在顺子，仍作为完整自然普通对子进入安全候选；在对4、对J、对K并存时选择最小充分的对4，不再 pass。 |
 | 适用边界 | `isCompleteNaturalPairFollowResponse` | 仅完整自然对子；单张、三带二、顺子与其他复合牌型继续使用既有结构排序；王、级牌、红桃级牌和天然炸弹保护不放宽。 |
 | 类型、格式、lint 与性能 | `npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run format:check`、normal-vNext 与桌面控制器回归、性能门槛 | 2026-08-27：96/96 回归通过；类型、lint、格式通过；5 seed 基准测试主体 2.769 秒，最慢单次决策低于 5 秒。 |
+
+## P7-23（accepted）
+
+| 验收项 | 证据 | 预期 / 当前结果 |
+| --- | --- | --- |
+| 公开残局多炸弹夺权 | `normal-vnext-bot.test.ts` 的 P7-23 固定牌例 | 任一对手剩余 6 张、己方两副完整天然炸弹时，机器人整副炸弹压制并夺回牌权；只使用 `remainingCardCounts`，不读取对手手牌。84/84 normal-vNext 固定牌例通过。 |
+| 资源与规则边界 | `isNaturalWholeBomb`、`splitsNaturalBomb`、P7-17 回归 | 仅完整天然炸弹可触发；不拆炸，队友临门让牌、直接收尾和既有强制阻断优先级不变。 |
+| 格式、类型、专项与性能 | `npm.cmd run format:check`、typecheck、lint、Vitest 专项及 5 seed 基准 | 2026-08-27：格式、类型和 lint 通过；5 seed 基准测试主体 2.900 秒，最慢单次决策低于 5 秒。 |

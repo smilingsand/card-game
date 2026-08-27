@@ -882,6 +882,8 @@ export function describeNormalVNextBombEconomics(
   )
     reasons.push("保队友临门牌权");
   if (opponentThreat(view, 2)) reasons.push("阻断公开临门对手");
+  if (hasMultipleNaturalWholeBombs(view) && opponentThreat(view, 6))
+    reasons.push("残局双炸抢头家");
   if (directFinish(action, view)) reasons.push("炸后直接收尾");
   return { allowed: reasons.length > 0, reasons, publicControlExposure };
 }
@@ -889,10 +891,18 @@ export function describeNormalVNextBombEconomics(
 /**
  * A bomb can move ahead of ordinary responses only when the public reason is
  * positive and every ordinary response damages a structure while leaving a
- * strictly worse one-ply route. This deliberately prevents a mere opponent
- * card-count threat from spending a bomb over a cheap normal response.
+ * strictly worse one-ply route. A public six-card endgame together with two
+ * intact natural bombs is the explicit exception: its control value is high
+ * enough to take the lead without inferring any hidden opponent cards.
  */
 function shouldPrioritizeBomb(action: PlayAction, view: BotView): boolean {
+  if (
+    isNaturalWholeBomb(action, view) &&
+    hasMultipleNaturalWholeBombs(view) &&
+    opponentThreat(view, 6) &&
+    !directFinish(action, view)
+  )
+    return true;
   const economics = describeNormalVNextBombEconomics(action, view);
   if (!economics?.allowed || directFinish(action, view)) return false;
   const ordinaryResponses = view.legalActions.filter(
@@ -927,6 +937,23 @@ function isNaturalWholeBomb(action: PlayAction, view: BotView): boolean {
     (naturalGroups(view).get(selected[0]?.rank ?? "2")?.length ?? 0) ===
       selected.length
   );
+}
+
+/** Counts distinct complete natural bombs available under the current rules. */
+function countNaturalWholeBombs(view: BotView): number {
+  return new Set(
+    view.legalActions
+      .filter(
+        (action): action is PlayAction =>
+          isPlay(action) && isNaturalWholeBomb(action, view),
+      )
+      .map((action) => [...action.cardIds].sort().join("|")),
+  ).size;
+}
+
+/** Multiple intact natural bombs are public control capital in an endgame. */
+function hasMultipleNaturalWholeBombs(view: BotView): boolean {
+  return countNaturalWholeBombs(view) >= 2;
 }
 
 /**
@@ -1526,6 +1553,9 @@ export function chooseNormalVNextBotAction(
     };
 
   const forcedBlock = nextSeatThreat.mode === "forced";
+  const endgameTakeoverBomb = candidates.find((action) =>
+    shouldPrioritizeBomb(action, view),
+  );
   const damageLimit = allowedStructureDamage(view);
   const safeCandidates = candidates.filter(
     (action) =>
@@ -1545,9 +1575,10 @@ export function chooseNormalVNextBotAction(
     finish ??
     (forcedBlock
       ? (rankForcedBlockCandidates(view).at(0) ?? pass ?? candidates.at(0))
-      : onlyHighCostStructureResponses
-        ? pass
-        : (safeCandidates.at(0) ?? pass ?? candidates.at(0)));
+      : (endgameTakeoverBomb ??
+        (onlyHighCostStructureResponses
+          ? pass
+          : safeCandidates.at(0) ?? pass ?? candidates.at(0))));
   const selectedWithFallback = selected ?? legalActionFallback(view);
   if (!selectedWithFallback) return undefined;
 

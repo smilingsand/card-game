@@ -621,6 +621,39 @@ test("P7-03：炸弹经济只允许公开可解释的保队友、断对手或直
   expect("opponentHands" in economics!).toBe(false);
 });
 
+test("P7-23：多副完整炸弹且对手六张以内时主动炸弹抢头家", () => {
+  const pass: TurnAction = { type: "pass", actor: "west" };
+  const sixBomb = normalBomb(["six-a", "six-b", "six-c", "six-d"], 6);
+  const sevenBomb = normalBomb(
+    ["seven-a", "seven-b", "seven-c", "seven-d"],
+    7,
+  );
+  const view = baseView({
+    selfSeat: "west",
+    leader: "south",
+    highestSeat: "south",
+    selfHand: [
+      card("six-a", "6"),
+      card("six-b", "6"),
+      card("six-c", "6"),
+      card("six-d", "6"),
+      card("seven-a", "7"),
+      card("seven-b", "7"),
+      card("seven-c", "7"),
+      card("seven-d", "7"),
+    ],
+    legalActions: [pass, sixBomb, sevenBomb],
+    remainingCardCounts: { east: 15, south: 6, west: 8, north: 15 },
+  });
+
+  expect(describeNormalVNextBombEconomics(sixBomb, view)?.reasons).toContain(
+    "残局双炸抢头家",
+  );
+  const decision = chooseNormalVNextBotAction(view);
+  expect(decision?.action.type).toBe("play");
+  expect([sixBomb, sevenBomb]).toContain(decision?.action);
+});
+
 test("P7-04：路线评估只看己方候选后的手牌，且固定输入可重放", () => {
   const sixes = pair(["six-a", "six-b"], 6);
   const view = baseView({
