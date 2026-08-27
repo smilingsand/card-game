@@ -16,16 +16,16 @@
 ## 本项目基础
 
 - `packages/guandan-core/src/games/guandan/bot-view.ts`：已提供己方手牌、公开事件、剩余张数和合法动作。
-- `normal-vnext-bot.ts`：已有结构破坏成本、控制牌/逢人配成本、队友让牌和下家残局阻断。
+- `normal-vnext-bot.ts`：现已集成公开 observation、结构破坏/控制牌/逢人配成本、己方路线评估、队友让牌、公开残局阻断和炸弹经济。
 - `simulation.ts`：已有固定 seed 自动对局、合法性校验与 BotView 诊断接口。
 - `bot-benchmark.ts`、`bot-benchmark.test.ts` 与 10k 分批基准已存在，可作为 P7-00 的固定 seed 对局和计时基线入口；P7 不应另建第二套规则模拟器。
-- 缺口：公开事件中需要可供策略记牌的公开牌面表示；赛局上下文未作为策略只读输入规范化；当前尚无统一 observation/评分分项/基准协议。
+- 已补齐公开动作投影、赛局上下文、统一 observation/评分分项和固定 seed 基准协议；当前已知发布缺口仅为 P7-05 的 Preview/Production 验收。
 
 ## P7-00 实施发现
 
 - 已接受的 ADR-0014 已冻结“BotView + 公开比较键”的 P2 观察模型；P7-01 只能在新增 ADR 下扩展为公开牌面统计，不能绕过该信息边界。
 - 已接受的 ADR-0024 已规定 normal-vNext 是唯一产品策略且 expert-24 已撤销；P7-00 必须引用并保持该决定。
-- P3-07/P3-11 仍处于 `ready_for_acceptance`；P7-00 不改变其代码或验收状态，只在 P7 测试矩阵中要求后续策略改动回归其个人投影边界。
+- P3-07 已验收；P3-11 已完成自动矩阵并等待本地浏览器人工验收。P7 不改变其代码或验收状态，只要求后续策略改动保持个人投影边界。
 - 基线命令根因：`vite-node` 未使用 `--script`，所以后续 `--profile`、`--seeds` 等参数未可靠转发到模拟脚本。官方 README 规定 `--script` 会把全部后续选项转给脚本。
 - 直接以 `--script` 试跑时，Vite 需要在 `frontend/node_modules/.vite-temp` 写入临时配置，受当前沙箱限制报 `EPERM`；需在受控权限下验证，不能据此归因于项目缺陷。
 - 基线入口已拆分为 `normal-vnext-simulation-runner.ts` 与 CLI 薄封装。运行器显式注入时钟、模拟、诊断与文件系统依赖，单测可在无真实牌局和无真实写盘的情况下覆盖成功、失败与报告行为。
@@ -33,8 +33,8 @@
 
 ## P7-06 接入发现
 
-- `chooseNormalVNextBotAction` 当前实际消费了 P7-02 的候选评分与 `analyzeCooperationSignal`，但 `describeNormalVNextBombEconomics` 和 `estimateNormalVNextSelfRoute` 只被固定牌例调用。
-- `createStrategyObservation` 已可由 `BotView.publicActions` 纯函数重建，但当前选择器没有把它用于任何候选分项。
+- `chooseNormalVNextBotAction` 已消费 P7-02 候选评分、公开 observation、炸弹经济、己方路线估计和协同信号；最终选择仍只来自规则层合法动作。
+- `createStrategyObservation` 由 `BotView.publicActions` 纯函数重建，并已成为公开控制资源和残局评分输入；不会暴露或推断对手隐藏持牌。
 - 接入必须保持所有候选来自 `view.legalActions`；公开牌统计只可降低或提高公开控制资源风险，不能推断具体对手手牌。
 
 ## 约束来源

@@ -22,7 +22,7 @@ Guandan rules, scoring conventions, and local variants differ between regions. P
 | Single-player | 1 human + 3 bots                  | Use the Vercel deployment or start the frontend locally | Publicly deployed on Vercel                                                  |
 | Multiplayer   | 1–4 humans; bots fill empty seats | Start both the local frontend and authoritative backend | Local development only; not yet deployed to public Cloudflare infrastructure |
 
-The public Vercel deployment currently provides **single-player only**. Multiplayer is implemented in the repository, but it requires the local Wrangler/Miniflare backend and cannot currently be created or joined through the public Vercel site.
+The public Vercel deployment currently provides **single-player only**. The repository-root [`settings.ini`](settings.ini) defaults `multiplayers-game = false`, which disables the multiplayer entry and prevents `?room=` links from bypassing it. Multiplayer is implemented in the repository, but it requires the local Wrangler/Miniflare backend and cannot currently be created or joined through the public Vercel site.
 
 ## Bot Strategy Status
 
@@ -135,6 +135,15 @@ This starts the frontend only and is suitable for single-player games.
 ### Local Server Only
 
 Multiplayer requires both the frontend and authoritative backend.
+
+Before starting local multiplayer, set the repository-root `settings.ini` feature flag to `true` and restart Vite:
+
+```ini
+[features]
+multiplayers-game = true
+```
+
+Keep this flag `false` for a single-player-only Vercel deployment. It is a build-time setting, so changing it requires a new build and deployment.
 
 From the repository root, run:
 

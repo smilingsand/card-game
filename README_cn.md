@@ -21,7 +21,7 @@
 | 单人游戏 | 1 名真人玩家 + 3 名机器人        | 直接访问 Vercel，或本地启动前端    | 已部署到 Vercel 公网                          |
 | 多人游戏 | 1–4 名真人玩家；空位由机器人补足 | 必须同时启动本地前端与本地权威后端 | 仅本地开发环境可用，尚未部署到公网 Cloudflare |
 
-因此，Vercel 上的公开地址当前只提供**单人游戏**。多人模式虽然已在代码中实现，但必须使用本地 Wrangler/Miniflare 后端运行；不能通过 Vercel 公网地址创建或加入多人房间。
+因此，Vercel 上的公开地址当前只提供**单人游戏**。仓库根目录的 [`settings.ini`](settings.ini) 默认设置 `multiplayers-game = false`，会禁用多人入口，并阻止通过 `?room=` 链接绕过限制。多人模式虽然已在代码中实现，但必须使用本地 Wrangler/Miniflare 后端运行；不能通过 Vercel 公网地址创建或加入多人房间。
 
 ## 机器人策略现状
 
@@ -133,7 +133,16 @@ npm.cmd --prefix frontend run dev
 
 ### 目前仅支持本地服务器版本
 
-多人模式需要前端和权威后端同时运行。请在仓库根目录执行：
+多人模式需要前端和权威后端同时运行。请先把仓库根目录 `settings.ini` 的功能开关改为 `true`，然后重启 Vite：
+
+```ini
+[features]
+multiplayers-game = true
+```
+
+仅发布单人 Vercel 版本时应保持为 `false`。该配置在构建时读取，修改后必须重新构建和部署。
+
+然后在仓库根目录执行：
 
 ```powershell
 npm.cmd run p4:dev
