@@ -49,6 +49,7 @@ const LEAD_BOMB_SPLIT_ROUTE_ADVANTAGE = 2;
 const WILDCARD_DOWNGRADE_COST = 700;
 const RESPONSE_ANALYSIS_CANDIDATE_LIMIT = 24;
 const NATURAL_FOLLOW_CONTEST_BONUS_PER_CARD = 20;
+const LOW_VALUE_CONSECUTIVE_PAIR_MAX_KEY = 10;
 
 type PlayAction = Extract<TurnAction, { readonly type: "play" }>;
 type PatternType = PlayAction["interpretation"]["type"];
@@ -94,6 +95,7 @@ export interface NormalVNextCandidateScore {
     readonly wildcardOpportunityCost: number;
     readonly attachmentCost: number;
     readonly handSheddingBenefit: number;
+    readonly leadConsecutivePairOverlapBenefit: number;
     readonly interceptionBenefit: number;
     readonly publicControlExposureBenefit: number;
     readonly selfRouteCost: number;
@@ -470,6 +472,8 @@ function scoreLegalNormalVNextCandidate(
   const control = controlResourceCost(action, view);
   const wildcard = wildcardOpportunityCost(action, view);
   const attachment = attachmentCost(action, view);
+  const leadConsecutivePairOverlapBenefit =
+    leadingConsecutivePairOverlapBenefit(action, view);
   const handSheddingBenefit = isNaturalMiddleStructure(action, view)
     ? action.cardIds.length * 60
     : isNaturalOrdinaryFollowResponse(action, view)
@@ -503,6 +507,8 @@ function scoreLegalNormalVNextCandidate(
   if (structure > 0) reasons.push("保留现有复合结构");
   if (control > 0) reasons.push("保留控制资源");
   if (wildcard > 0) reasons.push("保留红桃级牌逢人配");
+  if (leadConsecutivePairOverlapBenefit > 0)
+    reasons.push("领牌：完整低连对抵销重叠连对损伤");
   if (handSheddingBenefit > 0) reasons.push("自然牌型卸载收益");
   if (interceptionBenefit > 0) reasons.push("公开残局拦截收益");
   if (publicControlExposureBenefit > 0)
@@ -519,6 +525,7 @@ function scoreLegalNormalVNextCandidate(
       wildcard +
       attachment -
       handSheddingBenefit -
+      leadConsecutivePairOverlapBenefit -
       interceptionBenefit -
       publicControlExposureBenefit +
       selfRouteCost -
@@ -530,6 +537,7 @@ function scoreLegalNormalVNextCandidate(
       wildcardOpportunityCost: wildcard,
       attachmentCost: attachment,
       handSheddingBenefit,
+      leadConsecutivePairOverlapBenefit,
       interceptionBenefit,
       publicControlExposureBenefit,
       selfRouteCost,
@@ -578,6 +586,58 @@ function isNaturalMiddleStructure(action: PlayAction, view: BotView): boolean {
   return [...selectedByRank].every(
     ([rank, count]) => count === (groups.get(rank)?.length ?? 0),
   );
+}
+
+/**
+ * A low, complete natural consecutive-pair lead may overlap one additional
+ * consecutive pair in the hand. That overlap is a future option rather than a
+ * broken card group, so do not let its cost force a higher lead. This is
+ * deliberately limited to leading; response and all bomb/other-structure
+ * protections continue to use the full structural cost.
+ */
+function leadingConsecutivePairOverlapBenefit(
+  action: PlayAction,
+  view: BotView,
+): number {
+  if (
+    view.highestSeat !== undefined ||
+    action.interpretation.type !== "three-consecutive-pairs" ||
+    (comparisonCost(action).at(-1) ?? Number.MAX_SAFE_INTEGER) >
+      LOW_VALUE_CONSECUTIVE_PAIR_MAX_KEY
+  )
+    return 0;
+  const selected = selectedCards(action, view);
+  if (
+    selected.some(
+      (card) =>
+        card.suit === "joker" ||
+        card.rank === view.levelRank,
+    )
+  )
+    return 0;
+  const groups = naturalGroups(view);
+  const selectedByRank = selected.reduce<Map<Card["rank"], number>>(
+    (counts, card) => counts.set(card.rank, (counts.get(card.rank) ?? 0) + 1),
+    new Map(),
+  );
+  if (
+    selectedByRank.size !== 3 ||
+    [...selectedByRank].some(
+      ([rank, count]) => count !== 2 || (groups.get(rank)?.length ?? 0) !== 2,
+    )
+  )
+    return 0;
+  const remainingGroups = naturalGroupsForCards(
+    view.selfHand.filter((card) => !action.cardIds.includes(card.id)),
+    view.levelRank,
+  );
+  const overlappingPairsLost = Math.max(
+    0,
+    naturalStructureCount(groups, 2, 3) -
+      naturalStructureCount(remainingGroups, 2, 3) -
+      1,
+  );
+  return overlappingPairsLost * BREAK_CONSECUTIVE_PAIR_COST;
 }
 
 /**

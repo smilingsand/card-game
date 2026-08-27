@@ -432,6 +432,7 @@ test("P7-02：候选评分逐项公开成本、收益与可复核总分", () => 
       controlResourceCost: 0,
       wildcardOpportunityCost: 0,
       handSheddingBenefit: 20,
+      leadConsecutivePairOverlapBenefit: 0,
       interceptionBenefit: 0,
       publicControlExposureBenefit: 0,
       selfRouteCost: -3,
@@ -445,6 +446,7 @@ test("P7-02：候选评分逐项公开成本、收益与可复核总分", () => 
       lowScore!.breakdown.wildcardOpportunityCost +
       lowScore!.breakdown.attachmentCost -
       lowScore!.breakdown.handSheddingBenefit -
+      lowScore!.breakdown.leadConsecutivePairOverlapBenefit -
       lowScore!.breakdown.interceptionBenefit -
       lowScore!.breakdown.publicControlExposureBenefit +
       lowScore!.breakdown.selfRouteCost -
@@ -1388,6 +1390,71 @@ test("P7-15：对手持权时，普通完整牌型优先最小充分压制而非
   expect(decide(straightHand, [pass, highStraight, lowStraight])?.action).toBe(
     lowStraight,
   );
+});
+
+test("P7-16：首轮领牌时完整低连对不因重叠连对而让位给更高连对", () => {
+  const lowConsecutivePairs = pattern(
+    ["four-a", "four-b", "five-a", "five-b", "six-a", "six-b"],
+    "three-consecutive-pairs",
+    6,
+  );
+  const highConsecutivePairs = pattern(
+    ["nine-a", "nine-b", "ten-a", "ten-b", "jack-a", "jack-b"],
+    "three-consecutive-pairs",
+    11,
+  );
+  const view = baseView({
+    highestSeat: undefined,
+    selfHand: [
+      card("three-a", "3"),
+      card("three-b", "3"),
+      card("three-c", "3"),
+      card("four-a", "4"),
+      card("four-b", "4"),
+      card("five-a", "5"),
+      card("five-b", "5"),
+      card("six-a", "6"),
+      card("six-b", "6"),
+      card("nine-a", "9"),
+      card("nine-b", "9"),
+      card("ten-a", "10"),
+      card("ten-b", "10"),
+      card("jack-a", "J"),
+      card("jack-b", "J"),
+    ],
+    legalActions: [highConsecutivePairs, lowConsecutivePairs],
+    remainingCardCounts: { east: 15, south: 27, west: 27, north: 27 },
+  });
+
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(lowConsecutivePairs);
+});
+
+test("P7-16：重叠连对抵销不用于跟牌", () => {
+  const lowConsecutivePairs = pattern(
+    ["four-a", "four-b", "five-a", "five-b", "six-a", "six-b"],
+    "three-consecutive-pairs",
+    6,
+  );
+  const view = baseView({
+    highestSeat: "south",
+    selfHand: [
+      card("three-a", "3"),
+      card("three-b", "3"),
+      card("three-c", "3"),
+      card("four-a", "4"),
+      card("four-b", "4"),
+      card("five-a", "5"),
+      card("five-b", "5"),
+      card("six-a", "6"),
+      card("six-b", "6"),
+    ],
+    legalActions: [{ type: "pass", actor: "east" }, lowConsecutivePairs],
+  });
+
+  expect(
+    scoreNormalVNextCandidate(lowConsecutivePairs, view)?.breakdown
+      .leadConsecutivePairOverlapBenefit,
+  ).toBe(0);
 });
 
 test("开中局：44422 对 AAAKK 的高控制资源组合倾向 pass", () => {
