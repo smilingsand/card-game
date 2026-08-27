@@ -925,6 +925,25 @@ function compareDescending(
   return JSON.stringify(left).localeCompare(JSON.stringify(right));
 }
 
+/**
+ * A public-exhausted joker is a future reclaim-control resource. In a forced
+ * lead block, spending it only to keep the lead gives away the one card that
+ * can still reclaim control after an opponent wins a later trick.
+ */
+function isPubliclyUnbeatableSingleLead(
+  action: PlayAction,
+  view: BotView,
+): boolean {
+  if (action.interpretation.type !== "single" || action.cardIds.length !== 1)
+    return false;
+  const card = selectedCards(action, view)[0];
+  if (card?.rank === "big-joker") return true;
+  if (card?.rank !== "small-joker") return false;
+  return (
+    createStrategyObservation(view).publicCards.rankCounts["big-joker"] ?? 0
+  ) >= 2;
+}
+
 function rankThreatLeadCandidates(
   view: BotView,
   threat: NextSeatEndgameThreat,
@@ -937,7 +956,17 @@ function rankThreatLeadCandidates(
   const hasNonBomb = candidates.some(
     (action) => !bombs.has(action.interpretation.type),
   );
-  return [...candidates].sort((left, right) => {
+  const spendableCandidates =
+    threat.mode === "forced"
+      ? candidates.filter(
+          (action) =>
+            directFinish(action, view) ||
+            !isPubliclyUnbeatableSingleLead(action, view),
+        )
+      : candidates;
+  const rankedCandidates =
+    spendableCandidates.length > 0 ? spendableCandidates : candidates;
+  return [...rankedCandidates].sort((left, right) => {
     // Bombs remain backloaded when leading; the threat mode is not permission to burn one early.
     const bombDelta =
       Number(hasNonBomb && bombs.has(left.interpretation.type)) -
@@ -959,9 +988,10 @@ function rankForcedBlockCandidates(view: BotView): readonly PlayAction[] {
   const nonBombs = plays.filter(
     (action) => !bombs.has(action.interpretation.type),
   );
-  return [...(nonBombs.length > 0 ? nonBombs : plays)].sort((left, right) =>
-    compareDescending(left, right, view),
-  );
+  // Every candidate here is already rule-valid against the current trick.
+  // Preserve a reclaim-control reserve by using the normal resource-aware
+  // ordering instead of automatically burning the largest possible response.
+  return rankResponseCandidates(view, nonBombs.length > 0 ? nonBombs : plays);
 }
 
 /** Final bot safety net: strategy may rank actions, but never removes rule-engine actions. */

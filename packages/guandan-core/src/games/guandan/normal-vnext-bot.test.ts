@@ -1136,6 +1136,69 @@ test("下家剩 2 张且可能成对时，领出对子选择更大牌点", () =>
   ).toBe(high);
 });
 
+test("P7-20：下家临门且大王全出时，领牌保留小王作后手控制", () => {
+  const ten = single("ten", 10);
+  const ace = single("ace", 14);
+  const smallJoker = single("small", 16);
+  const publicBigJokers = ["a", "b"].map((suffix, index) => ({
+    sequence: index + 1,
+    actor: "north" as const,
+    type: "play" as const,
+    patternType: "single" as const,
+    cards: [{ id: `big-${suffix}`, suit: "joker" as const, rank: "big-joker" as const }],
+  }));
+  const view = baseView({
+    selfSeat: "west",
+    leader: "west",
+    highestSeat: undefined,
+    selfHand: [
+      card("ten", "10"),
+      card("ace", "A"),
+      card("small", "small-joker"),
+    ],
+    legalActions: [smallJoker, ace, ten],
+    publicActions: publicBigJokers,
+    remainingCardCounts: { east: 12, south: 2, west: 3, north: 15 },
+  });
+
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(ace);
+  expect(
+    chooseNormalVNextBotAction(
+      baseView({
+        selfSeat: "west",
+        leader: "west",
+        highestSeat: undefined,
+        selfHand: [card("small", "small-joker")],
+        legalActions: [smallJoker],
+        publicActions: publicBigJokers,
+        remainingCardCounts: { east: 12, south: 2, west: 1, north: 15 },
+      }),
+    )?.action,
+  ).toBe(smallJoker);
+});
+
+test("P7-20：临门强制跟牌仍用最小充分牌，保留后续接牌资源", () => {
+  const ten = single("ten", 10);
+  const ace = single("ace", 14);
+  const smallJoker = single("small", 16);
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      selfSeat: "west",
+      leader: "north",
+      highestSeat: "north",
+      selfHand: [
+        card("ten", "10"),
+        card("ace", "A"),
+        card("small", "small-joker"),
+      ],
+      legalActions: [{ type: "pass", actor: "west" }, smallJoker, ace, ten],
+      remainingCardCounts: { east: 12, south: 2, west: 3, north: 15 },
+    }),
+  );
+
+  expect(decision?.action).toBe(ten);
+});
+
 test("下家剩 4、5 张时公开推测包含炸弹与三带二风险", () => {
   const four = analyzeNextSeatEndgameThreat(
     baseView({ remainingCardCounts: { east: 3, south: 8, west: 8, north: 4 } }),
@@ -1946,7 +2009,7 @@ test("P6：普通早中盘优先普通散单，不无必要使用控制资源", 
   expect(chooseNormalVNextBotAction(view)?.action).toBe(six);
 });
 
-test("P6：下家只剩三张时仍保留强制阻断", () => {
+test("P7-20：下家只剩三张时强制阻断仍保留大牌回收资源", () => {
   const pass: TurnAction = { type: "pass", actor: "east" };
   const six = single("6", 6);
   const ace = single("A", 14);
@@ -1957,5 +2020,5 @@ test("P6：下家只剩三张时仍保留强制阻断", () => {
   });
 
   expect(analyzeNextSeatEndgameThreat(view).mode).toBe("forced");
-  expect(chooseNormalVNextBotAction(view)?.action).toBe(ace);
+  expect(chooseNormalVNextBotAction(view)?.action).toBe(six);
 });

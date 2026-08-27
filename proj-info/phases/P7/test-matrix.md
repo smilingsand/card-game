@@ -173,3 +173,11 @@
 | 自然普通牌型候选保留 | `normal-vnext-bot.test.ts` 的 P7-19 固定牌例 | 即使前段存在 23 个红桃级牌降配为低对子投影，后段自然对子仍进入领牌评分并被选中。 |
 | 候选池有界 | `collectLeadAnalysisCandidates` | 在既有顺子、连对、钢板锚点之外，对单张、对子、三张、三带二每类至多保留一个完整自然候选；常规深度评分仍最多 24 个候选。 |
 | 类型、格式、lint 与性能 | `npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run format:check`、normal-vNext 专项测试与性能门槛 | 2026-08-27：79/79 专项固定牌例通过；类型、lint、格式通过；5 seed 基准测试主体 3.191 秒，最慢单次决策低于 5 秒。 |
+
+## P7-20（accepted）
+
+| 验收项 | 证据 | 结果 |
+| --- | --- | --- |
+| 临门领牌保留回收控制 | `normal-vnext-bot.test.ts` 的 P7-20 固定牌例 | 大王两张均已公开打出时，小王为不可压制后手；下家两张而己方尚有 A、10 时，领 A 而非无意义先耗小王；仅剩小王可直接收尾时仍可出。 |
+| 强制跟牌最小充分 | `normal-vnext-bot.test.ts` P7-20 与 `table-controller.test.ts` 回归 | 临门强制跟牌改用最小充分合法牌；小王足够时不烧大王，普通 6 足够时不烧 A。 |
+| 类型、格式、lint 与性能 | `npm.cmd run typecheck`、`npm.cmd run lint`、`npm.cmd run format:check`、normal-vNext 专项测试与性能门槛 | 2026-08-27：normal-vNext 与桌面控制器回归 94/94 通过；类型、lint、格式通过；5 seed 基准测试主体 2.945 秒，最慢单次决策低于 5 秒。 |

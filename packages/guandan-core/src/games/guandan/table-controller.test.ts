@@ -527,7 +527,7 @@ test("normal strategy uses a matching three-with-pair instead of an unnecessary 
   });
 });
 
-test("normal-vNext blocks the next seat with the largest joker when it has one card", () => {
+test("normal-vNext blocks the next seat with the smallest sufficient joker and retains the big joker", () => {
   const eastAce = card("east-a", "A");
   const bigJoker = card("north-big", "big-joker", "joker");
   const smallJokerOne = card("north-small-1", "small-joker", "joker");
@@ -562,12 +562,12 @@ test("normal-vNext blocks the next seat with the largest joker when it has one c
   ).toMatchObject({
     type: "play",
     actor: "north",
-    cardIds: [bigJoker.id],
-    interpretation: { type: "single", comparisonKey: [17] },
+    cardIds: [smallJokerOne.id],
+    interpretation: { type: "single", comparisonKey: [16] },
   });
 });
 
-test("normal-vNext blocks the next seat with the largest joker before preserving a straight", () => {
+test("normal-vNext blocks the next seat with the smallest sufficient joker while retaining the big joker", () => {
   const eastNine = card("east-9", "9");
   const northStraight = [
     card("north-10", "10"),
@@ -608,7 +608,7 @@ test("normal-vNext blocks the next seat with the largest joker before preserving
   ).toMatchObject({
     type: "play",
     actor: "north",
-    cardIds: [bigJoker.id],
-    interpretation: { type: "single", comparisonKey: [17] },
+    cardIds: [smallJoker.id],
+    interpretation: { type: "single", comparisonKey: [16] },
   });
 });
