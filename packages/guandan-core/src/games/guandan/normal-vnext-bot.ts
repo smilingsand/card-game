@@ -699,17 +699,13 @@ function leadingLowStraightUnloadBenefit(
  * opponent's lead. This deliberately covers every ordinary pattern, while
  * leaving each pattern's established comparison order intact.
  */
-function isNaturalOrdinaryFollowResponse(
+function isCompleteNaturalOrdinaryFollowResponse(
   action: PlayAction,
   view: BotView,
 ): boolean {
   if (view.highestSeat === undefined || bombs.has(action.interpretation.type))
     return false;
-  if (
-    structureDamageCost(action, view) !== 0 ||
-    wildcardOpportunityCost(action, view) !== 0
-  )
-    return false;
+  if (wildcardOpportunityCost(action, view) !== 0) return false;
   const selected = selectedCards(action, view);
   if (
     selected.some(
@@ -728,6 +724,26 @@ function isNaturalOrdinaryFollowResponse(
   );
   return [...selectedByRank].every(
     ([rank, count]) => count === (groups.get(rank)?.length ?? 0),
+  );
+}
+
+function isNaturalOrdinaryFollowResponse(
+  action: PlayAction,
+  view: BotView,
+): boolean {
+  return (
+    isCompleteNaturalOrdinaryFollowResponse(action, view) &&
+    structureDamageCost(action, view) === 0
+  );
+}
+
+function isCompleteNaturalPairFollowResponse(
+  action: PlayAction,
+  view: BotView,
+): boolean {
+  return (
+    action.interpretation.type === "pair" &&
+    isCompleteNaturalOrdinaryFollowResponse(action, view)
   );
 }
 
@@ -1164,6 +1180,20 @@ function rankResponseCandidates(
       Number(hasNonBomb && bombs.has(left.interpretation.type)) -
       Number(hasNonBomb && bombs.has(right.interpretation.type));
     if (bombDelta !== 0) return bombDelta;
+    const completeNaturalDelta =
+      Number(isCompleteNaturalPairFollowResponse(right, view)) -
+      Number(isCompleteNaturalPairFollowResponse(left, view));
+    if (completeNaturalDelta !== 0) return completeNaturalDelta;
+    if (
+      isCompleteNaturalPairFollowResponse(left, view) &&
+      isCompleteNaturalPairFollowResponse(right, view)
+    ) {
+      const comparisonDelta = compareNumberLists(
+        comparisonCost(left),
+        comparisonCost(right),
+      );
+      if (comparisonDelta !== 0) return comparisonDelta;
+    }
     if (
       left.interpretation.type === "three-with-pair" &&
       right.interpretation.type === "three-with-pair"
@@ -1501,7 +1531,8 @@ export function chooseNormalVNextBotAction(
     (action) =>
       directFinish(action, view) ||
       structureDamageCost(action, view) <= damageLimit ||
-      isLowValueNaturalStructureSpend(action, view),
+      isLowValueNaturalStructureSpend(action, view) ||
+      isCompleteNaturalPairFollowResponse(action, view),
   );
   const onlyHighCostStructureResponses =
     candidates.length > 0 &&

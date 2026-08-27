@@ -1244,6 +1244,33 @@ test("P7-21：低点数散牌与三张重叠时，领牌优先完整顺子卸载
   expect([straight34567, straight56789]).toContain(decision?.action);
 });
 
+test("P7-22：完整自然普通跟牌即使重叠顺子也不应无故 pass", () => {
+  const pass: TurnAction = { type: "pass", actor: "east" };
+  const fourPair = pair(["four-a", "four-b"], 4);
+  const jackPair = pair(["jack-a", "jack-b"], 11);
+  const kingPair = pair(["king-a", "king-b"], 13);
+  const decision = chooseNormalVNextBotAction(
+    baseView({
+      selfHand: [
+        card("three", "3"),
+        card("four-a", "4"),
+        card("four-b", "4"),
+        card("five", "5"),
+        card("six", "6"),
+        card("seven", "7"),
+        card("jack-a", "J"),
+        card("jack-b", "J"),
+        card("king-a", "K"),
+        card("king-b", "K"),
+      ],
+      legalActions: [pass, kingPair, jackPair, fourPair],
+      remainingCardCounts: { east: 10, south: 27, west: 27, north: 27 },
+    }),
+  );
+
+  expect(decision?.action).toBe(fourPair);
+});
+
 test("下家剩 4、5 张时公开推测包含炸弹与三带二风险", () => {
   const four = analyzeNextSeatEndgameThreat(
     baseView({ remainingCardCounts: { east: 3, south: 8, west: 8, north: 4 } }),
